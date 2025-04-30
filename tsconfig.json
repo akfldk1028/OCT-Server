@@ -15,7 +15,11 @@
     "outDir": ".erb/dll",
     "skipLibCheck": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@/components/*": ["./src/renderer/common/components/*"],
+      "@/utils/*": ["./src/renderer/utils/*"], 
+      "@/hooks/*": ["./src/renderer/hooks/*"],
+      "@/lib/*": ["./src/renderer/lib/*"]
     },
     "baseUrl": "."
   },
