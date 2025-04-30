@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "esnext",
+    "moduleResolution": "bundler",    // ✅ 핵심! vite + ESM import 대응
+    "moduleDetection": "force",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "resolveJsonModule": true,
+    "rootDir": ".",              // ✅ 현재 server 폴더 기준
+    "outDir": "./build",         // ✅ 결과는 server/build에 저장
+    "allowJs": false,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": false,
+  },
+  "include": ["./**/*"],
+  "exclude": ["node_modules", "build"]
+}
