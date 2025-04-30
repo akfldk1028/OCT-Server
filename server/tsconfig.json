@@ -9,12 +9,13 @@
     "skipLibCheck": true,
     "strict": true,
     "resolveJsonModule": true,
-    "rootDir": ".",              // ✅ 현재 server 폴더 기준
-    "outDir": "./build",         // ✅ 결과는 server/build에 저장
+    "rootDir": "./src",          // ✅ src 폴더 기준
+    "outDir": "./dist",          // ✅ 결과는 server/dist에 저장
     "allowJs": false,
     "isolatedModules": true,
     "allowImportingTsExtensions": false,
+    "typeRoots": ["./node_modules/@types", "./src/types"]  // 사용자 정의 타입 정의 포함
   },
-  "include": ["./**/*"],
-  "exclude": ["node_modules", "build"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
