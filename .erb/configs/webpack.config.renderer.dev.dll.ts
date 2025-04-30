@@ -14,6 +14,17 @@ checkNodeEnv('development');
 
 const dist = webpackPaths.dllPath;
 
+// MCP SDK와 관련 패키지를 DLL에서 제외
+const excludePackages = [
+  '@modelcontextprotocol/sdk',
+  // 추가적으로 문제가 되는 패키지 여기에 추가
+];
+
+// DLL에 포함될 패키지 필터링
+const dllDependencies = Object.keys(dependencies || {}).filter(
+  (dependency) => !excludePackages.includes(dependency)
+);
+
 const configuration: webpack.Configuration = {
   context: webpackPaths.rootPath,
 
@@ -23,15 +34,19 @@ const configuration: webpack.Configuration = {
 
   target: 'electron-renderer',
 
-  externals: ['fsevents', 'crypto-browserify'],
+  externals: [
+    'fsevents',
+    'crypto-browserify',
+    ...excludePackages, // 제외할 패키지들을 externals에도 추가
+  ],
 
   /**
-   * Use `module` from `webpack.config.renderer.dev.js`
+   * Use *`module`* from *`webpack.config.renderer.dev.js`*
    */
   module: require('./webpack.config.renderer.dev').default.module,
 
   entry: {
-    renderer: Object.keys(dependencies || {}),
+    renderer: dllDependencies, // 필터링된 의존성 목록 사용
   },
 
   output: {
@@ -40,6 +55,17 @@ const configuration: webpack.Configuration = {
     library: {
       name: 'renderer',
       type: 'var',
+    },
+  },
+
+  resolve: {
+    // 필요한 경우 fallback 추가
+    fallback: {
+      path: false,
+      fs: false,
+      stream: false,
+      buffer: false,
+      util: false,
     },
   },
 

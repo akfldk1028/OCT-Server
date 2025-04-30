@@ -1,4 +1,6 @@
 import { createRoot } from 'react-dom/client';
+import './tailwind.css'; // Tailwind CSS 임포트 (새로 추가)
+import './App.css'; // 기존 스타일 유지
 import App from './App';
 
 const container = document.getElementById('root') as HTMLElement;
