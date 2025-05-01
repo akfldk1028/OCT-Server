@@ -62,28 +62,6 @@ const configuration: webpack.Configuration = {
 
   module: {
     rules: [
-      // 1. 일반 CSS 파일 규칙을 가장 먼저 배치
-      {
-        test: /\.css$/,
-        use: [
-          'style-loader',
-          {
-            loader: 'css-loader',
-            options: {
-              sourceMap: true,
-              importLoaders: 1,
-            },
-          },
-          {
-            loader: 'postcss-loader',
-            options: {
-              sourceMap: true,
-            },
-          },
-        ],
-        exclude: /\.module\.css$/,
-      },
-      // 2. 모듈 SCSS 파일 규칙
       {
         test: /\.s?(c|a)ss$/,
         use: [
@@ -96,35 +74,24 @@ const configuration: webpack.Configuration = {
               importLoaders: 1,
             },
           },
-          {
-            loader: 'postcss-loader',
-            options: {
-              sourceMap: true,
-            },
-          },
           'sass-loader',
         ],
         include: /\.module\.s?(c|a)ss$/,
       },
-      // 3. 일반 SCSS 파일 규칙
       {
-        test: /\.s(c|a)ss$/,
+        test: /\.s?css$/,
         use: [
           'style-loader',
-          {
-            loader: 'css-loader',
-            options: {
-              sourceMap: true,
-              importLoaders: 1,
-            },
-          },
+          'css-loader',
+          'sass-loader',
           {
             loader: 'postcss-loader',
             options: {
-              sourceMap: true,
+              postcssOptions: {
+                plugins: [require('tailwindcss'), require('autoprefixer')],
+              },
             },
           },
-          'sass-loader'
         ],
         exclude: /\.module\.s?(c|a)ss$/,
       },

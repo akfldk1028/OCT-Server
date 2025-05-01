@@ -1,5 +1,5 @@
-import { InspectorConfig } from "@/lib/configurationTypes";
-import { DEFAULT_MCP_PROXY_LISTEN_PORT } from "@/lib/constants";
+import { InspectorConfig } from '@/lib/configurationTypes';
+import { DEFAULT_MCP_PROXY_LISTEN_PORT } from '@/lib/constants';
 
 export const getMCPProxyAddress = (config: InspectorConfig): string => {
   const proxyFullAddress = config.MCP_PROXY_FULL_ADDRESS.value as string;

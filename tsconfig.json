@@ -17,12 +17,11 @@
     "paths": {
       "@/*": ["./src/*"],
       "@/components/*": ["./src/renderer/common/components/*"],
-      "@/utils/*": ["./src/renderer/utils/*"], 
+      "@/utils/*": ["./src/renderer/utils/*"],
       "@/hooks/*": ["./src/renderer/hooks/*"],
       "@/lib/*": ["./src/renderer/lib/*"]
     },
     "baseUrl": "."
   },
-  "include": ["src", "tailwind.config.js", "postcss.config.js"],
   "exclude": ["test", "release/build", "release/app/dist", ".erb/dll", "node_modules"]
 }

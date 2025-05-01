@@ -5,12 +5,12 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { parseMcpArgs, mcpConfig } from '../config/mcp';
 import mcpProxy from '../services/mcp/proxy';
-import { 
-  createTransport, 
+import {
+  createTransport,
   getBackingServerTransport,
   setBackingServerTransport,
-  webAppTransports, 
-  generateSessionId 
+  webAppTransports,
+  generateSessionId
 } from '../services/mcp/transport';
 
 const router = express.Router();
@@ -105,64 +105,61 @@ router.get('/mcp', async (req, res) => {
  */
 router.post('/mcp', async (req, res) => {
   const sessionId = req.headers['mcp-session-id'] as string | undefined;
-  console.log(`Received POST message for sessionId ${sessionId}`);
+  console.log(`Received POST /mcp for sessionId=${sessionId}`);
+
   if (!sessionId) {
+    // 신규 세션 생성
     try {
-      console.log('New streamable-http connection');
+      // (1) 기존 백엔드 연결 종료 및 새 연결 생성
       try {
-        const currentTransport = getBackingServerTransport();
-        await currentTransport?.close();
-        const newTransport = await createTransport(req);
-        setBackingServerTransport(newTransport);
-      } catch (error) {
-        if (error instanceof SseError && error.code === 401) {
-          console.error('Received 401 Unauthorized from MCP server:', error.message);
-          res.status(401).json(error);
-          return;
+        const current = getBackingServerTransport();
+        await current?.close();
+        const next = await createTransport(req);
+        setBackingServerTransport(next);
+      } catch (err) {
+        if (err instanceof SseError && err.code === 401) {
+          return res.status(401).json(err);
         }
-        throw error;
+        throw err;
       }
 
-      console.log('Connected MCP client to backing server transport');
-
-      const webAppTransport = new StreamableHTTPServerTransport({
+      // (2) 웹용 Streamable HTTP 서버 트랜스포트
+      const webApp = new StreamableHTTPServerTransport({
         sessionIdGenerator: generateSessionId,
-        onsessioninitialized: (sessionId) => {
-          webAppTransports.set(sessionId, webAppTransport);
-          console.log('Created streamable web app transport ' + sessionId);
+        onsessioninitialized: id => {
+          webAppTransports.set(id, webApp);
+          console.log('Created web app transport', id);
         },
       });
+      await webApp.start();
 
-      await webAppTransport.start();
-
+      // (3) MCP 프록시 연결
       mcpProxy({
-        transportToClient: webAppTransport,
+        transportToClient: webApp,
         transportToServer: getBackingServerTransport()!,
       });
 
-      await (webAppTransport as StreamableHTTPServerTransport).handleRequest(
-        req,
-        res,
-        req.body,
-      );
-    } catch (error) {
-      console.error('Error in /mcp POST route:', error);
-      res.status(500).json(error);
+      // (4) **req.body** 나 다른 body-parser 없이** SDK 가 직접 스트림을 읽도록
+      await webApp.handleRequest(req, res);
+    } catch (err) {
+      console.error('Error in /mcp POST:', err);
+      res.status(500).json(err);
     }
   } else {
+    // 기존 세션에 대한 메시지 전달
     try {
       const transport = webAppTransports.get(sessionId) as StreamableHTTPServerTransport;
       if (!transport) {
-        res.status(404).end('Transport not found for sessionId ' + sessionId);
-      } else {
-        await (transport as StreamableHTTPServerTransport).handleRequest(req, res);
+        return res.status(404).end(`Transport not found for sessionId ${sessionId}`);
       }
-    } catch (error) {
-      console.error('Error in /mcp route:', error);
-      res.status(500).json(error);
+      await transport.handleRequest(req, res);
+    } catch (err) {
+      console.error('Error in /mcp POST existing session:', err);
+      res.status(500).json(err);
     }
   }
 });
+
 
 /**
  * @swagger
@@ -338,21 +335,20 @@ router.get('/sse', async (req, res) => {
  */
 router.post('/message', async (req, res) => {
   try {
-    const sessionId = req.query.sessionId;
-    console.log(`Received message for sessionId ${sessionId}`);
+    const sessionId = req.query.sessionId as string;
+    console.log(`Received POST /message for sessionId=${sessionId}`);
 
-    const transport = webAppTransports.get(sessionId as string) as SSEServerTransport;
+    const transport = webAppTransports.get(sessionId) as SSEServerTransport;
     if (!transport) {
-      res.status(404).end('Session not found');
-      return;
+      return res.status(404).end('Session not found');
     }
+    // 역시 **body-parser 없이** SDK 가 직접 스트림을 읽습니다
     await transport.handlePostMessage(req, res);
-  } catch (error) {
-    console.error('Error in /message route:', error);
-    res.status(500).json(error);
+  } catch (err) {
+    console.error('Error in /message POST:', err);
+    res.status(500).json(err);
   }
 });
-
 /**
  * @swagger
  * /health:
@@ -410,4 +406,4 @@ router.get('/config', (req, res) => {
   }
 });
 
-export default router; 
+export default router;

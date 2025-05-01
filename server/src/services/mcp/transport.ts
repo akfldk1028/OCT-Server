@@ -37,8 +37,30 @@ export const createTransport = async (req: express.Request): Promise<Transport> 
   if (transportType === "stdio") {
     const command = query.command as string;
     const origArgs = shellParseArgs(query.args as string) as string[];
-    const queryEnv = query.env ? JSON.parse(query.env as string) : {};
-    const env = { ...process.env, ...mcpConfig.defaultEnvironment, ...queryEnv };
+
+    // 🚧 여기를 아래처럼 바꿔주세요 🚧
+    // 기존
+    // const queryEnv = query.env ? JSON.parse(query.env as string) : {};
+    //
+    // 수정
+    const rawEnv = Array.isArray(query.env) ? query.env[0] : query.env;
+    let queryEnv: Record<string, string> = {};
+    if (typeof rawEnv === "string" && rawEnv !== "undefined") {
+      try {
+        queryEnv = JSON.parse(rawEnv);
+      } catch (err) {
+        console.warn("Invalid JSON in env, ignoring:", rawEnv, err);
+        queryEnv = {};
+      }
+    }
+
+    // 이후 process.env 에 기본값 + queryEnv 병합
+    const env = {
+      ...process.env,
+      ...mcpConfig.defaultEnvironment,
+      ...queryEnv,
+    };
+
 
     const { cmd, args } = findActualExecutable(command, origArgs);
 
@@ -55,7 +77,7 @@ export const createTransport = async (req: express.Request): Promise<Transport> 
 
     console.log("Spawned stdio transport");
     return transport;
-  } 
+  }
   // SSE 전송 방식
   else if (transportType === "sse") {
     const url = query.url as string;
@@ -86,7 +108,7 @@ export const createTransport = async (req: express.Request): Promise<Transport> 
 
     console.log("Connected to SSE transport");
     return transport;
-  } 
+  }
   // Streamable HTTP 전송 방식
   else if (transportType === "streamable-http") {
     const headers: HeadersInit = {
@@ -113,7 +135,7 @@ export const createTransport = async (req: express.Request): Promise<Transport> 
     await transport.start();
     console.log("Connected to Streamable HTTP transport");
     return transport;
-  } 
+  }
   // 지원하지 않는 전송 방식
   else {
     console.error(`Invalid transport type: ${transportType}`);
@@ -126,4 +148,4 @@ export const createTransport = async (req: express.Request): Promise<Transport> 
  */
 export const generateSessionId = () => {
   return randomUUID();
-}; 
+};

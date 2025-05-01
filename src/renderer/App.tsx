@@ -78,9 +78,11 @@ const App = () => {
     return localStorage.getItem("lastArgs") || "";
   });
 
-  const [sseUrl, setSseUrl] = useState<string>(() => {
-    return localStorage.getItem("lastSseUrl") || "http://localhost:3001/sse";
-  });
+  const [sseUrl, setSseUrl] = useState<string>(
+    () => localStorage.getItem("lastSseUrl") || "http://localhost:3000/mcp/sse"
+  );
+
+
   const [transportType, setTransportType] = useState<
     "stdio" | "sse" | "streamable-http"
   >(() => {
