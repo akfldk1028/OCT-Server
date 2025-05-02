@@ -53,9 +53,7 @@ interface UseConnectionOptions {
   config: InspectorConfig;
   onNotification?: (notification: Notification) => void;
   onStdErrNotification?: (notification: Notification) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onPendingRequest?: (request: any, resolve: any, reject: any) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getRoots?: () => any[];
 }
 

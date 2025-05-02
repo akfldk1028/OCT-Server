@@ -12,6 +12,9 @@ import path from 'path';
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
+import installExtension, {
+  REACT_DEVELOPER_TOOLS,
+} from 'electron-devtools-installer';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 
@@ -43,19 +46,30 @@ if (isDebug) {
   require('electron-debug').default();
 }
 
+// const installExtensions = async () => {
+//   const installer = require('electron-devtools-installer');
+//
+//   const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
+//   const extensions = ['REACT_DEVELOPER_TOOLS'];
+//
+//   return installer
+//     .default(
+//       extensions.map((name) => installer[name]),
+//       forceDownload,
+//     )
+//     .catch(console.log);
+// };
+
 const installExtensions = async () => {
-  const installer = require('electron-devtools-installer');
-  const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
-  const extensions = ['REACT_DEVELOPER_TOOLS'];
-
-  return installer
-    .default(
-      extensions.map((name) => installer[name]),
-      forceDownload,
-    )
-    .catch(console.log);
+  try {
+    const name = await installExtension(REACT_DEVELOPER_TOOLS, {
+      loadExtensionOptions: { allowFileAccess: true },
+    });
+    console.log(`✅ Loaded Extension: ${name}`);
+  } catch (err) {
+    console.error('❌ Failed to install React DevTools:', err);
+  }
 };
-
 const createWindow = async () => {
   if (isDebug) {
     await installExtensions();
@@ -82,6 +96,10 @@ const createWindow = async () => {
   });
 
   mainWindow.loadURL(resolveHtmlPath('index.html'));
+
+  if (isDebug) {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  }
 
   mainWindow.on('ready-to-show', () => {
     if (!mainWindow) {
@@ -124,13 +142,25 @@ app.on('window-all-closed', () => {
   }
 });
 
+// app
+//   .whenReady()
+//   .then(() => {
+//     createWindow();
+//     app.on('activate', () => {
+//       // On macOS it's common to re-create a window in the app when the
+//       // dock icon is clicked and there are no other windows open.
+//       if (mainWindow === null) createWindow();
+//     });
+//   })
+//   .catch(console.log);
 app
   .whenReady()
-  .then(() => {
+  .then(async () => {
+    if (isDebug) {
+      await installExtensions();
+    }
     createWindow();
     app.on('activate', () => {
-      // On macOS it's common to re-create a window in the app when the
-      // dock icon is clicked and there are no other windows open.
       if (mainWindow === null) createWindow();
     });
   })

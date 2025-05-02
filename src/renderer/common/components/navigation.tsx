@@ -1,26 +1,4 @@
-import { Link, NavLink } from "react-router";
-import { Separator } from "~/common/components/ui/separator";
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-  navigationMenuTriggerStyle,
-} from "./ui/navigation-menu";
-import { cn } from "~/lib/utils";
-import { Button } from "./ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { Link, NavLink } from 'react-router';
 import {
   BarChart3Icon,
   BellIcon,
@@ -29,7 +7,29 @@ import {
   MessageCircleIcon,
   SettingsIcon,
   UserIcon,
-} from "lucide-react";
+} from 'lucide-react';
+import { Separator } from './ui/separator';
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+  navigationMenuTriggerStyle,
+} from './ui/navigation-menu';
+import { cn } from '../../lib/utils';
+import { Button } from './ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import {
   Sheet,
   SheetFooter,
@@ -37,120 +37,120 @@ import {
   SheetTrigger,
   SheetClose,
   SheetHeader,
-} from "./ui/sheet";
+} from './ui/sheet';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "./ui/accordion";
+} from './ui/accordion';
 
 const menus = [
   {
-    name: "Products",
-    to: "/products",
+    name: 'Products',
+    to: '/products',
     items: [
       {
-        name: "Leaderboards",
-        description: "See the top performers in your community",
-        to: "/products/leaderboards",
+        name: 'Leaderboards',
+        description: 'See the top performers in your community',
+        to: '/products/leaderboards',
       },
       {
-        name: "Categories",
-        description: "See the top categories in your community",
-        to: "/products/categories",
+        name: 'Categories',
+        description: 'See the top categories in your community',
+        to: '/products/categories',
       },
       {
-        name: "Search",
-        description: "Search for a product",
-        to: "/products/search",
+        name: 'Search',
+        description: 'Search for a product',
+        to: '/products/search',
       },
       {
-        name: "Submit a Product",
-        description: "Submit a product to our community",
-        to: "/products/submit",
+        name: 'Submit a Product',
+        description: 'Submit a product to our community',
+        to: '/products/submit',
       },
       {
-        name: "Promote",
-        description: "Promote a product to our community",
-        to: "/products/promote",
+        name: 'Promote',
+        description: 'Promote a product to our community',
+        to: '/products/promote',
       },
     ],
   },
   {
-    name: "Jobs",
-    to: "/jobs",
+    name: 'Jobs',
+    to: '/jobs',
     items: [
       {
-        name: "Remote Jobs",
-        description: "Find a remote job in our community",
-        to: "/jobs?location=remote",
+        name: 'Remote Jobs',
+        description: 'Find a remote job in our community',
+        to: '/jobs?location=remote',
       },
       {
-        name: "Full-Time Jobs",
-        description: "Find a full-time job in our community",
-        to: "/jobs?type=full-time",
+        name: 'Full-Time Jobs',
+        description: 'Find a full-time job in our community',
+        to: '/jobs?type=full-time',
       },
       {
-        name: "Freelance Jobs",
-        description: "Find a freelance job in our community",
-        to: "/jobs?type=freelance",
+        name: 'Freelance Jobs',
+        description: 'Find a freelance job in our community',
+        to: '/jobs?type=freelance',
       },
       {
-        name: "Internships",
-        description: "Find an internship in our community",
-        to: "/jobs?type=internship",
+        name: 'Internships',
+        description: 'Find an internship in our community',
+        to: '/jobs?type=internship',
       },
       {
-        name: "Post a Job",
-        description: "Post a job to our community",
-        to: "/jobs/submit",
+        name: 'Post a Job',
+        description: 'Post a job to our community',
+        to: '/jobs/submit',
       },
     ],
   },
   {
-    name: "Community",
-    to: "/community",
+    name: 'Community',
+    to: '/community',
     items: [
       {
-        name: "All Posts",
-        description: "See all posts in our community",
-        to: "/community",
+        name: 'All Posts',
+        description: 'See all posts in our community',
+        to: '/community',
       },
       {
-        name: "Top Posts",
-        description: "See the top posts in our community",
-        to: "/community?sorting=popular",
+        name: 'Top Posts',
+        description: 'See the top posts in our community',
+        to: '/community?sorting=popular',
       },
       {
-        name: "New Posts",
-        description: "See the new posts in our community",
-        to: "/community?sorting=newest",
+        name: 'New Posts',
+        description: 'See the new posts in our community',
+        to: '/community?sorting=newest',
       },
       {
-        name: "Create a Post",
-        description: "Create a post in our community",
-        to: "/community/submit",
+        name: 'Create a Post',
+        description: 'Create a post in our community',
+        to: '/community/submit',
       },
     ],
   },
   {
-    name: "IdeasGPT",
-    to: "/ideas",
+    name: 'IdeasGPT',
+    to: '/ideas',
   },
   {
-    name: "Teams",
-    to: "/teams",
+    name: 'Teams',
+    to: '/teams',
     items: [
       {
-        name: "All Teams",
-        description: "See all teams in our community",
-        to: "/teams",
+        name: 'All Teams',
+        description: 'See all teams in our community',
+        to: '/teams',
       },
       {
-        name: "Create a Team",
-        description: "Create a team in our community",
-        to: "/teams/create",
+        name: 'Create a Team',
+        description: 'Create a team in our community',
+        to: '/teams/create',
       },
     ],
   },
@@ -174,10 +174,7 @@ export default function Navigation({
   return (
     <Sheet>
       <nav className="flex flex-col fixed top-0 left-0 right-0 z-50">
-        <div className="w-full py-2.5 text-xs font-bold text-center bg-primary text-primary-foreground z-10">
-          이 사이트는 데모 버전입니다. 모든 데이터는 3시간 동안만 유지되며, 이후
-          자동으로 삭제됩니다.
-        </div>
+
         <div className="flex md:px-20 px-5 h-16 items-center justify-between backdrop-blur bg-background/50">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center">
@@ -199,8 +196,8 @@ export default function Navigation({
                               className={({ isActive }) =>
                                 cn(
                                   isActive
-                                    ? "opacity-100"
-                                    : "opacity-85 hover:text-opacity-100"
+                                    ? 'opacity-100'
+                                    : 'opacity-85 hover:text-opacity-100',
                                 )
                               }
                               to={menu.to}
@@ -214,10 +211,10 @@ export default function Navigation({
                                 <NavigationMenuItem
                                   key={item.name}
                                   className={cn([
-                                    "select-none rounded-md transition-colors focus:bg-accent  hover:bg-accent",
-                                    (item.to === "/products/promote" ||
-                                      item.to === "/jobs/submit") &&
-                                      "col-span-2 bg-primary/10 hover:bg-primary/20 focus:bg-primary/20",
+                                    'select-none rounded-md transition-colors focus:bg-accent  hover:bg-accent',
+                                    (item.to === '/products/promote' ||
+                                      item.to === '/jobs/submit') &&
+                                      'col-span-2 bg-primary/10 hover:bg-primary/20 focus:bg-primary/20',
                                   ])}
                                 >
                                   <NavigationMenuLink asChild>
@@ -243,9 +240,9 @@ export default function Navigation({
                           className={({ isActive }) =>
                             cn(
                               isActive
-                                ? "opacity-100"
-                                : "opacity-85 hover:text-opacity-100",
-                              navigationMenuTriggerStyle()
+                                ? 'opacity-100'
+                                : 'opacity-85 hover:text-opacity-100',
+                              navigationMenuTriggerStyle(),
                             )
                           }
                           to={menu.to}
@@ -350,7 +347,7 @@ export default function Navigation({
           </SheetTrigger>
           <SheetContent className="flex flex-col justify-between">
             <SheetHeader>
-              {" "}
+              {' '}
               <Accordion type="single" collapsible>
                 {menus.map((menu) => (
                   <AccordionItem key={menu.name} value={menu.name}>

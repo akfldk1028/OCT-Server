@@ -21,10 +21,16 @@ const excludePackages = [
 ];
 
 // DLL에 포함될 패키지 필터링
-const dllDependencies = Object.keys(dependencies || {}).filter(
-  (dependency) => !excludePackages.includes(dependency)
-);
-
+// const dllDependencies = Object.keys(dependencies || {}).filter(
+//   (dependency) => !excludePackages.includes(dependency),
+// );
+const dllDependencies = [
+  ...Object.keys(dependencies || {}).filter(
+    (dep) => !excludePackages.includes(dep),
+  ),
+  'react-router-dom',
+  'react-router',
+];
 const configuration: webpack.Configuration = {
   context: webpackPaths.rootPath,
 
