@@ -1,24 +1,12 @@
 import {
-  ClientRequest,
-  CompatibilityCallToolResult,
-  CompatibilityCallToolResultSchema,
   CreateMessageResult,
-  EmptyResultSchema,
-  GetPromptResultSchema,
-  ListPromptsResultSchema,
-  ListResourcesResultSchema,
-  ListResourceTemplatesResultSchema,
-  ListToolsResultSchema,
-  ReadResourceResultSchema,
+  LoggingLevel,
   Resource,
-  ResourceTemplate,
   Root,
   ServerNotification,
   Tool,
-  LoggingLevel,
 } from "@modelcontextprotocol/sdk/types.js";
 import React, {
-  Suspense,
   useCallback,
   useEffect,
   useRef,
@@ -28,17 +16,7 @@ import { useConnection } from "./lib/hooks/useConnection";
 import { useDraggablePane } from "./lib/hooks/useDraggablePane";
 import { StdErrNotification } from "./lib/notificationTypes";
 
-import { Tabs, TabsList, TabsTrigger } from "./common/components/ui/tabs";
-import {
-  Bell,
-  Files,
-  FolderTree,
-  Hammer,
-  Hash,
-  MessageSquare,
-} from "lucide-react";
-
-import { z } from "zod";
+// Import components
 import "./App.css";
 import ConsoleTab from "./common/components/ConsoleTab";
 import HistoryAndNotifications from "./common/components/History";
@@ -46,124 +24,55 @@ import PingTab from "./common/components/PingTab";
 import PromptsTab, { Prompt } from "./common/components/PromptsTab";
 import ResourcesTab from "./common/components/ResourcesTab";
 import RootsTab from "./common/components/RootsTab";
-import SamplingTab, { PendingRequest } from "./common/components/SamplingTab";
+import SamplingTab from "./common/components/SamplingTab";
 import Sidebar from "./common/components/Sidebar";
 import ToolsTab from "./common/components/ToolsTab";
 import { DEFAULT_INSPECTOR_CONFIG } from "./lib/constants";
-import { InspectorConfig } from "./lib/configurationTypes";
 import { getMCPProxyAddress } from "./utils/configUtils";
+
+// Import refactored modules
+import useLocalStorage from "./lib/hooks/useLocalStorage";
+import { useMcpApi } from "./lib/hooks/useMcpApi";
+import { ExtendedPendingRequest } from "./types";
+import TabsContainer from "./common/components/inspector/TabsContainer";
 
 const CONFIG_LOCAL_STORAGE_KEY = "inspectorConfig_v1";
 
 const App = () => {
-  const [resources, setResources] = useState<Resource[]>([]);
-  const [resourceTemplates, setResourceTemplates] = useState<
-    ResourceTemplate[]
-  >([]);
-  const [resourceContent, setResourceContent] = useState<string>("");
-  const [prompts, setPrompts] = useState<Prompt[]>([]);
-  const [promptContent, setPromptContent] = useState<string>("");
-  const [tools, setTools] = useState<Tool[]>([]);
-  const [toolResult, setToolResult] =
-    useState<CompatibilityCallToolResult | null>(null);
-  const [errors, setErrors] = useState<Record<string, string | null>>({
-    resources: null,
-    prompts: null,
-    tools: null,
-  });
-  const [command, setCommand] = useState<string>(() => {
-    return localStorage.getItem("lastCommand") || "mcp-server-everything";
-  });
-  const [args, setArgs] = useState<string>(() => {
-    return localStorage.getItem("lastArgs") || "";
-  });
-
-  const [sseUrl, setSseUrl] = useState<string>(
-    () => localStorage.getItem("lastSseUrl") || "http://localhost:3000/mcp/sse"
+  // Use useLocalStorage hook for persistent settings
+  const [command, setCommand] = useLocalStorage("lastCommand", "mcp-server-everything");
+  const [args, setArgs] = useLocalStorage("lastArgs", "");
+  const [sseUrl, setSseUrl] = useLocalStorage("lastSseUrl", "http://localhost:3000/mcp/sse");
+  const [transportType, setTransportType] = useLocalStorage<"stdio" | "sse" | "streamable-http">(
+    "lastTransportType",
+    "stdio"
   );
+  const [bearerToken, setBearerToken] = useLocalStorage("lastBearerToken", "");
+  const [headerName, setHeaderName] = useLocalStorage("lastHeaderName", "");
 
-
-  const [transportType, setTransportType] = useState<
-    "stdio" | "sse" | "streamable-http"
-  >(() => {
-    return (
-      (localStorage.getItem("lastTransportType") as
-        | "stdio"
-        | "sse"
-        | "streamable-http") || "stdio"
-    );
-  });
-  const [logLevel, setLogLevel] = useState<LoggingLevel>("debug");
+  // App-level state
   const [notifications, setNotifications] = useState<ServerNotification[]>([]);
-  const [stdErrNotifications, setStdErrNotifications] = useState<
-    StdErrNotification[]
-  >([]);
+  const [stdErrNotifications, setStdErrNotifications] = useState<StdErrNotification[]>([]);
   const [roots, setRoots] = useState<Root[]>([]);
   const [env, setEnv] = useState<Record<string, string>>({});
-
-  const [config, setConfig] = useState<InspectorConfig>(() => {
-    const savedConfig = localStorage.getItem(CONFIG_LOCAL_STORAGE_KEY);
-    if (savedConfig) {
-      // merge default config with saved config
-      const mergedConfig = {
-        ...DEFAULT_INSPECTOR_CONFIG,
-        ...JSON.parse(savedConfig),
-      } as InspectorConfig;
-
-      // update description of keys to match the new description (in case of any updates to the default config description)
-      Object.entries(mergedConfig).forEach(([key, value]) => {
-        mergedConfig[key as keyof InspectorConfig] = {
-          ...value,
-          label: DEFAULT_INSPECTOR_CONFIG[key as keyof InspectorConfig].label,
-        };
-      });
-
-      return mergedConfig;
-    }
-    return DEFAULT_INSPECTOR_CONFIG;
-  });
-  const [bearerToken, setBearerToken] = useState<string>(() => {
-    return localStorage.getItem("lastBearerToken") || "";
-  });
-
-  const [headerName, setHeaderName] = useState<string>(() => {
-    return localStorage.getItem("lastHeaderName") || "";
-  });
-
-  const [pendingSampleRequests, setPendingSampleRequests] = useState<
-    Array<
-      PendingRequest & {
-        resolve: (result: CreateMessageResult) => void;
-        reject: (error: Error) => void;
-      }
-    >
-  >([]);
-  const nextRequestId = useRef(0);
-  const rootsRef = useRef<Root[]>([]);
-
-  const [selectedResource, setSelectedResource] = useState<Resource | null>(
-    null,
-  );
-  const [resourceSubscriptions, setResourceSubscriptions] = useState<
-    Set<string>
-  >(new Set<string>());
-
+  const [pendingSampleRequests, setPendingSampleRequests] = useState<ExtendedPendingRequest[]>([]);
+  const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
-  const [nextResourceCursor, setNextResourceCursor] = useState<
-    string | undefined
-  >();
-  const [nextResourceTemplateCursor, setNextResourceTemplateCursor] = useState<
-    string | undefined
-  >();
-  const [nextPromptCursor, setNextPromptCursor] = useState<
-    string | undefined
-  >();
-  const [nextToolCursor, setNextToolCursor] = useState<string | undefined>();
+
+  // Use useLocalStorage for config with proper type handling
+  const [config, setConfig] = useLocalStorage(
+    CONFIG_LOCAL_STORAGE_KEY,
+    DEFAULT_INSPECTOR_CONFIG
+  );
+
+  const nextRequestId = useRef(0);
+  const rootsRef = useRef<Root[]>([]);
   const progressTokenRef = useRef(0);
 
   const { height: historyPaneHeight, handleDragStart } = useDraggablePane(300);
 
+  // Set up the connection
   const {
     connectionStatus,
     serverCapabilities,
@@ -202,33 +111,46 @@ const App = () => {
     getRoots: () => rootsRef.current,
   });
 
-  useEffect(() => {
-    localStorage.setItem("lastCommand", command);
-  }, [command]);
+  // Initialize the API service
+  const {
+    // API error states
+    errors,
 
-  useEffect(() => {
-    localStorage.setItem("lastArgs", args);
-  }, [args]);
+    // Resources related
+    resources,
+    resourceTemplates,
+    resourceContent,
+    resourceSubscriptions,
+    listResources,
+    listResourceTemplates,
+    readResource,
+    subscribeToResource,
+    unsubscribeFromResource,
+    clearResources,
+    clearResourceTemplates,
 
-  useEffect(() => {
-    localStorage.setItem("lastSseUrl", sseUrl);
-  }, [sseUrl]);
+    // Prompts related
+    prompts,
+    promptContent,
+    listPrompts,
+    getPrompt,
+    clearPrompts,
 
-  useEffect(() => {
-    localStorage.setItem("lastTransportType", transportType);
-  }, [transportType]);
+    // Tools related
+    tools,
+    toolResult,
+    listTools,
+    callTool,
+    clearTools,
 
-  useEffect(() => {
-    localStorage.setItem("lastBearerToken", bearerToken);
-  }, [bearerToken]);
-
-  useEffect(() => {
-    localStorage.setItem("lastHeaderName", headerName);
-  }, [headerName]);
-
-  useEffect(() => {
-    localStorage.setItem(CONFIG_LOCAL_STORAGE_KEY, JSON.stringify(config));
-  }, [config]);
+    // Other API methods
+    ping,
+    setLogLevel,
+  } = useMcpApi(makeRequest, {
+    resources: null,
+    prompts: null,
+    tools: null,
+  });
 
   // Auto-connect to previously saved serverURL after OAuth callback
   const onOAuthConnect = useCallback(
@@ -237,9 +159,10 @@ const App = () => {
       setTransportType("sse");
       void connectMcpServer();
     },
-    [connectMcpServer],
+    [connectMcpServer, setSseUrl, setTransportType],
   );
 
+  // Fetch default environment configuration
   useEffect(() => {
     fetch(`${getMCPProxyAddress(config)}/config`)
       .then((response) => response.json())
@@ -258,232 +181,89 @@ const App = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Keep roots reference updated
   useEffect(() => {
     rootsRef.current = roots;
   }, [roots]);
 
+  // Set default hash if none exists
   useEffect(() => {
     if (!window.location.hash) {
       window.location.hash = "resources";
     }
   }, []);
 
-  const handleApproveSampling = (id: number, result: CreateMessageResult) => {
+  // Handler functions
+  const handleApproveSampling = useCallback((id: number, result: CreateMessageResult) => {
     setPendingSampleRequests((prev) => {
       const request = prev.find((r) => r.id === id);
       request?.resolve(result);
       return prev.filter((r) => r.id !== id);
     });
-  };
+  }, []);
 
-  const handleRejectSampling = (id: number) => {
+  const handleRejectSampling = useCallback((id: number) => {
     setPendingSampleRequests((prev) => {
       const request = prev.find((r) => r.id === id);
       request?.reject(new Error("Sampling request rejected"));
       return prev.filter((r) => r.id !== id);
     });
-  };
+  }, []);
 
-  const clearError = (tabKey: keyof typeof errors) => {
-    setErrors((prev) => ({ ...prev, [tabKey]: null }));
-  };
-
-  const sendMCPRequest = async <T extends z.ZodType>(
-    request: ClientRequest,
-    schema: T,
-    tabKey?: keyof typeof errors,
-  ) => {
-    try {
-      const response = await makeRequest(request, schema);
-      if (tabKey !== undefined) {
-        clearError(tabKey);
-      }
-      return response;
-    } catch (e) {
-      const errorString = (e as Error).message ?? String(e);
-      if (tabKey !== undefined) {
-        setErrors((prev) => ({
-          ...prev,
-          [tabKey]: errorString,
-        }));
-      }
-      throw e;
-    }
-  };
-
-  const listResources = async () => {
-    const response = await sendMCPRequest(
-      {
-        method: "resources/list" as const,
-        params: nextResourceCursor ? { cursor: nextResourceCursor } : {},
-      },
-      ListResourcesResultSchema,
-      "resources",
-    );
-    setResources(resources.concat(response.resources ?? []));
-    setNextResourceCursor(response.nextCursor);
-  };
-
-  const listResourceTemplates = async () => {
-    const response = await sendMCPRequest(
-      {
-        method: "resources/templates/list" as const,
-        params: nextResourceTemplateCursor
-          ? { cursor: nextResourceTemplateCursor }
-          : {},
-      },
-      ListResourceTemplatesResultSchema,
-      "resources",
-    );
-    setResourceTemplates(
-      resourceTemplates.concat(response.resourceTemplates ?? []),
-    );
-    setNextResourceTemplateCursor(response.nextCursor);
-  };
-
-  const readResource = async (uri: string) => {
-    const response = await sendMCPRequest(
-      {
-        method: "resources/read" as const,
-        params: { uri },
-      },
-      ReadResourceResultSchema,
-      "resources",
-    );
-    setResourceContent(JSON.stringify(response, null, 2));
-  };
-
-  const subscribeToResource = async (uri: string) => {
-    if (!resourceSubscriptions.has(uri)) {
-      await sendMCPRequest(
-        {
-          method: "resources/subscribe" as const,
-          params: { uri },
-        },
-        z.object({}),
-        "resources",
-      );
-      const clone = new Set(resourceSubscriptions);
-      clone.add(uri);
-      setResourceSubscriptions(clone);
-    }
-  };
-
-  const unsubscribeFromResource = async (uri: string) => {
-    if (resourceSubscriptions.has(uri)) {
-      await sendMCPRequest(
-        {
-          method: "resources/unsubscribe" as const,
-          params: { uri },
-        },
-        z.object({}),
-        "resources",
-      );
-      const clone = new Set(resourceSubscriptions);
-      clone.delete(uri);
-      setResourceSubscriptions(clone);
-    }
-  };
-
-  const listPrompts = async () => {
-    const response = await sendMCPRequest(
-      {
-        method: "prompts/list" as const,
-        params: nextPromptCursor ? { cursor: nextPromptCursor } : {},
-      },
-      ListPromptsResultSchema,
-      "prompts",
-    );
-    setPrompts(response.prompts);
-    setNextPromptCursor(response.nextCursor);
-  };
-
-  const getPrompt = async (name: string, args: Record<string, string> = {}) => {
-    const response = await sendMCPRequest(
-      {
-        method: "prompts/get" as const,
-        params: { name, arguments: args },
-      },
-      GetPromptResultSchema,
-      "prompts",
-    );
-    setPromptContent(JSON.stringify(response, null, 2));
-  };
-
-  const listTools = async () => {
-    const response = await sendMCPRequest(
-      {
-        method: "tools/list" as const,
-        params: nextToolCursor ? { cursor: nextToolCursor } : {},
-      },
-      ListToolsResultSchema,
-      "tools",
-    );
-    setTools(response.tools);
-    setNextToolCursor(response.nextCursor);
-  };
-
-  const callTool = async (name: string, params: Record<string, unknown>) => {
-    try {
-      const response = await sendMCPRequest(
-        {
-          method: "tools/call" as const,
-          params: {
-            name,
-            arguments: params,
-            _meta: {
-              progressToken: progressTokenRef.current++,
-            },
-          },
-        },
-        CompatibilityCallToolResultSchema,
-        "tools",
-      );
-      setToolResult(response);
-    } catch (e) {
-      const toolResult: CompatibilityCallToolResult = {
-        content: [
-          {
-            type: "text",
-            text: (e as Error).message ?? String(e),
-          },
-        ],
-        isError: true,
-      };
-      setToolResult(toolResult);
-    }
-  };
-
-  const handleRootsChange = async () => {
+  const handleRootsChange = useCallback(async () => {
     await sendNotification({ method: "notifications/roots/list_changed" });
-  };
+  }, [sendNotification]);
 
-  const sendLogLevelRequest = async (level: LoggingLevel) => {
-    await sendMCPRequest(
-      {
-        method: "logging/setLevel" as const,
-        params: { level },
-      },
-      z.object({}),
-    );
-    setLogLevel(level);
-  };
+  const handleSetLogLevel = useCallback(async (level: LoggingLevel) => {
+    await setLogLevel(level);
+  }, [setLogLevel]);
 
-  const clearStdErrNotifications = () => {
+  const clearStdErrNotifications = useCallback(() => {
     setStdErrNotifications([]);
-  };
+  }, []);
 
-  // if (window.location.pathname === "/oauth/callback") {
-  //   const OAuthCallback = React.lazy(
-  //     () => import("./components/OAuthCallback"),
-  //   );
-  //   return (
-  //     <Suspense fallback={<div>Loading...</div>}>
-  //       <OAuthCallback onConnect={onOAuthConnect} />
-  //     </Suspense>
-  //   );
-  // }
+  // API handler functions
+  const handleListResources = useCallback(() => {
+    listResources().catch(console.error);
+  }, [listResources]);
 
+  const handleListResourceTemplates = useCallback(() => {
+    listResourceTemplates().catch(console.error);
+  }, [listResourceTemplates]);
+
+  const handleReadResource = useCallback((uri: string) => {
+    readResource(uri).catch(console.error);
+  }, [readResource]);
+
+  const handleSubscribeToResource = useCallback((uri: string) => {
+    subscribeToResource(uri).catch(console.error);
+  }, [subscribeToResource]);
+
+  const handleUnsubscribeFromResource = useCallback((uri: string) => {
+    unsubscribeFromResource(uri).catch(console.error);
+  }, [unsubscribeFromResource]);
+
+  const handleListPrompts = useCallback(() => {
+    listPrompts().catch(console.error);
+  }, [listPrompts]);
+
+  const handleGetPrompt = useCallback((name: string, args: Record<string, string> = {}) => {
+    getPrompt(name, args).catch(console.error);
+  }, [getPrompt]);
+
+  const handleListTools = useCallback(() => {
+    listTools().catch(console.error);
+  }, [listTools]);
+
+  const handleCallTool = useCallback((name: string, params: Record<string, unknown>) => {
+    callTool(name, params, progressTokenRef.current++).catch(console.error);
+  }, [callTool]);
+
+  const handlePing = useCallback(() => {
+    ping().catch(console.error);
+  }, [ping]);
+
+  // Render the UI
   return (
     <div className="flex h-screen bg-background">
       <Sidebar
@@ -507,206 +287,80 @@ const App = () => {
         onConnect={connectMcpServer}
         onDisconnect={disconnectMcpServer}
         stdErrNotifications={stdErrNotifications}
-        logLevel={logLevel}
-        sendLogLevelRequest={sendLogLevelRequest}
+        logLevel={serverCapabilities?.logging?.level || "debug"}
+        sendLogLevelRequest={handleSetLogLevel}
         loggingSupported={!!serverCapabilities?.logging || false}
         clearStdErrNotifications={clearStdErrNotifications}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 overflow-auto">
           {mcpClient ? (
-            <Tabs
-              defaultValue={
-                Object.keys(serverCapabilities ?? {}).includes(
-                  window.location.hash.slice(1),
-                )
-                  ? window.location.hash.slice(1)
-                  : serverCapabilities?.resources
-                    ? "resources"
-                    : serverCapabilities?.prompts
-                      ? "prompts"
-                      : serverCapabilities?.tools
-                        ? "tools"
-                        : "ping"
-              }
-              className="w-full p-4"
-              onValueChange={(value) => (window.location.hash = value)}
+            <TabsContainer
+              serverCapabilities={serverCapabilities}
+              pendingRequestsCount={pendingSampleRequests.length}
             >
-              <TabsList className="mb-4 p-0">
-                <TabsTrigger
-                  value="resources"
-                  disabled={!serverCapabilities?.resources}
-                >
-                  <Files className="w-4 h-4 mr-2" />
-                  Resources
-                </TabsTrigger>
-                <TabsTrigger
-                  value="prompts"
-                  disabled={!serverCapabilities?.prompts}
-                >
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  Prompts
-                </TabsTrigger>
-                <TabsTrigger
-                  value="tools"
-                  disabled={!serverCapabilities?.tools}
-                >
-                  <Hammer className="w-4 h-4 mr-2" />
-                  Tools
-                </TabsTrigger>
-                <TabsTrigger value="ping">
-                  <Bell className="w-4 h-4 mr-2" />
-                  Ping
-                </TabsTrigger>
-                <TabsTrigger value="sampling" className="relative">
-                  <Hash className="w-4 h-4 mr-2" />
-                  Sampling
-                  {pendingSampleRequests.length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
-                      {pendingSampleRequests.length}
-                    </span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="roots">
-                  <FolderTree className="w-4 h-4 mr-2" />
-                  Roots
-                </TabsTrigger>
-              </TabsList>
-
-              <div className="w-full">
-                {!serverCapabilities?.resources &&
-                !serverCapabilities?.prompts &&
-                !serverCapabilities?.tools ? (
-                  <div className="flex items-center justify-center p-4">
-                    <p className="text-lg text-gray-500">
-                      The connected server does not support any MCP capabilities
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <ResourcesTab
-                      resources={resources}
-                      resourceTemplates={resourceTemplates}
-                      listResources={() => {
-                        clearError("resources");
-                        listResources();
-                      }}
-                      clearResources={() => {
-                        setResources([]);
-                        setNextResourceCursor(undefined);
-                      }}
-                      listResourceTemplates={() => {
-                        clearError("resources");
-                        listResourceTemplates();
-                      }}
-                      clearResourceTemplates={() => {
-                        setResourceTemplates([]);
-                        setNextResourceTemplateCursor(undefined);
-                      }}
-                      readResource={(uri) => {
-                        clearError("resources");
-                        readResource(uri);
-                      }}
-                      selectedResource={selectedResource}
-                      setSelectedResource={(resource) => {
-                        clearError("resources");
-                        setSelectedResource(resource);
-                      }}
-                      resourceSubscriptionsSupported={
-                        serverCapabilities?.resources?.subscribe || false
-                      }
-                      resourceSubscriptions={resourceSubscriptions}
-                      subscribeToResource={(uri) => {
-                        clearError("resources");
-                        subscribeToResource(uri);
-                      }}
-                      unsubscribeFromResource={(uri) => {
-                        clearError("resources");
-                        unsubscribeFromResource(uri);
-                      }}
-                      handleCompletion={handleCompletion}
-                      completionsSupported={completionsSupported}
-                      resourceContent={resourceContent}
-                      nextCursor={nextResourceCursor}
-                      nextTemplateCursor={nextResourceTemplateCursor}
-                      error={errors.resources}
-                    />
-                    <PromptsTab
-                      prompts={prompts}
-                      listPrompts={() => {
-                        clearError("prompts");
-                        listPrompts();
-                      }}
-                      clearPrompts={() => {
-                        setPrompts([]);
-                        setNextPromptCursor(undefined);
-                      }}
-                      getPrompt={(name, args) => {
-                        clearError("prompts");
-                        getPrompt(name, args);
-                      }}
-                      selectedPrompt={selectedPrompt}
-                      setSelectedPrompt={(prompt) => {
-                        clearError("prompts");
-                        setSelectedPrompt(prompt);
-                        setPromptContent("");
-                      }}
-                      handleCompletion={handleCompletion}
-                      completionsSupported={completionsSupported}
-                      promptContent={promptContent}
-                      nextCursor={nextPromptCursor}
-                      error={errors.prompts}
-                    />
-                    <ToolsTab
-                      tools={tools}
-                      listTools={() => {
-                        clearError("tools");
-                        listTools();
-                      }}
-                      clearTools={() => {
-                        setTools([]);
-                        setNextToolCursor(undefined);
-                      }}
-                      callTool={async (name, params) => {
-                        clearError("tools");
-                        setToolResult(null);
-                        await callTool(name, params);
-                      }}
-                      selectedTool={selectedTool}
-                      setSelectedTool={(tool) => {
-                        clearError("tools");
-                        setSelectedTool(tool);
-                        setToolResult(null);
-                      }}
-                      toolResult={toolResult}
-                      nextCursor={nextToolCursor}
-                      error={errors.tools}
-                    />
-                    <ConsoleTab />
-                    <PingTab
-                      onPingClick={() => {
-                        void sendMCPRequest(
-                          {
-                            method: "ping" as const,
-                          },
-                          EmptyResultSchema,
-                        );
-                      }}
-                    />
-                    <SamplingTab
-                      pendingRequests={pendingSampleRequests}
-                      onApprove={handleApproveSampling}
-                      onReject={handleRejectSampling}
-                    />
-                    <RootsTab
-                      roots={roots}
-                      setRoots={setRoots}
-                      onRootsChange={handleRootsChange}
-                    />
-                  </>
-                )}
-              </div>
-            </Tabs>
+              <ResourcesTab
+                resources={resources}
+                resourceTemplates={resourceTemplates}
+                listResources={handleListResources}
+                clearResources={clearResources}
+                listResourceTemplates={handleListResourceTemplates}
+                clearResourceTemplates={clearResourceTemplates}
+                readResource={handleReadResource}
+                selectedResource={selectedResource}
+                setSelectedResource={setSelectedResource}
+                resourceSubscriptionsSupported={
+                  serverCapabilities?.resources?.subscribe || false
+                }
+                resourceSubscriptions={resourceSubscriptions}
+                subscribeToResource={handleSubscribeToResource}
+                unsubscribeFromResource={handleUnsubscribeFromResource}
+                handleCompletion={handleCompletion}
+                completionsSupported={completionsSupported}
+                resourceContent={resourceContent}
+                nextCursor={undefined} // API 서비스에서 관리하므로 props 전달 불필요
+                nextTemplateCursor={undefined} // API 서비스에서 관리하므로 props 전달 불필요
+                error={errors.resources}
+              />
+              <PromptsTab
+                prompts={prompts}
+                listPrompts={handleListPrompts}
+                clearPrompts={clearPrompts}
+                getPrompt={handleGetPrompt}
+                selectedPrompt={selectedPrompt}
+                setSelectedPrompt={(prompt) => {
+                  setSelectedPrompt(prompt);
+                }}
+                handleCompletion={handleCompletion}
+                completionsSupported={completionsSupported}
+                promptContent={promptContent}
+                nextCursor={undefined} // API 서비스에서 관리하므로 props 전달 불필요
+                error={errors.prompts}
+              />
+              <ToolsTab
+                tools={tools}
+                listTools={handleListTools}
+                clearTools={clearTools}
+                callTool={handleCallTool}
+                selectedTool={selectedTool}
+                setSelectedTool={setSelectedTool}
+                toolResult={toolResult}
+                nextCursor={undefined} // API 서비스에서 관리하므로 props 전달 불필요
+                error={errors.tools}
+              />
+              <ConsoleTab />
+              <PingTab onPingClick={handlePing} />
+              <SamplingTab
+                pendingRequests={pendingSampleRequests}
+                onApprove={handleApproveSampling}
+                onReject={handleRejectSampling}
+              />
+              <RootsTab
+                roots={roots}
+                setRoots={setRoots}
+                onRootsChange={handleRootsChange}
+              />
+            </TabsContainer>
           ) : (
             <div className="flex items-center justify-center h-full">
               <p className="text-lg text-gray-500">
