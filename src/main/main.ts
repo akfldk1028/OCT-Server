@@ -18,6 +18,14 @@ import installExtension, {
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 
+// Load environment variables from .env file at the very beginning
+import dotenv from 'dotenv';
+dotenv.config();
+
+// Optional: Log to confirm loading in main process
+console.log('[Main Process] dotenv loaded.');
+console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
+console.log('SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY);
 class AppUpdater {
   constructor() {
     log.transports.file.level = 'info';

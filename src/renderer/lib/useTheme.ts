@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type Theme = 'light' | 'dark' | 'system';
 
-const useTheme = (): [Theme, (mode: Theme) => void] => {
+const useTheme = (): [Theme, (theme: Theme) => void] => {
   const [theme, setTheme] = useState<Theme>(() => {
-    const savedTheme = localStorage.getItem('theme') as Theme;
-    return savedTheme || 'system';
+    const saved = localStorage.getItem('theme') as Theme;
+    return saved || 'dark'; // 기본값을 'dark'로 설정
   });
 
   useEffect(() => {

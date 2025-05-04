@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   motion,
@@ -8,14 +8,14 @@ import {
   useSpring,
   useTransform,
   useVelocity,
-} from "motion/react";
-import React, { useEffect, useRef, useState } from "react";
+} from 'motion/react';
+import React, { useEffect, useRef, useState } from 'react';
 
-import { cn } from "app/lib/utils";
+import { cn } from '../../../lib/utils';
 
 interface VelocityScrollProps extends React.HTMLAttributes<HTMLDivElement> {
-  defaultVelocity?: number;
   className?: string;
+  defaultVelocity?: number;
   numRows?: number;
 }
 
@@ -48,7 +48,7 @@ function ParallaxText({
 
   const [repetitions, setRepetitions] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
-  const textRef = useRef<HTMLSpanElement>(null);
+  const textRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const calculateRepetitions = () => {
@@ -62,8 +62,8 @@ function ParallaxText({
 
     calculateRepetitions();
 
-    window.addEventListener("resize", calculateRepetitions);
-    return () => window.removeEventListener("resize", calculateRepetitions);
+    window.addEventListener('resize', calculateRepetitions);
+    return () => window.removeEventListener('resize', calculateRepetitions);
   }, [children]);
 
   const x = useTransform(baseX, (v) => `${wrap(-100 / repetitions, 0, v)}%`);
@@ -91,9 +91,9 @@ function ParallaxText({
     >
       <motion.div className="inline-block" style={{ x }}>
         {Array.from({ length: repetitions }).map((_, i) => (
-          <span key={i} ref={i === 0 ? textRef : null}>
-            {children}{" "}
-          </span>
+          <div key={i} ref={i === 0 ? textRef : null} style={{ display: 'inline-block' }}>
+            {children}{' '}
+          </div>
         ))}
       </motion.div>
     </div>
@@ -102,7 +102,7 @@ function ParallaxText({
 
 export function VelocityScroll({
   defaultVelocity = 5,
-  numRows = 2,
+  numRows = 1,
   children,
   className,
   ...props
@@ -110,7 +110,7 @@ export function VelocityScroll({
   return (
     <div
       className={cn(
-        "relative w-full text-4xl font-bold tracking-[-0.02em] md:text-7xl md:leading-[5rem]",
+        'relative w-full text-4xl font-bold tracking-[-0.02em] md:text-7xl md:leading-[5rem]',
         className,
       )}
       {...props}

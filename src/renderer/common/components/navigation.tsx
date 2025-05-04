@@ -8,6 +8,13 @@ import {
   SettingsIcon,
   UserIcon,
 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'; // 경로는 실제로 맞게
 import { Separator } from './ui/separator';
 import {
   NavigationMenu,
@@ -44,6 +51,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from './ui/accordion';
+import useTheme from '../../lib/useTheme';
 
 const menus = [
   {
@@ -171,15 +179,15 @@ export default function Navigation({
   avatar?: string | null;
   name?: string;
 }) {
+  const [theme, setTheme] = useTheme();
   return (
     <Sheet>
       <nav className="flex flex-col fixed top-0 left-0 right-0 z-50">
-
         <div className="flex md:px-20 px-5 h-16 items-center justify-between backdrop-blur bg-background/50">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center">
               <Link to="/" className="font-bold tracking-tighter text-lg">
-                wemake
+                MCP
               </Link>
               <Separator
                 orientation="vertical"
@@ -302,6 +310,21 @@ export default function Navigation({
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuGroup>
+                      <Select
+                        value={theme}
+                        onValueChange={(value: string) =>
+                          setTheme(value as 'system' | 'light' | 'dark')
+                        }
+                      >
+                        <SelectTrigger className="w-[100px]" id="theme-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="system">System</SelectItem>
+                          <SelectItem value="light">Light</SelectItem>
+                          <SelectItem value="dark">Dark</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <DropdownMenuItem asChild className="cursor-pointer">
                         <Link to="/my/dashboard">
                           <BarChart3Icon className="size-4 mr-2" />

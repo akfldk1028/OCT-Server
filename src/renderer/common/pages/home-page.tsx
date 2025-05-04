@@ -1,18 +1,16 @@
-import { Link, type MetaFunction } from "react-router";
-import { ProductCard } from "~/features/products/components/product-card";
-import { Button } from "../components/ui/button";
-import { PostCard } from "~/features/community/components/post-card";
-import { IdeaCard } from "~/features/ideas/components/idea-card";
-import { JobCard } from "~/features/jobs/components/job-card";
-import { TeamCard } from "~/features/teams/components/team-card";
-import { getProductsByDateRange } from "~/features/products/queries";
-import { DateTime, Settings } from "luxon";
-import type { Route } from "./+types/home-page";
-import { getPosts } from "~/features/community/queries";
-import { getGptIdeas } from "~/features/ideas/queries";
-import { getJobs } from "~/features/jobs/queries";
-import { getTeams } from "~/features/teams/queries";
-import { makeSSRClient } from "~/supa-client";
+import {Link, type MetaFunction, useLoaderData} from "react-router";
+import { ProductCard } from "../../features/products/components/product-card";
+// import { PostCard } from "~/features/community/components/post-card";
+// import { IdeaCard } from "~/features/ideas/components/idea-card";
+// import { JobCard } from "~/features/jobs/components/job-card";
+// import { TeamCard } from "~/features/teams/components/team-card";
+import { getProductsBypopularity } from "../../features/products/queries";
+// import { DateTime, Settings } from "luxon";
+// import { getPosts } from "~/features/community/queries";
+// import { getGptIdeas } from "~/features/ideas/queries";
+// import { getJobs } from "~/features/jobs/queries";
+// import { getTeams } from "~/features/teams/queries";
+// import { makeSSRClient } from "~/supa-client";
 import FlickeringGrid from "../components/ui/flickering-grid";
 import { BlurFade } from "../components/ui/blur-fade";
 import { VelocityScroll } from "../components/ui/scroll-based-velocity";
@@ -20,6 +18,33 @@ import { Marquee } from "../components/ui/marquee";
 import { RetroGrid } from "../components/ui/retro-grid";
 import { MagicCard } from "../components/ui/magic-card";
 import { Ripple } from "../components/ui/ripple";
+import { makeSSRClient } from "../../supa-client";
+import { Button } from "../components/ui/button";
+import type { Database } from "../../supa-client";
+import { InitialAvatar } from "../components/ui/initial-avatar";
+import { browserClient } from "../../supa-client";
+
+// export type HomePageLoaderData = {
+//   products: Product[];
+//   posts: Post[];
+//   ideas: Idea[];
+//   jobs: Job[];
+//   teams: Team[];
+// };
+
+
+export type HomePageLoaderData = {
+  products: any;
+
+};
+
+// props 타입 수동 정의
+type ComponentProps = {
+  loaderData: HomePageLoaderData;
+};
+
+// Define the product type based on the view
+type Product = Database["public"]["Views"]["github_popularity_view"]["Row"];
 
 export const meta: MetaFunction = () => {
   return [
@@ -27,25 +52,37 @@ export const meta: MetaFunction = () => {
     { name: "description", content: "Welcome to wemake" },
   ];
 };
+export const loader = async (/* { request } : any */) => {
+  try {
 
-export const loader = async ({ request }: Route.LoaderArgs) => {
-  const { client, headers } = makeSSRClient(request);
-  const products = await getProductsByDateRange(client, {
-    startDate: DateTime.now().startOf("day"),
-    endDate: DateTime.now().endOf("day"),
-    limit: 8,
-  });
-  const posts = await getPosts(client, {
-    limit: 8,
-    sorting: "newest",
-  });
-  const ideas = await getGptIdeas(client, { limit: 8 });
-  const jobs = await getJobs(client, { limit: 12 });
-  const teams = await getTeams(client, { limit: 9 });
-  return { products, posts, ideas, jobs, teams };
+    const { client /*, headers */ } = makeSSRClient(); // headers might be unused now
+    console.log("Using client created by makeSSRClient (Electron adapted)");
+    const [products] = await Promise.all([
+      getProductsBypopularity(client as any, { // 'as any' cast might still be needed depending on exact types
+        limit: 8,
+      }),
+    ]);
+    return {
+      products,
+    };
+  } catch (error) {
+    console.error("Home page loader error:", error);
+    if (error instanceof Error) {
+       console.error("Error details:", error.message, error.stack);
+    }
+    return {
+      products: [],
+    };
+  }
 };
 
-export default function HomePage({ loaderData }: Route.ComponentProps) {
+
+export default  function HomePage() {
+  const { products } = useLoaderData() as { products: Product[] };
+
+  // Log the fetched products data to the console
+  console.log("Fetched Products:", products);
+
   return (
     <>
       <div className="space-y-32 pb-20 w-full">
@@ -61,22 +98,37 @@ export default function HomePage({ loaderData }: Route.ComponentProps) {
           <div className="flex flex-col text-center md:space-y-5 items-center">
             <BlurFade delay={0.25} duration={1} inView>
               <h2 className="font-bold text-5xl md:text-8xl">
-                welcome to wemake
+                welcome to Context
               </h2>
             </BlurFade>
             <BlurFade delay={1} duration={1} inView>
               <span className="text-2xl md:text-5xl">
-                the home of indie makers
+                the home of Context
               </span>
             </BlurFade>
           </div>
         </div>
         <div className="relative">
           <VelocityScroll
-            defaultVelocity={5}
+            defaultVelocity={4}
             className="font-display text-center text-5xl font-bold tracking-[-0.02em] md:leading-[5rem]"
+            numRows={1}
           >
-            code hard 💻 travel far 🌍
+            <div className="flex items-center justify-center gap-4 p-4 flex-nowrap relative z-10">
+
+              {products && products.length > 0 ? (
+                 products.map((product, index) => (
+                    <InitialAvatar
+                      key={product.unique_id ?? index}
+                      initials={product.fallback_avatar_initials}
+                      colorString={product.fallback_avatar_color}
+                      size={60}
+                    />
+                  ))
+              ) : (
+                <span>Loading Avatars...</span>
+              )}
+            </div>
           </VelocityScroll>
           <div className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-background"></div>
           <div className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-gradient-to-l from-background"></div>
@@ -96,17 +148,21 @@ export default function HomePage({ loaderData }: Route.ComponentProps) {
                 </Link>
               </Button>
             </div>
-            {loaderData.products.map((product, index) => (
+            {products.map((product: Product, index: number) => (
               <ProductCard
-                key={product.product_id}
-                id={product.product_id}
+                key={product.unique_id ?? index}
+                id={product.id}
+                uniqueId={product.unique_id}
                 name={product.name}
-                description={product.tagline}
-                reviewsCount={product.reviews}
-                viewsCount={product.views}
-                votesCount={product.upvotes}
-                isUpvoted={product.is_upvoted}
-                promotedFrom={product.promoted_from}
+                reviewsCount={0}
+                viewsCount={0}
+                isUpvoted={false}
+                promotedFrom={null}
+                stars={product.stars}
+                forks={product.forks}
+                githubUrl={product.github_url}
+                owner={product.owner}
+                repoName={product.repo_name}
               />
             ))}
           </div>
@@ -127,84 +183,8 @@ export default function HomePage({ loaderData }: Route.ComponentProps) {
               </Button>
             </div>
             <div className="md:absolute w-full flex justify-between md:h-full h-[75vh]  top-0 left-0">
-              <Marquee
-                pauseOnHover
-                vertical
-                className="[--duration:40s] flex z-50  gap-5"
-              >
-                {loaderData.ideas.map((idea) => (
-                  <div className="md:w-96" key={idea.gpt_idea_id}>
-                    <IdeaCard
-                      key={idea.gpt_idea_id}
-                      id={idea.gpt_idea_id}
-                      title={idea.idea}
-                      viewsCount={idea.views}
-                      postedAt={idea.created_at}
-                      likesCount={idea.likes}
-                      claimed={idea.is_claimed}
-                    />
-                  </div>
-                ))}
-              </Marquee>
-              <Marquee
-                pauseOnHover
-                reverse
-                vertical
-                className="[--duration:40s] hidden md:flex  md:gap-5"
-              >
-                {loaderData.ideas.map((idea) => (
-                  <div className="w-96" key={idea.gpt_idea_id}>
-                    <IdeaCard
-                      key={idea.gpt_idea_id}
-                      id={idea.gpt_idea_id}
-                      title={idea.idea}
-                      viewsCount={idea.views}
-                      postedAt={idea.created_at}
-                      likesCount={idea.likes}
-                      claimed={idea.is_claimed}
-                    />
-                  </div>
-                ))}
-              </Marquee>
-              <Marquee
-                pauseOnHover
-                vertical
-                className="[--duration:40s] hidden md:flex  gap-5"
-              >
-                {loaderData.ideas.map((idea) => (
-                  <div className="w-96" key={idea.gpt_idea_id}>
-                    <IdeaCard
-                      key={idea.gpt_idea_id}
-                      id={idea.gpt_idea_id}
-                      title={idea.idea}
-                      viewsCount={idea.views}
-                      postedAt={idea.created_at}
-                      likesCount={idea.likes}
-                      claimed={idea.is_claimed}
-                    />
-                  </div>
-                ))}
-              </Marquee>
-              <Marquee
-                pauseOnHover
-                reverse
-                vertical
-                className="[--duration:40s] hidden md:flex  gap-5"
-              >
-                {loaderData.ideas.map((idea) => (
-                  <div className="w-96" key={idea.gpt_idea_id}>
-                    <IdeaCard
-                      key={idea.gpt_idea_id}
-                      id={idea.gpt_idea_id}
-                      title={idea.idea}
-                      viewsCount={idea.views}
-                      postedAt={idea.created_at}
-                      likesCount={idea.likes}
-                      claimed={idea.is_claimed}
-                    />
-                  </div>
-                ))}
-              </Marquee>
+
+
               <div className="hidden md:block pointer-events-none absolute right-0 h-10 w-full top-0 z-10 bg-gradient-to-b from-white dark:from-background"></div>
               <div className="hidden md:block pointer-events-none absolute left-0 h-10 w-full bottom-10 z-10 bg-gradient-to-t from-white dark:from-background"></div>
             </div>
@@ -215,7 +195,7 @@ export default function HomePage({ loaderData }: Route.ComponentProps) {
           <div className="space-y-10 grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-10">
             <div className="self-center text-center md:text-left">
               <h2 className="md:text-5xl text-3xl font-bold leading-tight tracking-tight ">
-                Latest discussions
+                Latest
               </h2>
               <p className="max-w-2xl md:text-xl font-light text-foreground">
                 The latest discussions from our community.
@@ -227,67 +207,9 @@ export default function HomePage({ loaderData }: Route.ComponentProps) {
               </Button>
             </div>
             <div className="relative col-span-2 flex flex-col md:[perspective:500px] md:pb-40  overflow-hidden md:*:[transform:translateZ(-0px)_rotateY(-20deg)_rotateZ(10deg)]">
-              <Marquee
-                pauseOnHover
-                className="[--duration:40s] hidden md:flex items-stretch "
-              >
-                {loaderData.posts.map((post) => (
-                  <div key={post.post_id} className="w-full max-w-sm">
-                    <PostCard
-                      key={post.post_id}
-                      id={post.post_id}
-                      title={post.title}
-                      author={post.author}
-                      authorAvatarUrl={post.author_avatar}
-                      category={post.topic}
-                      postedAt={post.created_at}
-                      votesCount={post.upvotes}
-                    />
-                  </div>
-                ))}
-              </Marquee>
-              <Marquee
-                pauseOnHover
-                reverse
-                className="[--duration:40s] flex items-stretch"
-              >
-                {loaderData.posts.map((post) => (
-                  <div key={post.post_id} className="w-full max-w-sm">
-                    <PostCard
-                      key={post.post_id}
-                      id={post.post_id}
-                      title={post.title}
-                      author={post.author}
-                      authorAvatarUrl={post.author_avatar}
-                      category={post.topic}
-                      postedAt={post.created_at}
-                      votesCount={post.upvotes}
-                    />
-                  </div>
-                ))}
-              </Marquee>
-              <Marquee
-                pauseOnHover
-                className="[--duration:40s] flex items-stretch"
-              >
-                {loaderData.posts.map((post) => (
-                  <div
-                    key={post.post_id}
-                    className="w-full max-w-sm [transform_rotateY(-20deg)]"
-                  >
-                    <PostCard
-                      key={post.post_id}
-                      id={post.post_id}
-                      title={post.title}
-                      author={post.author}
-                      authorAvatarUrl={post.author_avatar}
-                      category={post.topic}
-                      postedAt={post.created_at}
-                      votesCount={post.upvotes}
-                    />
-                  </div>
-                ))}
-              </Marquee>
+
+
+
             </div>
           </div>
         </BlurFade>
@@ -297,10 +219,10 @@ export default function HomePage({ loaderData }: Route.ComponentProps) {
             <div className="relative flex h-[500px] w-full flex-col items-center justify-center overflow-hidden">
               <div className="flex relative z-10 bg-background w-full justify-center items-center flex-col -mt-24">
                 <h2 className="md:text-5xl text-3xl font-bold leading-tight tracking-tight ">
-                  Find a co-founder
+                  Find
                 </h2>
                 <p className="max-w-2xl md:text-xl font-light text-foreground">
-                  Join a team looking for a co-founder.
+                  Join a team looking for .
                 </p>
                 <Button variant="link" asChild className="text-lg pl-0">
                   <Link to="/cofounders" className="pl-0">
@@ -311,25 +233,7 @@ export default function HomePage({ loaderData }: Route.ComponentProps) {
               <RetroGrid />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:p-10 p-5 -mt-32 md:-mt-14  dark:bg-background bg-white">
-              {loaderData.teams.map((team, index) => (
-                <BlurFade
-                  delay={0.1 * index}
-                  duration={0.25}
-                  inView
-                  key={index}
-                >
-                  <div className="group-hover:blur-sm h-full group-hover:hover:blur-0 group-hover:hover:grayscale-0 group-hover:grayscale group-hover:hover:scale-105 duration-300">
-                    <TeamCard
-                      key={team.team_id}
-                      id={team.team_id}
-                      leaderUsername={team.team_leader.username}
-                      leaderAvatarUrl={team.team_leader.avatar}
-                      positions={team.roles.split(",")}
-                      projectDescription={team.product_description}
-                    />
-                  </div>
-                </BlurFade>
-              ))}
+
             </div>
           </div>
         </BlurFade>
@@ -348,30 +252,7 @@ export default function HomePage({ loaderData }: Route.ComponentProps) {
               <Ripple className="bg-transparent rounded-lg" />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 -mt-32 md:-mt-60 z-10 gap-4">
-              {loaderData.jobs.map((job, index) => (
-                <BlurFade
-                  delay={0.1 * index}
-                  duration={0.25}
-                  inView
-                  key={index}
-                  className="w-full"
-                >
-                  <MagicCard className="p-0 h-auto w-full">
-                    <JobCard
-                      key={job.job_id}
-                      id={job.job_id}
-                      company={job.company_name}
-                      companyLogoUrl={job.company_logo}
-                      companyHq={job.company_location}
-                      title={job.position}
-                      postedAt={job.created_at}
-                      type={job.job_type}
-                      positionLocation={job.location}
-                      salary={job.salary_range}
-                    />
-                  </MagicCard>
-                </BlurFade>
-              ))}
+
             </div>
           </div>
         </BlurFade>
