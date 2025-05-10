@@ -101,3 +101,40 @@ export const recordPromotion = async (
     .eq("product_id", productId);
   if (error) throw error;
 };
+
+
+
+// 환경 변수 타입 정의
+// 환경 변수 타입 정의
+export type EnvVariables = Record<string, string>;
+
+// 서버 설치 함수
+export const installServer = async (
+  client: SupabaseClient<Database>,
+  params: {
+    serverId: string | number;
+    command: string;
+    envVars?: EnvVariables;
+  }
+) => {
+  const { serverId, command, envVars = {} } = params;
+  
+  try {
+    // window.api.installServer 함수 사용 (preload.js에 정의됨)
+    const { api } = window as any;
+    
+    if (!api || typeof api.installServer !== 'function') {
+      throw new Error('API installServer function not available');
+    }
+    
+    // api.installServer 함수 호출 - 개별 매개변수로 전달
+    // 함수 정의: installServer: async (name: string, command: string, envVars?: Record<string, string>)
+    const result = await api.installServer(serverId.toString(), command, envVars);
+    
+    console.log(`'${serverId}' 서버 설치 요청 완료`, result);
+    return result;
+  } catch (error) {
+    console.error('Installation error:', error);
+    throw error;
+  }
+};

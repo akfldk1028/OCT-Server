@@ -1,16 +1,16 @@
 import { Outlet, data, useOutletContext, type LoaderFunctionArgs } from "react-router";
 import { makeAdminClient } from "../../../supa-client";
 
-export const loader = async ({ params }: LoaderFunctionArgs) => {
-  const adminClient = makeAdminClient();
-  await adminClient.rpc("track_event", {
-    event_type: "product_view",
-    event_data: {
-      product_id: params.productId,
-    },
-  });
-  return null;
-};
+// export const loader = async ({ params }: LoaderFunctionArgs) => {
+//   const adminClient = makeAdminClient();
+//   await adminClient.rpc("track_event", {
+//     event_type: "github_popularity_view",
+//     event_data: {
+//       uniqueId: params.uniqueId,
+//     },
+//   });
+//   return null;
+// };
 
 export default function ProductOverviewPage() {
   const { description, how_it_works } = useOutletContext<{

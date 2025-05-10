@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { createHashRouter, RouterProvider } from 'react-router';
+import {createHashRouter, Outlet, redirect, RouterProvider} from 'react-router';
 import './tailwind.css';
 import { TooltipProvider } from './common/components/ui/tooltip';
 import { Toaster } from './common/components/ui/toaster';
@@ -11,10 +11,12 @@ import JoinPage, { joinLoader, joinAction } from "./features/auth/pages/join-pag
 import LoginPage, { loginAction } from "./features/auth/pages/login-page";
 import { loader as productsloader } from './features/products/pages/products-page';
 import LeaderboardLayout, { loader as leaderboardLoader } from './features/products/layouts/leaderboard-layout';
-import LeaderboardPage from './features/products/pages/leaderboard-page';
+import LeaderboardPage, {loader as LeaderboardPageLoader} from './features/products/pages/leaderboard-page';
 import { loader as productRedirectPageLoader } from './features/products/pages/product-redirect-page';
-import ProductOverviewLayout from './features/products/layouts/product-overview-layout';
+import ProductOverviewLayout, {loader as ProductOverviewLayoutLoader} from './features/products/layouts/product-overview-layout';
 import ProductOverviewPage from './features/products/pages/product-overview-page';
+import DailyLeaderboardPage from "@/renderer/features/products/pages/daily-leaderboard-page";
+import CategoriesPage, {loader as CategoriesPageLoader} from "@/renderer/features/products/pages/categories-page";
 
 
 console.log('📍 Loaded renderer entry index.tsx');
@@ -61,13 +63,33 @@ const router = createHashRouter(
               ]
             },
           ],
-        },  
+        },
         {
           path: 'products',
           children: [
+            { index: true, loader: () => redirect('/products/leaderboards') }, // /products 경로 접근 시 바로 리다이렉트
             {
-              index: true,
-              loader: productsloader,
+              path: ':id',
+              children: [
+                {
+                  index: true, // /products/:id
+                  loader: ({ params }) => {
+                    console.log(`Redirecting from /products/:id to /products/${params.id}/overview`);
+                    return redirect(`/products/${params.id}/overview`);
+                  }
+                },
+                {
+                  path: 'overview', // /products/:id/overview
+                  element: <ProductOverviewLayout />,
+                  loader: ProductOverviewLayoutLoader,
+                  children: [
+                    {
+                      index: true,
+                      element: <ProductOverviewPage />
+                    }
+                  ]
+                },
+              ]
             },
             {
               path: 'leaderboards',
@@ -77,36 +99,30 @@ const router = createHashRouter(
                 {
                   index: true,
                   element: <LeaderboardPage />,
+                  loader : LeaderboardPageLoader,
                 },
-                //               {
-//                 path: 'yearly/:year',
-//                 element: <YearlyLeaderboardPage />,
-//               },
-//               {
-//                 path: 'monthly/:year/:month',
-//                 element: <MonthlyLeaderboardPage />,
-//               },
-//               {
-//                 path: 'daily/:year/:month/:day',
-//                 element: <DailyLeaderboardPage />,
-//               },
-//               {
-//                 path: 'weekly/:year/:week',
-//                 element: <WeeklyLeaderboardPage />,
-//               },
+                {
+                path: 'daily/:year/:month/:day',
+                element: <DailyLeaderboardPage />,
+                },
+
 //               {
 //                 path: ':period',
 //                 element: <LeaderboardsRedirectionPage />,
 //               },
               ],
             },
-//           {
-//             path: 'categories',
-//             children: [
-//               {
-//                 index: true,
-//                 element: <CategoriesPage />,
-//               },
+            {
+              path: 'categories',
+                children: [
+                {
+                  index: true,
+                  element: <CategoriesPage />,
+                  loader : CategoriesPageLoader,
+                }
+                ]
+            }
+
 //               {
 //                 path: ':category',
 //                 element: <CategoryPage />,
@@ -138,41 +154,7 @@ const router = createHashRouter(
 //               },
 //             ],
 //           },
-          {
-            path: ':productId',
-            children: [
-              {
-                index: true,
-                loader: productRedirectPageLoader,
-              },
-              {
-                element: <ProductOverviewLayout />,
-                children: [
-                  {
-                    path: 'overview',
-                    element: <ProductOverviewPage />,
-                  },
-              //     {
-              //       path: 'reviews',
-              //       children: [
-              //         {
-              //           index: true,
-              //           element: <ProductReviewsPage />,
-              //         },
-              //       ],
-              //     },
-                ],
-              },
-              // {
-              //   path: 'visit',
-              //   element: <ProductVisitPage />,
-              // },
-              //   {
-              //     path: 'upvote',
-              //     element: <ProductUpvotePage />,
-              //   },
-              ],
-            }
+
           ],
         }
       ],

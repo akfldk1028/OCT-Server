@@ -26,11 +26,14 @@ const excludePackages = [
 // );
 const dllDependencies = [
   ...Object.keys(dependencies || {}).filter(
-    (dep) => !excludePackages.includes(dep),
+    (dep) => !excludePackages.includes(dep) && dep !== 'react-router' && dep !== '@react-router/dev'
   ),
-  'react-router-dom',
-  'react-router',
 ];
+// 'react-router'가 필요하고 아직 없다면 여기서 한 번만 추가
+if (!dllDependencies.includes('react-router-dom') && dependencies['react-router-dom']) {
+  dllDependencies.push('react-router-dom');
+}
+
 const configuration: webpack.Configuration = {
   context: webpackPaths.rootPath,
 

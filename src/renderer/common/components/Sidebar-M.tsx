@@ -136,12 +136,12 @@ const menus = [
     ],
   },
   {
-    name: 'IdeasGPT',
+    name: 'Agents',
     to: '/ideas',
     icon: <CircleHelp className="w-4 h-4" />,
   },
   {
-    name: 'Teams',
+    name: 'Tools',
     to: '/teams',
     icon: <Home className="w-4 h-4" />,
     items: [

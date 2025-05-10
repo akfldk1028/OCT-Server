@@ -58,6 +58,12 @@ const configuration: webpack.Configuration = {
     __dirname: false,
     __filename: false,
   },
+  externals: {
+    'morgan': 'commonjs morgan',
+    'swagger-ui-express': 'commonjs swagger-ui-express',
+    'swagger-jsdoc': 'commonjs swagger-jsdoc',
+    'spawn-rx': 'commonjs spawn-rx',
+     },
 };
 
 export default merge(baseConfig, configuration);

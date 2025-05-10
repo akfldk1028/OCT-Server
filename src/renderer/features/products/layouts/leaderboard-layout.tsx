@@ -1,5 +1,10 @@
-import { Outlet, data, useOutletContext, type LoaderFunctionArgs } from "react-router";
-import { z } from "zod";
+import {
+  Outlet,
+  data,
+  useOutletContext,
+  type LoaderFunctionArgs,
+} from 'react-router';
+import { z } from 'zod';
 
 const searchParamsSchema = z.object({
   page: z.coerce.number().min(1).optional().default(1),
@@ -8,15 +13,15 @@ const searchParamsSchema = z.object({
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const { success, data: parsedData } = searchParamsSchema.safeParse(
-    Object.fromEntries(url.searchParams)
+    Object.fromEntries(url.searchParams),
   );
   if (!success) {
     throw data(
       {
-        error_code: "invalid_page",
-        message: "Invalid page",
+        error_code: 'invalid_page',
+        message: 'Invalid page',
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
   return parsedData;

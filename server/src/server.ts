@@ -1,7 +1,7 @@
 import app from './app';
 import { config } from './config';
 
-const PORT = config.port || 3000;
+const PORT = config.port || 4303;
 
 app.listen(PORT, () => {
   console.log(`🚀 서버가 포트 ${PORT}에서 실행 중입니다`);

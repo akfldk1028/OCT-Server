@@ -9,6 +9,27 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      events: {
+        Row: {
+          created_at: string | null
+          event_data: Json | null
+          event_id: string
+          event_type: Database["public"]["Enums"]["event_type"] | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_data?: Json | null
+          event_id?: string
+          event_type?: Database["public"]["Enums"]["event_type"] | null
+        }
+        Update: {
+          created_at?: string | null
+          event_data?: Json | null
+          event_id?: string
+          event_type?: Database["public"]["Enums"]["event_type"] | null
+        }
+        Relationships: []
+      }
       mcp_servers: {
         Row: {
           analysis_result: Json | null
@@ -21,6 +42,8 @@ export type Database = {
           fallback_avatar_initials: string | null
           github_info: Json | null
           id: number
+          is_test: boolean | null
+          is_zero_install: boolean | null
           local_image_path: string | null
           metadata: Json | null
           name: string
@@ -41,6 +64,8 @@ export type Database = {
           fallback_avatar_initials?: string | null
           github_info?: Json | null
           id?: number
+          is_test?: boolean | null
+          is_zero_install?: boolean | null
           local_image_path?: string | null
           metadata?: Json | null
           name: string
@@ -61,6 +86,8 @@ export type Database = {
           fallback_avatar_initials?: string | null
           github_info?: Json | null
           id?: number
+          is_test?: boolean | null
+          is_zero_install?: boolean | null
           local_image_path?: string | null
           metadata?: Json | null
           name?: string
@@ -169,6 +196,8 @@ export type Database = {
           forks: number | null
           github_url: string | null
           id: number | null
+          is_test: boolean | null
+          is_zero_install: boolean | null
           last_updated: string | null
           local_image_path: string | null
           name: string | null
@@ -185,6 +214,8 @@ export type Database = {
           forks?: never
           github_url?: never
           id?: number | null
+          is_test?: boolean | null
+          is_zero_install?: boolean | null
           last_updated?: never
           local_image_path?: string | null
           name?: string | null
@@ -201,6 +232,8 @@ export type Database = {
           forks?: never
           github_url?: never
           id?: number | null
+          is_test?: boolean | null
+          is_zero_install?: boolean | null
           last_updated?: never
           local_image_path?: string | null
           name?: string | null
@@ -212,51 +245,246 @@ export type Database = {
         }
         Relationships: []
       }
-      mcp_servers_full_view: {
+      mcp_server_categories_view: {
         Row: {
+          activity_status: string | null
+          categories: string | null
           created_at: string | null
           description: string | null
-          github_info: Json | null
+          detected_tools: Json | null
+          fallback_avatar_color: string | null
+          fallback_avatar_initials: string | null
+          forks: number | null
           github_url: string | null
           id: number | null
+          is_community: boolean | null
+          is_featured: boolean | null
+          is_official: boolean | null
+          is_remote_available: boolean | null
+          last_updated: string | null
+          license: string | null
+          local_image_path: string | null
           name: string | null
           owner: string | null
+          popularity_category: string | null
           primary_url: string | null
+          pulse_mcp_id: string | null
+          pulse_mcp_url: string | null
           repo_name: string | null
           server_type: string | null
           stars: number | null
+          status: string | null
+          supported_languages: string | null
+          supported_platforms: string | null
+          tags: string | null
+          tool_count: number | null
           unique_id: string | null
           updated_at: string | null
         }
         Insert: {
+          activity_status?: never
+          categories?: never
           created_at?: string | null
           description?: string | null
-          github_info?: Json | null
+          detected_tools?: never
+          fallback_avatar_color?: string | null
+          fallback_avatar_initials?: string | null
+          forks?: never
           github_url?: never
           id?: number | null
+          is_community?: never
+          is_featured?: never
+          is_official?: never
+          is_remote_available?: never
+          last_updated?: never
+          license?: never
+          local_image_path?: string | null
           name?: string | null
           owner?: never
+          popularity_category?: never
           primary_url?: string | null
+          pulse_mcp_id?: never
+          pulse_mcp_url?: never
           repo_name?: never
           server_type?: string | null
           stars?: never
+          status?: never
+          supported_languages?: never
+          supported_platforms?: never
+          tags?: never
+          tool_count?: never
           unique_id?: string | null
           updated_at?: string | null
         }
         Update: {
+          activity_status?: never
+          categories?: never
           created_at?: string | null
           description?: string | null
+          detected_tools?: never
+          fallback_avatar_color?: string | null
+          fallback_avatar_initials?: string | null
+          forks?: never
+          github_url?: never
+          id?: number | null
+          is_community?: never
+          is_featured?: never
+          is_official?: never
+          is_remote_available?: never
+          last_updated?: never
+          license?: never
+          local_image_path?: string | null
+          name?: string | null
+          owner?: never
+          popularity_category?: never
+          primary_url?: string | null
+          pulse_mcp_id?: never
+          pulse_mcp_url?: never
+          repo_name?: never
+          server_type?: string | null
+          stars?: never
+          status?: never
+          supported_languages?: never
+          supported_platforms?: never
+          tags?: never
+          tool_count?: never
+          unique_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      mcp_servers_full_view: {
+        Row: {
+          analysis_result: Json | null
+          analysis_title: string | null
+          analyzed_description: string | null
+          analyzed_name: string | null
+          categories: Json | null
+          config_options: Json | null
+          created_at: string | null
+          description: string | null
+          detected_tools: Json | null
+          fallback_avatar_color: string | null
+          fallback_avatar_initials: string | null
+          forks: number | null
+          github_info: Json | null
+          github_url: string | null
+          id: number | null
+          installation: Json | null
+          is_community: string | null
+          is_featured: string | null
+          is_official: string | null
+          is_remote_available: string | null
+          is_test: boolean | null
+          is_zero_install: boolean | null
+          last_updated: string | null
+          license: string | null
+          local_image_path: string | null
+          mcp_config: Json | null
+          metadata: Json | null
+          metadata_map: Json | null
+          name: string | null
+          owner: string | null
+          primary_url: string | null
+          repo_name: string | null
+          runtime_config_notes: Json | null
+          server_type: string | null
+          stars: number | null
+          supported_languages: Json | null
+          supported_platforms: Json | null
+          tags: Json | null
+          unique_id: string | null
+          updated_at: string | null
+          usage_instructions: Json | null
+          version: string | null
+        }
+        Insert: {
+          analysis_result?: Json | null
+          analysis_title?: never
+          analyzed_description?: never
+          analyzed_name?: never
+          categories?: never
+          config_options?: never
+          created_at?: string | null
+          description?: string | null
+          detected_tools?: never
+          fallback_avatar_color?: string | null
+          fallback_avatar_initials?: string | null
+          forks?: never
           github_info?: Json | null
           github_url?: never
           id?: number | null
+          installation?: never
+          is_community?: never
+          is_featured?: never
+          is_official?: never
+          is_remote_available?: never
+          is_test?: boolean | null
+          is_zero_install?: boolean | null
+          last_updated?: never
+          license?: never
+          local_image_path?: string | null
+          mcp_config?: never
+          metadata?: Json | null
+          metadata_map?: never
           name?: string | null
           owner?: never
           primary_url?: string | null
           repo_name?: never
+          runtime_config_notes?: never
           server_type?: string | null
           stars?: never
+          supported_languages?: never
+          supported_platforms?: never
+          tags?: never
           unique_id?: string | null
           updated_at?: string | null
+          usage_instructions?: never
+          version?: never
+        }
+        Update: {
+          analysis_result?: Json | null
+          analysis_title?: never
+          analyzed_description?: never
+          analyzed_name?: never
+          categories?: never
+          config_options?: never
+          created_at?: string | null
+          description?: string | null
+          detected_tools?: never
+          fallback_avatar_color?: string | null
+          fallback_avatar_initials?: string | null
+          forks?: never
+          github_info?: Json | null
+          github_url?: never
+          id?: number | null
+          installation?: never
+          is_community?: never
+          is_featured?: never
+          is_official?: never
+          is_remote_available?: never
+          is_test?: boolean | null
+          is_zero_install?: boolean | null
+          last_updated?: never
+          license?: never
+          local_image_path?: string | null
+          mcp_config?: never
+          metadata?: Json | null
+          metadata_map?: never
+          name?: string | null
+          owner?: never
+          primary_url?: string | null
+          repo_name?: never
+          runtime_config_notes?: never
+          server_type?: string | null
+          stars?: never
+          supported_languages?: never
+          supported_platforms?: never
+          tags?: never
+          unique_id?: string | null
+          updated_at?: string | null
+          usage_instructions?: never
+          version?: never
         }
         Relationships: []
       }
@@ -265,7 +493,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      event_type: "product_view" | "product_visit" | "profile_view"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -380,6 +608,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      event_type: ["product_view", "product_visit", "profile_view"],
+    },
   },
 } as const

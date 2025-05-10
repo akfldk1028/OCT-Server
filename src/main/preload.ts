@@ -10,10 +10,35 @@
 //
 // USER_ROLE=admin npm run build
 
-
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
-export type Channels = 'ipc-example';
+export type Channels =
+  | 'ipc-example'
+  | 'startServer'
+  | 'stopServer'
+  | 'getServers'
+  | 'getConfigSummaries'
+  | 'serversUpdated'
+  | 'installServer'
+  | 'installResult'
+  | 'installProgress'
+  | 'uninstallServer'
+  | 'uninstallResult'
+  | 'uninstallProgress'
+  | 'server-start-result'
+  | 'server-stop-result'
+  | 'server-log'
+  | 'connect-to-claude'
+  | 'disconnect-from-claude'
+  | 'is-connected-to-claude'
+  | 'get-claude-connected-servers'
+  | 'ask-claude-connection'
+  | 'confirm-claude-connection'
+  | 'claude-connection-result'
+  // MCP 서버 헬스 체크 및 세션 관련 채널 추가
+  | 'mcp:checkHealth'
+  | 'mcp:getSessionId'
+  | 'mcp:healthUpdate';
 
 const electronHandler = {
   ipcRenderer: {
@@ -32,14 +57,139 @@ const electronHandler = {
     once(channel: Channels, func: (...args: unknown[]) => void) {
       ipcRenderer.once(channel, (_event, ...args) => func(...args));
     },
+    invoke: (channel: Channels, ...args: unknown[]) =>
+      ipcRenderer.invoke(channel, ...args),
   },
+  serverManager: {
+    getStatus() {
+      return ipcRenderer.invoke('server:getStatus');
+    },
+    startServer(name: string) {
+      return ipcRenderer.invoke('server:start', name);
+    },
+    stopServer(name: string) {
+      return ipcRenderer.invoke('server:stop', name);
+    },
+    getAllServers() {
+      return ipcRenderer.invoke('server:getAllServers');
+    }
+  },
+  
+  // MCP 서버 관련 기능 추가
+  mcpManager: {
+    // MCP 서버 상태 확인 (헬스 체크)
+    checkHealth(serverUrl: string = 'http://localhost:4303') {
+      return ipcRenderer.invoke('mcp:checkHealth', serverUrl);
+    },
+    
+    // 헬스 체크 상태 변경 구독
+    onHealthUpdate(callback: (data: any) => void) {
+      const subscription = (_event: IpcRendererEvent, data: any) => callback(data);
+      ipcRenderer.on('mcp:healthUpdate', subscription);
+      return () => {
+        ipcRenderer.removeListener('mcp:healthUpdate', subscription);
+      };
+    },
+    
+    // 세션 ID 가져오기
+    getSessionId(serverUrl: string = 'http://localhost:4303') {
+      return ipcRenderer.invoke('mcp:getSessionId', serverUrl);
+    }
+  }
 };
 
-contextBridge.exposeInMainWorld('electron', electronHandler);
-
-// 사용자 역할에 기반한 환경 변수 노출
-// 이 부분은 메인 프로세스에서 사용자 역할 정보를 받아야 함
-console.log('Preloading environment variables based on user role...');
+// High‑level API
+const api = {
+  /**
+   * 서버 설치를 요청합니다.
+   * @param name 서버 이름 또는 ID
+   * @param command 설치 명령 (docker, npx 등)
+   * @param envVars 환경 변수 객체 (선택적)
+   * @returns 설치 결과
+   */
+  installServer: async (name: string, command: string, envVars?: Record<string, string>) => {
+    console.log('⏩ preload: invoke installServer', name, command, envVars ? '(with env vars)' : '');
+    return await electronHandler.ipcRenderer.invoke('installServer', name, command, envVars);
+  },
+  
+  /**
+   * MCP 서버 상태를 확인합니다.
+   * @param serverUrl 서버 URL (기본값: http://localhost:4303)
+   * @returns 상태 확인 결과
+   */
+  checkMcpServerHealth: async (serverUrl: string = 'http://localhost:4303') => {
+    console.log('⏩ preload: check MCP server health', serverUrl);
+    try {
+      // 서버 헬스 체크 엔드포인트 호출
+      const response = await fetch(`${serverUrl}/health`);
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          isHealthy: true,
+          status: data.status || 'ok',
+          timestamp: Date.now()
+        };
+      } else {
+        return {
+          isHealthy: false,
+          error: `서버 응답 오류: ${response.status}`,
+          timestamp: Date.now()
+        };
+      }
+    } catch (error) {
+      console.error('MCP 서버 헬스 체크 오류:', error);
+      return {
+        isHealthy: false,
+        error: `연결 오류: ${error instanceof Error ? error.message : String(error)}`,
+        timestamp: Date.now()
+      };
+    }
+  },
+  
+  /**
+   * MCP 서버에 HTTP 요청을 보내고 세션 ID를 추출합니다.
+   * @param serverUrl 서버 URL (기본값: http://localhost:4303)
+   * @param config 서버 설정 (command, args 등)
+   * @returns 세션 ID 또는 오류
+   */
+  getMcpSessionId: async (serverUrl: string = 'http://localhost:4303', config: any = {}) => {
+    console.log('⏩ preload: get MCP session ID', serverUrl);
+    try {
+      // 서버 설정에서 명령어와 인수 추출
+      const command = config.command || config.execution?.command || 'npx';
+      const args = config.args?.join(' ') || config.execution?.args?.join(' ') || '';
+      
+      // 세션 ID를 가져오기 위한 요청
+      const url = `${serverUrl}/stdio?transportType=stdio&command=${encodeURIComponent(command)}&args=${encodeURIComponent(args)}`;
+      const response = await fetch(url);
+      
+      // 응답 헤더에서 세션 ID 추출
+      const sessionId = response.headers.get('mcp-session-id');
+      
+      if (sessionId) {
+        return {
+          success: true,
+          sessionId,
+          timestamp: Date.now()
+        };
+      } else {
+        // 응답은 성공했지만 세션 ID가 없는 경우
+        return {
+          success: false,
+          error: '세션 ID를 찾을 수 없습니다.',
+          timestamp: Date.now()
+        };
+      }
+    } catch (error) {
+      console.error('MCP 세션 ID 가져오기 오류:', error);
+      return {
+        success: false,
+        error: `연결 오류: ${error instanceof Error ? error.message : String(error)}`,
+        timestamp: Date.now()
+      };
+    }
+  }
+};
 
 // 사용자 역할 확인 (메인 프로세스에서 전달받거나 환경 변수로 설정)
 const isAdmin = process.env.USER_ROLE === 'admin';
@@ -64,16 +214,16 @@ if (isAdmin) {
 
 // IPC 통신 설정
 contextBridge.exposeInMainWorld('electronAPI', {
-  sendMessage: (channel, data) => ipcRenderer.send(channel, data),
-  onMessage: (channel, func) => {
-    const subscription = (event, ...args) => func(...args);
+  sendMessage: (channel: string, data: any) => ipcRenderer.send(channel, data),
+  onMessage: (channel: string, func: (...args: any[]) => void) => {
+    const subscription = (event: any, ...args: any[]) => func(...args);
     ipcRenderer.on(channel, subscription);
     return () => ipcRenderer.removeListener(channel, subscription);
   },
   // 역할 확인용 API 추가
   isAdmin: () => isAdmin,
   // 관리자 기능 요청 메서드 (메인 프로세스에서 처리)
-  requestAdminOperation: (operation, params) =>
+  requestAdminOperation: (operation: any, params: any) =>
     ipcRenderer.invoke('admin-operation', operation, params)
 });
 
@@ -84,3 +234,10 @@ window.addEventListener('error', (event) => {
     event.preventDefault();
   }
 });
+
+// 기본 API 노출
+contextBridge.exposeInMainWorld('electron', electronHandler);
+contextBridge.exposeInMainWorld('api', api);
+
+export type ElectronHandler = typeof electronHandler;
+export type Api = typeof api;

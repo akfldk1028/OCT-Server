@@ -24,7 +24,11 @@ export type Database = MergeDeep<
             SupabaseDatabase["public"]["Views"]["github_popularity_view"]["Row"]
           >;
         };
-
+        mcp_server_categories_view: {
+          Row: SetNonNullable<
+            SupabaseDatabase["public"]["Views"]["mcp_server_categories_view"]["Row"]
+          >;
+        };
       };
     };
   }

@@ -86,7 +86,7 @@ const menus = [
     ],
   },
   {
-    name: 'Jobs',
+    name: 'MyServer',
     to: '/jobs',
     items: [
       {

@@ -1,14 +1,24 @@
 import { DateTime } from "luxon";
 import type { Route } from "./+types/daily-leaderboard-page";
-import { data, isRouteErrorResponse, Link } from "react-router";
+import {data, isRouteErrorResponse, Link, useLoaderData} from "react-router";
 import { z } from "zod";
-import { Hero } from "~/common/components/hero";
+import { Hero } from "../../../common/components/hero";
 import { ProductCard } from "../components/product-card";
-import { Button } from "~/common/components/ui/button";
-import ProductPagination from "~/common/components/product-pagination";
+import { Button } from "../../../common/components/ui/button";
+import ProductPagination from "../../../common/components/product-pagination";
 import { getProductPagesByDateRange, getProductsByDateRange } from "../queries";
 import { PAGE_SIZE } from "../contants";
-import { makeSSRClient } from "~/supa-client";
+import { makeSSRClient } from "../../../supa-client";
+import { type LoaderFunctionArgs, type MetaFunction } from "react-router";
+import { Tables } from "../../../database.types";
+
+// GitHubPopularityView 타입 정의
+type GithubPopularityView = Tables<"github_popularity_view">;
+
+// 로더 데이터 타입 정의
+type LeaderboardLoaderData = {
+  loaderData: GithubPopularityView[];
+};
 
 const paramsSchema = z.object({
   year: z.coerce.number(),
@@ -16,7 +26,7 @@ const paramsSchema = z.object({
   day: z.coerce.number(),
 });
 
-export const meta: Route.MetaFunction = ({ params }) => {
+export const meta: MetaFunction = ({ params }) => {
   const date = DateTime.fromObject({
     year: Number(params.year),
     month: Number(params.month),
@@ -33,7 +43,7 @@ export const meta: Route.MetaFunction = ({ params }) => {
   ];
 };
 
-export const loader = async ({ params, request }: Route.LoaderArgs) => {
+export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const { success, data: parsedData } = paramsSchema.safeParse(params);
   if (!success) {
     throw data(
@@ -68,13 +78,13 @@ export const loader = async ({ params, request }: Route.LoaderArgs) => {
   }
   const url = new URL(request.url);
   const { client, headers } = makeSSRClient(request);
-  const products = await getProductsByDateRange(client, {
+  const products = await getProductsByDateRange(client as any, {
     startDate: date.startOf("day"),
     endDate: date.endOf("day"),
     limit: PAGE_SIZE,
     page: Number(url.searchParams.get("page") || 1),
   });
-  const totalPages = await getProductPagesByDateRange(client, {
+  const totalPages = await getProductPagesByDateRange(client as any, {
     startDate: date.startOf("day"),
     endDate: date.endOf("day"),
   });
@@ -85,9 +95,8 @@ export const loader = async ({ params, request }: Route.LoaderArgs) => {
   };
 };
 
-export default function DailyLeaderboardPage({
-  loaderData,
-}: Route.ComponentProps) {
+export default function DailyLeaderboardPage() {
+  const { loaderData } = useLoaderData() as LeaderboardLoaderData;
   const urlDate = DateTime.fromObject({
     year: loaderData.year,
     month: loaderData.month,
@@ -135,17 +144,7 @@ export default function DailyLeaderboardPage({
             promotedFrom={product.promoted_from}
           />
         ))}
-        {loaderData.products.length === 0 && (
-          <div className="col-span-full">
-            <p className=" text-center font-semibold text-muted-foreground">
-              No products found, go back to{" "}
-              <Button variant={"link"} asChild className="p-0 text-lg">
-                <Link to="/products/leaderboards">leaderboards</Link>
-              </Button>{" "}
-              page.
-            </p>
-          </div>
-        )}
+
       </div>
       <ProductPagination totalPages={loaderData.totalPages} />
     </div>

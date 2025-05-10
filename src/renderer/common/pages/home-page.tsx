@@ -103,7 +103,7 @@ export default  function HomePage() {
             </BlurFade>
             <BlurFade delay={1} duration={1} inView>
               <span className="text-2xl md:text-5xl">
-                the home of Context
+                the home of MCP
               </span>
             </BlurFade>
           </div>
