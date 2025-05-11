@@ -59,7 +59,9 @@ export const loader = async (/* { request } : any */) => {
     console.log("Using client created by makeSSRClient (Electron adapted)");
     const [products] = await Promise.all([
       getProductsBypopularity(client as any, { // 'as any' cast might still be needed depending on exact types
-        limit: 8,
+        limit: 100,
+        // limit: 8,
+
       }),
     ]);
     return {

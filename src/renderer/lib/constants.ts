@@ -23,7 +23,7 @@ export type ConnectionStatus =
   | 'error'
   | 'error-connecting-to-proxy';
 
-export const DEFAULT_MCP_PROXY_LISTEN_PORT = '3000';
+export const DEFAULT_MCP_PROXY_LISTEN_PORT = '4303';
 
 /**
  * Default configuration for the MCP Inspector, Currently persisted in local_storage in the Browser.

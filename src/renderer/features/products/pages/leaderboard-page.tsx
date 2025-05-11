@@ -30,7 +30,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       getProductsByDateRange(client as any, {
         startDate: DateTime.now().startOf("day"),
         endDate: DateTime.now().endOf("day"),
-        limit: 24,
+        limit: 50,
       }),
       // getProductsByDateRange(client, {
       //   startDate: DateTime.now().startOf("week"),

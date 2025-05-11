@@ -5,6 +5,8 @@ import { MCPServerExtended } from '../types/server-config';
 import { InstallMethodSelector } from './InstallMethodSelector';
 import { updateServerInstallStatus } from '../configLoader';
 import { manager } from '../manager/managerInstance';
+import { BaseMCPServer, ServerStatus } from '../manager/severManager';
+import { ServerInstanceFactory } from '../manager/ServerInstanceFactory';
 
 export class ServerInstaller {
   private appDataPath: string;
@@ -63,36 +65,44 @@ export class ServerInstaller {
 
     // Zero Install 부분 수정
     if (config.is_zero_install === true) {
-        console.log(`⚡️ [ServerInstaller] ${serverName}는 zero-install 서버입니다. 설치 없이 바로 실행합니다.`);
-        this.reportProgress(serverName, 'Zero-install: 바로 실행', 10);
-        this.updateCommandAndArgs(config, { type: config.type, ...config.execution });
-        
-        // Manager API 호출
-        try {
-        const success = await manager.callMcpApi(config);
-        
-        if (!success) {
-            this.reportProgress(serverName, 'MCP API 호출 실패', 0);
-            console.error(`❌ [ServerInstaller] ${serverName} zero-install 서버 시작 실패!`);
-            return { success: false };
-        }
-        
-        // 서버 상태 업데이트 (성공한 경우)
-        if (serverName === 'remote-mcp-server') {
-            manager.updateServerStatus(serverName, 'running');
-        }
-        } catch (error) {
-        console.error(`❌ [ServerInstaller] MCP API 호출 오류:`, error);
-        this.reportProgress(serverName, `API 호출 실패: ${error}`, 0);
+      console.log(`⚡️ [ServerInstaller] ${serverName}는 zero-install 서버입니다. 인스턴스 생성 및 등록을 시작합니다.`);
+      this.reportProgress(serverName, 'Zero-install: 설정 처리 중', 10);
+
+      // 1. JSON 설정 파일 저장
+      const serverDir = this.getInstallDir(serverName);
+      if (!fs.existsSync(serverDir)) {
+        fs.mkdirSync(serverDir, { recursive: true });
+      }
+      const configFilePath = path.join(serverDir, `${serverName}_config.json`);
+      try {
+        fs.writeFileSync(configFilePath, JSON.stringify(config, null, 2));
+        console.log(`💾 [ServerInstaller] ${serverName} 설정이 ${configFilePath}에 저장되었습니다.`);
+        this.reportProgress(serverName, '설정 파일 저장 완료', 30);
+      } catch (e) {
+        console.error(`❌ [ServerInstaller] ${serverName} 설정 파일 저장 실패:`, e);
+        this.reportProgress(serverName, '설정 파일 저장 실패', 0);
         return { success: false };
+      }
+
+      // 2 & 3. ServerInstanceFactory를 사용하여 서버 인스턴스 생성 및 등록
+      try {
+        // 서버 인스턴스 생성 및 등록을 팩토리에 위임
+        const success = ServerInstanceFactory.createAndRegister(serverName, config);
+        
+        if (success) {
+          console.log(`📦 [ServerInstaller] ${serverName} 인스턴스가 생성되고 ServerManager에 추가되었습니다.`);
+          this.reportProgress(serverName, '인스턴스 등록 완료', 100);
+          return { success: true, method: { type: config.type, message: 'Zero-install instance created and registered.' } };
+        } else {
+          console.error(`❌ [ServerInstaller] ${serverName} 인스턴스 생성 또는 등록 실패`);
+          this.reportProgress(serverName, '인스턴스 등록 실패', 0);
+          return { success: false };
         }
-        
-        this.reportProgress(serverName, '실행 완료', 100);
-        console.log(`🎉 [ServerInstaller] ${serverName} zero-install 서버 실행 완료!`);
-        
-        // 기존 메타데이터 저장 코드...
-        
-        return { success: true, method: { type: config.type } };
+      } catch (e) {
+        console.error(`❌ [ServerInstaller] ${serverName} 인스턴스 생성 중 오류:`, e);
+        this.reportProgress(serverName, '인스턴스 생성 실패', 0);
+        return { success: false };
+      }
     }
 
     try {

@@ -17,7 +17,7 @@ import ProductOverviewLayout, {loader as ProductOverviewLayoutLoader} from './fe
 import ProductOverviewPage from './features/products/pages/product-overview-page';
 import DailyLeaderboardPage from "@/renderer/features/products/pages/daily-leaderboard-page";
 import CategoriesPage, {loader as CategoriesPageLoader} from "@/renderer/features/products/pages/categories-page";
-
+import JobPage, {loader as JobPageLoader} from "./features/server/pages/job-page";
 
 console.log('📍 Loaded renderer entry index.tsx');
 
@@ -156,7 +156,20 @@ const router = createHashRouter(
 //           },
 
           ],
+
+        },
+        {
+          path: 'jobs',
+          children: [
+            {
+              index: true,
+              element: <JobPage/>,
+              // loader: JobPageLoader,
+            }, // /products 경로 접근 시 바로 리다이렉트
+
+            ],
         }
+
       ],
     },
   ],

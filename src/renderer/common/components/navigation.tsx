@@ -92,7 +92,7 @@ const menus = [
       {
         name: 'Remote Jobs',
         description: 'Find a remote job in our community',
-        to: '/jobs?location=remote',
+        to: '/jobs',
       },
       {
         name: 'Full-Time Jobs',

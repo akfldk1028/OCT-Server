@@ -566,7 +566,7 @@ const Sidebar = ({
       </div>
       <div className="p-4 border-t">
         <div className="flex items-center justify-between">
-          <Select
+          {/* <Select
             value={theme}
             onValueChange={(value: string) =>
               setTheme(value as "system" | "light" | "dark")
@@ -580,9 +580,9 @@ const Sidebar = ({
               <SelectItem value="light">Light</SelectItem>
               <SelectItem value="dark">Dark</SelectItem>
             </SelectContent>
-          </Select>
+          </Select> */}
 
-          <div className="flex items-center space-x-2">
+          {/* <div className="flex items-center space-x-2">
             <Button variant="ghost" title="Inspector Documentation" asChild>
               <a
                 href="https://modelcontextprotocol.io/docs/tools/inspector"
@@ -614,7 +614,7 @@ const Sidebar = ({
                 <Github className="w-4 h-4 text-foreground" />
               </a>
             </Button>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

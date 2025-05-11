@@ -26,6 +26,7 @@ import { ServerInstaller } from './src/common/installer/ServerInstaller';
 import { startExpressServer } from './src/common/server/server';
 import { manager } from './src/common/manager/managerInstance';
 import { setupMcpHealthCheckHandlers } from './src/common/server/services/mcpHealthCheck';
+import { ServerInstanceFactory } from './src/common/manager/ServerInstanceFactory';
 
 dotenv.config();
 
@@ -104,7 +105,7 @@ ipcMain.handle('installServer', async (event, serverName: string, command: strin
   }
 
 
-  try { 
+  try {
     console.log(
       `[Main] Starting installation process for ${serverName} using BASE config...`,
     );
@@ -168,6 +169,18 @@ ipcMain.handle('installServer', async (event, serverName: string, command: strin
   return { success: true }; // 응답
 });
 
+/////////////////////////////////////////////////////////
+
+  // 활성 세션 조회
+  ipcMain.handle('mcp:getActiveSessions', async (event, serverName?: string) => {
+    try {
+      return await manager.getActiveSessions(serverName);
+    } catch (error) {
+      console.error('Error getting active sessions:', error);
+      return [];
+    }
+  });
+
 
 
 const installExtensions = async () => {
@@ -185,25 +198,39 @@ const installExtensions = async () => {
 
 let expressServer: any = null;
 
+// 앱 데이터 경로 정의 (configLoader.ts에 정의된 것과 일치시킴)
+const appDataPath = path.join(
+  process.env.APPDATA ||
+    (process.platform === 'darwin'
+      ? `${process.env.HOME}/Library/Application Support`
+      : `${process.env.HOME}/.local/share`),
+  'mcp-server-manager',
+);
+
 const createWindow = async () => {
   if (isDebug) {
     await installExtensions();
   }
-  
+
   // Express 서버 대신 ServerManager를 통해 서버 관리
   console.log('🚀 [main] 일렉트론 앱 시작 - Express 로컬 서버 시작 중...');
-  
+
   // Express 서버 시작
   try {
     await manager.startServer('local-express-server');
     console.log('✅ [main] Express 로컬 서버 시작 완료');
+    
+    // Zero-install 서버 인스턴스 로드 (Express 서버가 시작된 후)
+    console.log('📂 [main] 서버 인스턴스 로드 시작...');
+    const loadedCount = ServerInstanceFactory.loadServerConfigs(appDataPath);
+    console.log(`📊 [main] 서버 인스턴스 로드 완료: ${loadedCount}개 서버 로드됨`);
   } catch (error) {
     console.error('❌ [main] Express 로컬 서버 시작 실패:', error);
   }
-  
+
   // 필요한 경우 MCP 서버도 시작
   // await manager.startServer('remote-mcp-server');
-  
+
   // 직접 Express 서버를 실행하는 것이 아닌 ServerManager를 통해 관리하므로 제거
   // expressServer = startExpressServer();
 
@@ -275,7 +302,7 @@ app.on('window-all-closed', () => {
   } catch (err) {
     console.error('서버 종료 중 오류:', err);
   }
-  
+
   // Respect the OSX convention of having the application in memory even
   // after all windows have been closed
   if (process.platform !== 'darwin') {
@@ -311,20 +338,48 @@ app
 // 서버 관리 관련 IPC 핸들러 추가
 ipcMain.handle('server:getStatus', async () => {
   try {
-    return await manager.getStatus();
+    // 모든 서버 상태를 가져온 다음, Express 서버를 필터링하여 제외
+    const allServers = await manager.getStatus();
+    return allServers.filter(server => server.name !== 'local-express-server');
   } catch (error) {
     console.error('서버 상태 조회 오류:', error);
     return { error: '서버 상태 조회 실패' };
   }
 });
 
+// 전체 서버 설정 정보를 가져오는 핸들러 추가
+ipcMain.handle('server:getFullConfigs', async () => {
+  try {
+    const allServers = manager.getAllServersWithFullConfig();
+    // Express 서버 제외
+    return allServers.filter(server => server.name !== 'local-express-server');
+  } catch (error) {
+    console.error('서버 전체 설정 조회 오류:', error);
+    return { error: '서버 전체 설정 조회 실패' };
+  }
+});
+
 ipcMain.handle('server:start', async (_, name) => {
   try {
+    // 서버 이름 유효성 검사 강화
+    if (!name || name === 'undefined' || typeof name !== 'string') {
+      console.error(`유효하지 않은 서버 시작 요청: "${name}" (타입: ${typeof name})`);
+      return { success: false, message: '유효한 서버 이름이 필요합니다.' };
+    }
+    
+    // 서버 존재 여부 확인
+    const server = manager.getServer(name);
+    if (!server) {
+      console.error(`존재하지 않는 서버(${name}) 시작 요청을 받았습니다`);
+      return { success: false, message: `서버 '${name}'을 찾을 수 없습니다.` };
+    }
+    
+    console.log(`[main] 서버 시작 요청: ${name}`);
     await manager.startServer(name);
     return { success: true, message: `${name} 서버가 시작되었습니다.` };
   } catch (error) {
-    console.error(`${name} 서버 시작 오류:`, error);
-    return { success: false, error: `${name} 서버 시작 실패` };
+    console.error(`${name || 'unknown'} 서버 시작 오류:`, error);
+    return { success: false, message: `${name || 'unknown'} 서버 시작 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}` };
   }
 });
 

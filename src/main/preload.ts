@@ -72,124 +72,33 @@ const electronHandler = {
     },
     getAllServers() {
       return ipcRenderer.invoke('server:getAllServers');
-    }
+    },
   },
-  
+
   // MCP 서버 관련 기능 추가
   mcpManager: {
     // MCP 서버 상태 확인 (헬스 체크)
     checkHealth(serverUrl: string = 'http://localhost:4303') {
       return ipcRenderer.invoke('mcp:checkHealth', serverUrl);
     },
-    
+
     // 헬스 체크 상태 변경 구독
     onHealthUpdate(callback: (data: any) => void) {
-      const subscription = (_event: IpcRendererEvent, data: any) => callback(data);
+      const subscription = (_event: IpcRendererEvent, data: any) =>
+        callback(data);
       ipcRenderer.on('mcp:healthUpdate', subscription);
       return () => {
         ipcRenderer.removeListener('mcp:healthUpdate', subscription);
       };
     },
-    
+
     // 세션 ID 가져오기
     getSessionId(serverUrl: string = 'http://localhost:4303') {
       return ipcRenderer.invoke('mcp:getSessionId', serverUrl);
-    }
-  }
+    },
+  },
 };
 
-// High‑level API
-const api = {
-  /**
-   * 서버 설치를 요청합니다.
-   * @param name 서버 이름 또는 ID
-   * @param command 설치 명령 (docker, npx 등)
-   * @param envVars 환경 변수 객체 (선택적)
-   * @returns 설치 결과
-   */
-  installServer: async (name: string, command: string, envVars?: Record<string, string>) => {
-    console.log('⏩ preload: invoke installServer', name, command, envVars ? '(with env vars)' : '');
-    return await electronHandler.ipcRenderer.invoke('installServer', name, command, envVars);
-  },
-  
-  /**
-   * MCP 서버 상태를 확인합니다.
-   * @param serverUrl 서버 URL (기본값: http://localhost:4303)
-   * @returns 상태 확인 결과
-   */
-  checkMcpServerHealth: async (serverUrl: string = 'http://localhost:4303') => {
-    console.log('⏩ preload: check MCP server health', serverUrl);
-    try {
-      // 서버 헬스 체크 엔드포인트 호출
-      const response = await fetch(`${serverUrl}/health`);
-      if (response.ok) {
-        const data = await response.json();
-        return {
-          isHealthy: true,
-          status: data.status || 'ok',
-          timestamp: Date.now()
-        };
-      } else {
-        return {
-          isHealthy: false,
-          error: `서버 응답 오류: ${response.status}`,
-          timestamp: Date.now()
-        };
-      }
-    } catch (error) {
-      console.error('MCP 서버 헬스 체크 오류:', error);
-      return {
-        isHealthy: false,
-        error: `연결 오류: ${error instanceof Error ? error.message : String(error)}`,
-        timestamp: Date.now()
-      };
-    }
-  },
-  
-  /**
-   * MCP 서버에 HTTP 요청을 보내고 세션 ID를 추출합니다.
-   * @param serverUrl 서버 URL (기본값: http://localhost:4303)
-   * @param config 서버 설정 (command, args 등)
-   * @returns 세션 ID 또는 오류
-   */
-  getMcpSessionId: async (serverUrl: string = 'http://localhost:4303', config: any = {}) => {
-    console.log('⏩ preload: get MCP session ID', serverUrl);
-    try {
-      // 서버 설정에서 명령어와 인수 추출
-      const command = config.command || config.execution?.command || 'npx';
-      const args = config.args?.join(' ') || config.execution?.args?.join(' ') || '';
-      
-      // 세션 ID를 가져오기 위한 요청
-      const url = `${serverUrl}/stdio?transportType=stdio&command=${encodeURIComponent(command)}&args=${encodeURIComponent(args)}`;
-      const response = await fetch(url);
-      
-      // 응답 헤더에서 세션 ID 추출
-      const sessionId = response.headers.get('mcp-session-id');
-      
-      if (sessionId) {
-        return {
-          success: true,
-          sessionId,
-          timestamp: Date.now()
-        };
-      } else {
-        // 응답은 성공했지만 세션 ID가 없는 경우
-        return {
-          success: false,
-          error: '세션 ID를 찾을 수 없습니다.',
-          timestamp: Date.now()
-        };
-      }
-    } catch (error) {
-      console.error('MCP 세션 ID 가져오기 오류:', error);
-      return {
-        success: false,
-        error: `연결 오류: ${error instanceof Error ? error.message : String(error)}`,
-        timestamp: Date.now()
-      };
-    }
-  }
-};
 
 // 사용자 역할 확인 (메인 프로세스에서 전달받거나 환경 변수로 설정)
 const isAdmin = process.env.USER_ROLE === 'admin';
@@ -199,14 +108,14 @@ if (isAdmin) {
   contextBridge.exposeInMainWorld('electronEnv', {
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
-    supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY // 관리자만 접근 가능
+    supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY, // 관리자만 접근 가능
   });
   console.log('Admin environment variables exposed');
 } else {
   // 일반 사용자용 환경 변수 노출 (제한된 키)
   contextBridge.exposeInMainWorld('electronEnv', {
     supabaseUrl: process.env.SUPABASE_URL,
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
     // service_role_key는 포함하지 않음
   });
   console.log('Regular user environment variables exposed');
@@ -224,16 +133,421 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isAdmin: () => isAdmin,
   // 관리자 기능 요청 메서드 (메인 프로세스에서 처리)
   requestAdminOperation: (operation: any, params: any) =>
-    ipcRenderer.invoke('admin-operation', operation, params)
+    ipcRenderer.invoke('admin-operation', operation, params),
 });
 
 // ResizeObserver 경고 무시
 window.addEventListener('error', (event) => {
-  if (typeof event.message === 'string' && event.message.includes('ResizeObserver loop completed')) {
+  if (
+    typeof event.message === 'string' &&
+    event.message.includes('ResizeObserver loop completed')
+  ) {
     event.stopImmediatePropagation();
     event.preventDefault();
   }
 });
+
+// 타입 정의
+interface ServerInfo {
+  id: string;
+  name: string;
+  status: 'stopped' | 'running' | 'error' | 'starting' | 'stopping';
+  type: string;
+  host?: string;
+  port?: number;
+  sessionId?: string;
+  activeSessions?: number;
+  config?: {
+    command?: string;
+    args?: string[];
+    transportType?: 'stdio' | 'sse' | 'streamable-http';
+    sseUrl?: string;
+    env?: Record<string, string>;
+  };
+  connectionStatus?: 'connected' | 'disconnected' | 'connecting';
+  lastError?: string;
+}
+
+// Electron API 정의
+const api = {
+  // 서버 관리
+  getServerStatus: async (): Promise<ServerInfo[]> => {
+    return ipcRenderer.invoke('server:getStatus');
+  },
+
+  // 서버 전체 설정 정보 가져오기
+  getFullConfigs: async (): Promise<ServerInfo[]> => {
+    return ipcRenderer.invoke('server:getFullConfigs');
+  },
+
+  startServer: async (
+    serverId: string,
+  ): Promise<{ success: boolean; message?: string }> => {
+    return ipcRenderer.invoke('server:start', serverId);
+  },
+
+  stopServer: async (
+    serverId: string,
+  ): Promise<{ success: boolean; message?: string }> => {
+    return ipcRenderer.invoke('server:stop', serverId);
+  },
+
+  restartServer: async (
+    serverId: string,
+  ): Promise<{ success: boolean; message?: string }> => {
+    return ipcRenderer.invoke('server:restart', serverId);
+  },
+
+  installServer: async (
+    name: string,
+    command: string,
+    envVars?: Record<string, string>,
+  ): Promise<{ success: boolean; message?: string }> => {
+    return electronHandler.ipcRenderer.invoke(
+      'installServer',
+      name,
+      command,
+      envVars,
+    );
+    // return ipcRenderer.invoke('server:install', name, command, envVars);
+  },
+
+  // installServer: async (name: string, command: string, envVars?: Record<string, string>) => {
+  //   console.log('⏩ preload: invoke installServer', name, command, envVars ? '(with env vars)' : '');
+  //   return await electronHandler.ipcRenderer.invoke('installServer', name, command, envVars);
+  // },
+  // 멀티 서버 관리
+  startMultipleServers: async (
+    serverConfigs: Array<{ serverName: string; config: any }>,
+  ): Promise<{
+    total: number;
+    succeeded: number;
+    failed: number;
+    results: Array<{ serverName: string; status: string; error?: string }>;
+  }> => {
+    return ipcRenderer.invoke('server:startMultiple', serverConfigs);
+  },
+
+  stopMultipleServers: async (
+    serverNames: string[],
+  ): Promise<{
+    total: number;
+    succeeded: number;
+    failed: number;
+    results: Array<{ serverName: string; status: string; error?: string }>;
+  }> => {
+    return ipcRenderer.invoke('server:stopMultiple', serverNames);
+  },
+
+  // MCP 특화 기능
+  getMcpSessionId: async (config: any): Promise<string | null> => {
+    return ipcRenderer.invoke('mcp:getSessionId', config);
+  },
+
+  connectToMcpServer: async (
+    serverName: string,
+    config: any,
+    transportType?: 'stdio' | 'sse' | 'streamable-http',
+  ): Promise<{
+    success: boolean;
+    sessionId?: string;
+    error?: string;
+  }> => {
+    return ipcRenderer.invoke('mcp:connect', serverName, config, transportType);
+  },
+
+  disconnectFromMcpServer: async (sessionId: string): Promise<boolean> => {
+    return ipcRenderer.invoke('mcp:disconnect', sessionId);
+  },
+
+  getActiveSessions: async (serverName?: string): Promise<any[]> => {
+    console.log('getActiveSessions #');
+    return ipcRenderer.invoke('mcp:getActiveSessions', serverName);
+  },
+
+  // 서버 설정 관리
+  addServerConfig: async (serverConfig: {
+    name: string;
+    command: string;
+    args: string[];
+    transportType: 'stdio' | 'sse' | 'streamable-http';
+    env?: Record<string, string>;
+  }): Promise<{ success: boolean; message?: string }> => {
+    return ipcRenderer.invoke('server:addConfig', serverConfig);
+  },
+
+  updateServerConfig: async (
+    serverId: string,
+    config: any,
+  ): Promise<{ success: boolean; message?: string }> => {
+    return ipcRenderer.invoke('server:updateConfig', serverId, config);
+  },
+
+  removeServerConfig: async (
+    serverId: string,
+  ): Promise<{ success: boolean; message?: string }> => {
+    return ipcRenderer.invoke('server:removeConfig', serverId);
+  },
+
+  // 서버 로그 및 모니터링
+  getServerLogs: async (
+    serverId: string,
+    lines?: number,
+  ): Promise<string[]> => {
+    return ipcRenderer.invoke('server:getLogs', serverId, lines);
+  },
+
+  subscribeToServerLogs: (
+    serverId: string,
+    callback: (log: {
+      timestamp: string;
+      level: string;
+      message: string;
+    }) => void,
+  ) => {
+    ipcRenderer.on(`server:logs:${serverId}`, (_, log) => callback(log));
+    return () => ipcRenderer.removeAllListeners(`server:logs:${serverId}`);
+  },
+
+  // 글로벌 설정
+  getGlobalConfig: async (): Promise<any> => {
+    return ipcRenderer.invoke('config:get');
+  },
+
+  setGlobalConfig: async (
+    config: any,
+  ): Promise<{ success: boolean; message?: string }> => {
+    return ipcRenderer.invoke('config:set', config);
+  },
+
+  // 유틸리티
+  openServerDirectory: async (serverId: string): Promise<void> => {
+    return ipcRenderer.invoke('server:openDirectory', serverId);
+  },
+
+  exportServerConfig: async (
+    serverId: string,
+  ): Promise<{ success: boolean; data?: any; message?: string }> => {
+    return ipcRenderer.invoke('server:exportConfig', serverId);
+  },
+
+  importServerConfig: async (
+    configData: any,
+  ): Promise<{ success: boolean; message?: string }> => {
+    return ipcRenderer.invoke('server:importConfig', configData);
+  },
+
+  // 파일 시스템 작업
+  selectDirectory: async (): Promise<{
+    canceled: boolean;
+    filePath?: string;
+  }> => {
+    return ipcRenderer.invoke('dialog:selectDirectory');
+  },
+
+  selectFile: async (
+    filters?: Array<{ name: string; extensions: string[] }>,
+  ): Promise<{ canceled: boolean; filePath?: string }> => {
+    return ipcRenderer.invoke('dialog:selectFile', filters);
+  },
+
+  saveFile: async (
+    defaultPath?: string,
+    data?: any,
+  ): Promise<{ canceled: boolean; filePath?: string }> => {
+    return ipcRenderer.invoke('dialog:saveFile', defaultPath, data);
+  },
+
+  // 메시지 및 알림
+  showNotification: (title: string, body: string, icon?: string): void => {
+    ipcRenderer.send('notification:show', { title, body, icon });
+  },
+
+  showDialog: async (options: {
+    type?: 'info' | 'warning' | 'error' | 'question';
+    title?: string;
+    message: string;
+    detail?: string;
+    buttons?: string[];
+    defaultId?: number;
+    cancelId?: number;
+  }): Promise<{ response: number; checkboxChecked?: boolean }> => {
+    return ipcRenderer.invoke('dialog:show', options);
+  },
+
+  // 개발자 도구
+  openDevTools: (): void => {
+    ipcRenderer.send('dev:openDevTools');
+  },
+
+  reloadApp: (): void => {
+    ipcRenderer.send('app:reload');
+  },
+
+  // 앱 상태 관리
+  getAppVersion: async (): Promise<string> => {
+    return ipcRenderer.invoke('app:getVersion');
+  },
+
+  checkForUpdates: async (): Promise<{
+    available: boolean;
+    version?: string;
+    downloadUrl?: string;
+  }> => {
+    return ipcRenderer.invoke('app:checkForUpdates');
+  },
+
+  downloadUpdate: async (): Promise<{
+    success: boolean;
+    filePath?: string;
+    message?: string;
+  }> => {
+    return ipcRenderer.invoke('app:downloadUpdate');
+  },
+
+  installUpdate: async (
+    filePath: string,
+  ): Promise<{ success: boolean; message?: string }> => {
+    return ipcRenderer.invoke('app:installUpdate', filePath);
+  },
+
+  // 이벤트 리스너
+  onServerStatusChange: (
+    callback: (data: {
+      serverId: string;
+      status: string;
+      lastError?: string;
+    }) => void,
+  ) => {
+    ipcRenderer.on('server:statusChange', (_, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners('server:statusChange');
+  },
+
+  onMcpSessionChange: (
+    callback: (data: {
+      serverName: string;
+      sessionId: string;
+      status: string;
+    }) => void,
+  ) => {
+    ipcRenderer.on('mcp:sessionChange', (_, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners('mcp:sessionChange');
+  },
+
+  onAppUpdate: (
+    callback: (data: {
+      status: 'checking' | 'available' | 'downloading' | 'downloaded' | 'error';
+      message?: string;
+    }) => void,
+  ) => {
+    ipcRenderer.on('app:updateStatus', (_, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners('app:updateStatus');
+  },
+
+  // 진행률 추적
+  onProgress: (
+    callback: (data: {
+      serverId: string;
+      operation: string;
+      percent: number;
+      status: string;
+    }) => void,
+  ) => {
+    ipcRenderer.on('server:progress', (_, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners('server:progress');
+  },
+
+  // 메모리 모니터링
+  getMemoryUsage: async (): Promise<{
+    heapUsed: number;
+    heapTotal: number;
+    external: number;
+    rss: number;
+  }> => {
+    return ipcRenderer.invoke('system:getMemoryUsage');
+  },
+
+  getCpuUsage: async (): Promise<number> => {
+    return ipcRenderer.invoke('system:getCpuUsage');
+  },
+
+  // 플러그인 시스템 (확장 기능)
+  loadPlugin: async (
+    pluginPath: string,
+  ): Promise<{ success: boolean; plugin?: any; message?: string }> => {
+    return ipcRenderer.invoke('plugin:load', pluginPath);
+  },
+
+  unloadPlugin: async (
+    pluginId: string,
+  ): Promise<{ success: boolean; message?: string }> => {
+    return ipcRenderer.invoke('plugin:unload', pluginId);
+  },
+
+  getLoadedPlugins: async (): Promise<
+    Array<{ id: string; name: string; version: string; enabled: boolean }>
+  > => {
+    return ipcRenderer.invoke('plugin:list');
+  },
+
+  // 디버깅 및 로깅
+  log: (
+    level: 'info' | 'warn' | 'error' | 'debug',
+    message: string,
+    data?: any,
+  ): void => {
+    ipcRenderer.send('log', {
+      level,
+      message,
+      data,
+      timestamp: new Date().toISOString(),
+    });
+  },
+
+  getAppLogs: async (lines?: number): Promise<string[]> => {
+    return ipcRenderer.invoke('log:getAppLogs', lines);
+  },
+
+  clearLogs: async (): Promise<void> => {
+    return ipcRenderer.invoke('log:clear');
+  },
+
+  // 백업 및 복원
+  createBackup: async (): Promise<{
+    success: boolean;
+    backupPath?: string;
+    message?: string;
+  }> => {
+    return ipcRenderer.invoke('backup:create');
+  },
+
+  restoreBackup: async (
+    backupPath: string,
+  ): Promise<{ success: boolean; message?: string }> => {
+    return ipcRenderer.invoke('backup:restore', backupPath);
+  },
+
+  listBackups: async (): Promise<
+    Array<{ name: string; size: number; createdAt: string }>
+  > => {
+    return ipcRenderer.invoke('backup:list');
+  },
+
+  // 실험적 기능 플래그
+  getFeatureFlags: async (): Promise<Record<string, boolean>> => {
+    return ipcRenderer.invoke('feature:getFlags');
+  },
+
+  setFeatureFlag: async (
+    flag: string,
+    enabled: boolean,
+  ): Promise<{ success: boolean; message?: string }> => {
+    return ipcRenderer.invoke('feature:setFlag', flag, enabled);
+  },
+};
+
+// Context Bridge를 통해 API 노출
+// contextBridge.exposeInMainWorld('api', electronAPI);
 
 // 기본 API 노출
 contextBridge.exposeInMainWorld('electron', electronHandler);
