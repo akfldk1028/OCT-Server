@@ -160,7 +160,6 @@ router.post('/mcp', async (req, res) => {
   }
 });
 
-
 /**
  * @swagger
  * /stdio:
@@ -185,6 +184,11 @@ router.post('/mcp', async (req, res) => {
  *         schema:
  *           type: string
  *         description: 명령어 인자
+ *       - in: query
+ *         name: env
+ *         schema:
+ *           type: string
+ *         description: 환경 변수 (JSON 문자열)
  *     responses:
  *       200:
  *         description: 성공적인 응답 (이벤트 스트림)
@@ -193,23 +197,20 @@ router.post('/mcp', async (req, res) => {
  *       500:
  *         description: 서버 오류
  */
-// 2. mcp.routes.ts 수정 - stdio 라우트
+// 🔥 수정된 stdio 라우트 - 단일 버전으로 통합
 router.get('/stdio', async (req, res) => {
   try {
-    const { serverName, transportType, command, args } = req.query;
+    const { transportType, command, args, env } = req.query;
     
     // 필수 파라미터 체크
-    if (!serverName) {
-      return res.status(400).json({ error: 'serverName parameter is required' });
-    }
     if (!command) {
       return res.status(400).json({ error: 'command parameter is required' });
     }
     
-    console.log(`🚀 Creating connection for server: ${serverName}`);
+    console.log(`🚀 Creating new stdio connection`);
     console.log(`   Command: ${command} ${args || ''}`);
+    console.log(`   Env: ${env || '{}'}`);
 
-    
     try {
       const currentTransport = getBackingServerTransport();
       await currentTransport?.close();
@@ -224,13 +225,13 @@ router.get('/stdio', async (req, res) => {
       throw error;
     }
 
-    console.log(`✓ Connected to server transport for ${serverName}`);
+    console.log(`✓ Connected to server transport`);
 
     // 클라이언트 transport 생성
     const webAppTransport = new SSEServerTransport('/message', res);
     
-    // 서버 이름과 세션 ID 조합으로 키 생성
-    const sessionKey = `${serverName}-${webAppTransport.sessionId}`;
+    // 기본 세션 키 (서버 이름이 없으면 기본값 사용)
+    const sessionKey = webAppTransport.sessionId;
     webAppTransports.set(sessionKey, webAppTransport);
 
     console.log(`✓ Created web app transport: ${sessionKey}`);
@@ -239,9 +240,11 @@ router.get('/stdio', async (req, res) => {
     res.setHeader('mcp-session-id', sessionKey);
 
     await webAppTransport.start();
-    (getBackingServerTransport() as StdioClientTransport).stderr!.on(
-      'data',
-      (chunk) => {
+    
+    // stderr 연결
+    const transport = getBackingServerTransport() as StdioClientTransport;
+    if (transport && transport.stderr) {
+      transport.stderr.on('data', (chunk) => {
         webAppTransport.send({
           jsonrpc: '2.0',
           method: 'notifications/stderr',
@@ -249,8 +252,8 @@ router.get('/stdio', async (req, res) => {
             content: chunk.toString(),
           },
         });
-      },
-    );
+      });
+    }
 
     mcpProxy({
       transportToClient: webAppTransport,
@@ -369,6 +372,7 @@ router.post('/message', async (req, res) => {
     res.status(500).json(err);
   }
 });
+
 /**
  * @swagger
  * /health:
@@ -426,62 +430,65 @@ router.get('/config', (req, res) => {
   }
 });
 
-
-
-
-// 2. mcp.routes.ts 수정 - stdio 라우트
-router.get('/stdio', async (req, res) => {
+// 🔥 수정된 개별 서버 종료 라우트
+router.post('/mcp/server/:serverId/stop', async (req, res) => {
   try {
-    console.log('New connection');
-
-    try {
-      const currentTransport = getBackingServerTransport();
-      await currentTransport?.close();
-      const newTransport = await createTransport(req);
-      setBackingServerTransport(newTransport);
-    } catch (error) {
-      if (error instanceof SseError && error.code === 401) {
-        console.error('Received 401 Unauthorized from MCP server:', error.message);
-        res.status(401).json(error);
-        return;
-      }
-      throw error;
+    const { serverId } = req.params;
+    
+    if (!serverId) {
+      return res.status(400).json({ error: 'serverId parameter is required' });
     }
-
-    console.log('Connected MCP client to backing server transport');
-
-    const webAppTransport = new SSEServerTransport('/message', res);
-    webAppTransports.set(webAppTransport.sessionId, webAppTransport);
-
-    console.log('Created web app transport');
-
-    await webAppTransport.start();
-    (getBackingServerTransport() as StdioClientTransport).stderr!.on(
-      'data',
-      (chunk) => {
-        webAppTransport.send({
-          jsonrpc: '2.0',
-          method: 'notifications/stderr',
-          params: {
-            content: chunk.toString(),
-          },
-        });
-      },
-    );
-
-    mcpProxy({
-      transportToClient: webAppTransport,
-      transportToServer: getBackingServerTransport()!,
-    });
-
-    console.log('Set up MCP proxy');
+    
+    console.log(`🛑 Stopping server ${serverId}...`);
+    
+    // 해당 서버의 모든 세션 종료
+    const sessions = Array.from(webAppTransports.keys())
+      .filter(key => key.startsWith(`${serverId}-`));
+    
+    console.log(`   Closing ${sessions.length} sessions for ${serverId}`);
+    
+    // 모든 세션 종료
+    await Promise.all(sessions.map(async (sessionKey) => {
+      const transport = webAppTransports.get(sessionKey);
+      if (transport) {
+        try {
+          await transport.close();
+        } catch (err) {
+          console.error(`Error closing transport ${sessionKey}:`, err);
+        }
+        webAppTransports.delete(sessionKey);
+      }
+    }));
+    
+    // 🔥 백킹 transport 종료 (새로운 transport 생성하지 않음)
+    const currentTransport = getBackingServerTransport();
+    if (currentTransport) {
+      try {
+        await currentTransport.close();
+        setBackingServerTransport(undefined);
+      } catch (err) {
+        console.error('Error closing backing transport:', err);
+      }
+    }
+    
+    const result = {
+      serverName: serverId,
+      status: 'stopped',
+      sessionsRemoved: sessions.length
+    };
+    
+    console.log(`✅ Server ${serverId} stopped successfully`);
+    res.json(result);
+    
   } catch (error) {
-    console.error('Error in /stdio route:', error);
-    res.status(500).json(error);
+    console.error(`❌ Error stopping server ${req.params.serverId}:`, error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 });
 
-// 3. 동시 실행을 위한 새로운 라우트 추가
+// 🔥 수정된 배치 시작 라우트
 router.post('/mcp/batch-start', async (req, res) => {
   try {
     const { servers } = req.body; // [{serverName, command, args}, ...]
@@ -494,14 +501,19 @@ router.post('/mcp/batch-start', async (req, res) => {
     
     const results = await Promise.allSettled(
       servers.map(async (server) => {
-        const { serverName, command, args } = server;
+        const { serverName, command, args, env } = server;
         
         if (!serverName || !command) {
           throw new Error(`serverName and command are required for ${JSON.stringify(server)}`);
         }
         
+        // env 객체를 JSON 문자열로 변환
+        const envStr = env ? encodeURIComponent(JSON.stringify(env)) : encodeURIComponent('{}');
+        
         // 각 서버에 대해 stdio 엔드포인트 호출
-        const response = await fetch(`http://localhost:${req.app.get('port') || 4303}/stdio?serverName=${encodeURIComponent(serverName)}&transportType=stdio&command=${encodeURIComponent(command)}&args=${encodeURIComponent(args || '')}`, {
+        const url = `http://localhost:4303/stdio?transportType=stdio&command=${encodeURIComponent(command)}&args=${encodeURIComponent(args || '')}&env=${envStr}`;
+        
+        const response = await fetch(url, {
           method: 'GET'
         });
         
@@ -548,65 +560,7 @@ router.post('/mcp/batch-start', async (req, res) => {
   }
 });
 
-// 개별 서버 종료를 위한 새로운 라우트
-router.post('/mcp/server/:serverId/stop', async (req, res) => {
-  try {
-    const { serverId } = req.params;
-    
-    if (!serverId) {
-      return res.status(400).json({ error: 'serverId parameter is required' });
-    }
-    
-    console.log(`🛑 Stopping server ${serverId}...`);
-    
-    // 해당 서버의 모든 세션 종료
-    const sessions = Array.from(webAppTransports.keys())
-      .filter(key => key.startsWith(`${serverId}-`));
-    
-    console.log(`   Closing ${sessions.length} sessions for ${serverId}`);
-    
-    // 모든 세션 종료
-    await Promise.all(sessions.map(async (sessionKey) => {
-      const transport = webAppTransports.get(sessionKey);
-      if (transport) {
-        await transport.close();
-        webAppTransports.delete(sessionKey);
-      }
-    }));
-    
-    // 서버 transport 종료
-    try {
-      const currentTransport = getBackingServerTransport();
-      await currentTransport?.close();
-      const newTransport = await createTransport(req);
-      setBackingServerTransport(newTransport);
-    } catch (error) {
-      if (error instanceof SseError && error.code === 401) {
-        console.error('Received 401 Unauthorized from MCP server:', error.message);
-        res.status(401).json(error);
-        return;
-      }
-      throw error;
-    }
-    
-    const result = {
-      serverName: serverId,
-      status: 'stopped',
-      sessionsRemoved: sessions.length
-    };
-    
-    console.log(`✅ Server ${serverId} stopped successfully`);
-    res.json(result);
-    
-  } catch (error) {
-    console.error(`❌ Error stopping server ${req.params.serverId}:`, error);
-    res.status(500).json({
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// 4. 동시 종료를 위한 새로운 라우트 추가
+// 🔥 수정된 배치 중지 라우트
 router.post('/mcp/batch-stop', async (req, res) => {
   try {
     const { serverNames } = req.body; // ['server1', 'server2', ...]
@@ -629,25 +583,14 @@ router.post('/mcp/batch-stop', async (req, res) => {
         await Promise.all(sessions.map(async (sessionKey) => {
           const transport = webAppTransports.get(sessionKey);
           if (transport) {
-            await transport.close();
+            try {
+              await transport.close();
+            } catch (err) {
+              console.error(`Error closing transport ${sessionKey}:`, err);
+            }
             webAppTransports.delete(sessionKey);
           }
         }));
-        
-        try {
-          const currentTransport = getBackingServerTransport();
-          await currentTransport?.close();
-          const newTransport = await createTransport(req);
-          setBackingServerTransport(newTransport);
-        } catch (error) {
-          if (error instanceof SseError && error.code === 401) {
-            console.error('Received 401 Unauthorized from MCP server:', error.message);
-            res.status(401).json(error);
-            return;
-          }
-          throw error;
-        }
-
         
         return {
           serverName,
@@ -688,7 +631,6 @@ router.post('/mcp/batch-stop', async (req, res) => {
   }
 });
 
-
 type ActiveServerInfo = {
   serverName: string;
   sessions: { sessionId: string; active: boolean }[];
@@ -701,7 +643,7 @@ router.get('/mcp/active-servers', (req, res) => {
   // 서버별로 활성 세션 정보 수집
   for (const [sessionKey, transport] of webAppTransports.entries()) {
     const serverName = sessionKey.split('-')[0];
-  let serverInfo = activeServers.find(s => s.serverName === serverName);
+    let serverInfo = activeServers.find(s => s.serverName === serverName);
     
     if (!serverInfo) {
       serverInfo = {
@@ -724,10 +666,5 @@ router.get('/mcp/active-servers', (req, res) => {
     servers: activeServers
   });
 });
-
-
-
-
-
 
 export default router;
