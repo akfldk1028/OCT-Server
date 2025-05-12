@@ -16,39 +16,39 @@ const serverTransports: Map<string, Transport> = new Map();
 let _backingServerTransport: Transport | undefined;
 
 // backingServerTransport 접근 및 설정 함수
-// export const getBackingServerTransport = (): Transport | undefined => {
-//   return _backingServerTransport;
-// };
-
-export const getBackingServerTransport = (serverName?: string): Transport | undefined => {
-  if (serverName) {
-    return serverTransports.get(serverName);
-  }
-  // 기본값으로 첫 번째 transport 반환
-  return Array.from(serverTransports.values())[0];
+export const getBackingServerTransport = (): Transport | undefined => {
+  return _backingServerTransport;
 };
 
-
-
-// export const setBackingServerTransport = (transport: Transport | undefined): void => {
-//   _backingServerTransport = transport;
+// export const getBackingServerTransport = (serverName?: string): Transport | undefined => {
+//   if (serverName) {
+//     return serverTransports.get(serverName);
+//   }
+//   // 기본값으로 첫 번째 transport 반환
+//   return Array.from(serverTransports.values())[0];
 // };
 
-export const setBackingServerTransport = (transport: Transport | undefined, serverName?: string): void => {
-  if (serverName && transport) {
-    serverTransports.set(serverName, transport);
-  } else if (serverName && !transport) {
-    serverTransports.delete(serverName);
-  }
-  // serverName 없으면 기존 동작 유지
-  if (!serverName && transport) {
-    // 첫 번째 서버의 transport로 설정
-    const firstServer = Array.from(serverTransports.keys())[0];
-    if (firstServer) {
-      serverTransports.set(firstServer, transport);
-    }
-  }
+
+
+export const setBackingServerTransport = (transport: Transport | undefined): void => {
+  _backingServerTransport = transport;
 };
+
+// export const setBackingServerTransport = (transport: Transport | undefined, serverName?: string): void => {
+//   if (serverName && transport) {
+//     serverTransports.set(serverName, transport);
+//   } else if (serverName && !transport) {
+//     serverTransports.delete(serverName);
+//   }
+//   // serverName 없으면 기존 동작 유지
+//   if (!serverName && transport) {
+//     // 첫 번째 서버의 transport로 설정
+//     const firstServer = Array.from(serverTransports.keys())[0];
+//     if (firstServer) {
+//       serverTransports.set(firstServer, transport);
+//     }
+//   }
+// };
 
 
 

@@ -209,18 +209,12 @@ router.get('/stdio', async (req, res) => {
     console.log(`🚀 Creating connection for server: ${serverName}`);
     console.log(`   Command: ${command} ${args || ''}`);
 
+    
     try {
-      // 기존에 이 서버의 transport가 있다면 재사용, 없으면 새로 생성
-      let serverTransport = getBackingServerTransport(serverName as string);
-      
-      if (!serverTransport) {
-        console.log(`   Creating new transport for ${serverName}`);
-        serverTransport = await createTransport(req);
-        setBackingServerTransport(serverTransport, serverName as string);
-      } else {
-        console.log(`   Reusing existing transport for ${serverName}`);
-      }
-      
+      const currentTransport = getBackingServerTransport();
+      await currentTransport?.close();
+      const newTransport = await createTransport(req);
+      setBackingServerTransport(newTransport);
     } catch (error) {
       if (error instanceof SseError && error.code === 401) {
         console.error('Received 401 Unauthorized from MCP server:', error.message);
@@ -245,44 +239,30 @@ router.get('/stdio', async (req, res) => {
     res.setHeader('mcp-session-id', sessionKey);
 
     await webAppTransport.start();
-    
-    // stderr 이벤트 처리
-    const serverTransport = getBackingServerTransport(serverName as string);
-    if (serverTransport instanceof StdioClientTransport) {
-      serverTransport.stderr!.on('data', (chunk) => {
-        if (webAppTransport && !res.writableEnded) {
-          webAppTransport.send({
-            jsonrpc: '2.0',
-            method: 'notifications/stderr',
-            params: {
-              content: chunk.toString(),
-              serverName: serverName,
-            },
-          });
-        }
-      });
-    }
+    (getBackingServerTransport() as StdioClientTransport).stderr!.on(
+      'data',
+      (chunk) => {
+        webAppTransport.send({
+          jsonrpc: '2.0',
+          method: 'notifications/stderr',
+          params: {
+            content: chunk.toString(),
+          },
+        });
+      },
+    );
 
-    // 프록시 설정
     mcpProxy({
       transportToClient: webAppTransport,
-      transportToServer: serverTransport!,
+      transportToServer: getBackingServerTransport()!,
     });
 
-    console.log(`✅ MCP proxy setup complete for ${serverName}`);
-
+    console.log('Set up MCP proxy');
   } catch (error) {
-    console.error(`❌ Error in /stdio route for ${req.query.serverName}:`, error);
-    if (!res.headersSent) {
-      res.status(500).json(error);
-    } else {
-      if (!res.writableEnded) {
-        res.end();
-      }
-    }
+    console.error('Error in /stdio route:', error);
+    res.status(500).json(error);
   }
 });
-
 
 /**
  * @swagger
@@ -452,31 +432,13 @@ router.get('/config', (req, res) => {
 // 2. mcp.routes.ts 수정 - stdio 라우트
 router.get('/stdio', async (req, res) => {
   try {
-    const { serverName, transportType, command, args } = req.query;
-    
-    // 필수 파라미터 체크
-    if (!serverName) {
-      return res.status(400).json({ error: 'serverName parameter is required' });
-    }
-    if (!command) {
-      return res.status(400).json({ error: 'command parameter is required' });
-    }
-    
-    console.log(`🚀 Creating connection for server: ${serverName}`);
-    console.log(`   Command: ${command} ${args || ''}`);
+    console.log('New connection');
 
     try {
-      // 기존에 이 서버의 transport가 있다면 재사용, 없으면 새로 생성
-      let serverTransport = getBackingServerTransport(serverName as string);
-      
-      if (!serverTransport) {
-        console.log(`   Creating new transport for ${serverName}`);
-        serverTransport = await createTransport(req);
-        setBackingServerTransport(serverTransport, serverName as string);
-      } else {
-        console.log(`   Reusing existing transport for ${serverName}`);
-      }
-      
+      const currentTransport = getBackingServerTransport();
+      await currentTransport?.close();
+      const newTransport = await createTransport(req);
+      setBackingServerTransport(newTransport);
     } catch (error) {
       if (error instanceof SseError && error.code === 401) {
         console.error('Received 401 Unauthorized from MCP server:', error.message);
@@ -486,56 +448,36 @@ router.get('/stdio', async (req, res) => {
       throw error;
     }
 
-    console.log(`✓ Connected to server transport for ${serverName}`);
+    console.log('Connected MCP client to backing server transport');
 
-    // 클라이언트 transport 생성
     const webAppTransport = new SSEServerTransport('/message', res);
-    
-    // 서버 이름과 세션 ID 조합으로 키 생성
-    const sessionKey = `${serverName}-${webAppTransport.sessionId}`;
-    webAppTransports.set(sessionKey, webAppTransport);
+    webAppTransports.set(webAppTransport.sessionId, webAppTransport);
 
-    console.log(`✓ Created web app transport: ${sessionKey}`);
-
-    // 세션 ID 헤더 설정
-    res.setHeader('mcp-session-id', sessionKey);
+    console.log('Created web app transport');
 
     await webAppTransport.start();
-    
-    // stderr 이벤트 처리
-    const serverTransport = getBackingServerTransport(serverName as string);
-    if (serverTransport instanceof StdioClientTransport) {
-      serverTransport.stderr!.on('data', (chunk) => {
-        if (webAppTransport && !res.writableEnded) {
-          webAppTransport.send({
-            jsonrpc: '2.0',
-            method: 'notifications/stderr',
-            params: {
-              content: chunk.toString(),
-              serverName: serverName,
-            },
-          });
-        }
-      });
-    }
+    (getBackingServerTransport() as StdioClientTransport).stderr!.on(
+      'data',
+      (chunk) => {
+        webAppTransport.send({
+          jsonrpc: '2.0',
+          method: 'notifications/stderr',
+          params: {
+            content: chunk.toString(),
+          },
+        });
+      },
+    );
 
-    // 프록시 설정
     mcpProxy({
       transportToClient: webAppTransport,
-      transportToServer: serverTransport!,
+      transportToServer: getBackingServerTransport()!,
     });
 
-    console.log(`✅ MCP proxy setup complete for ${serverName}`);
-
+    console.log('Set up MCP proxy');
   } catch (error) {
-    console.error(`❌ Error in /stdio route for ${req.query.serverName}:`, error);
-    if (!res.headersSent) {
-      res.status(500).json(error);
-    } else {
-      if (!res.writableEnded) {
-        res.end();
-      }
-    }
+    console.error('Error in /stdio route:', error);
+    res.status(500).json(error);
   }
 });
 
@@ -633,10 +575,18 @@ router.post('/mcp/server/:serverId/stop', async (req, res) => {
     }));
     
     // 서버 transport 종료
-    const serverTransport = getBackingServerTransport(serverId);
-    if (serverTransport) {
-      await serverTransport.close();
-      setBackingServerTransport(undefined, serverId);
+    try {
+      const currentTransport = getBackingServerTransport();
+      await currentTransport?.close();
+      const newTransport = await createTransport(req);
+      setBackingServerTransport(newTransport);
+    } catch (error) {
+      if (error instanceof SseError && error.code === 401) {
+        console.error('Received 401 Unauthorized from MCP server:', error.message);
+        res.status(401).json(error);
+        return;
+      }
+      throw error;
     }
     
     const result = {
@@ -684,12 +634,20 @@ router.post('/mcp/batch-stop', async (req, res) => {
           }
         }));
         
-        // 서버 transport 종료
-        const serverTransport = getBackingServerTransport(serverName);
-        if (serverTransport) {
-          await serverTransport.close();
-          setBackingServerTransport(undefined, serverName);
+        try {
+          const currentTransport = getBackingServerTransport();
+          await currentTransport?.close();
+          const newTransport = await createTransport(req);
+          setBackingServerTransport(newTransport);
+        } catch (error) {
+          if (error instanceof SseError && error.code === 401) {
+            console.error('Received 401 Unauthorized from MCP server:', error.message);
+            res.status(401).json(error);
+            return;
+          }
+          throw error;
         }
+
         
         return {
           serverName,
