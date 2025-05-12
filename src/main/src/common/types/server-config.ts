@@ -21,6 +21,10 @@ export interface MCPConfig {
       dockerImage?: string;
       uvxPackage?: string;
       installConfig?: InstallationConfig;
+      sessionId?: string;
+      lastConnected?: string;
+      transportType?: string;
+      active?: boolean;
   }
 
 

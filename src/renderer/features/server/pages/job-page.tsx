@@ -281,6 +281,7 @@ const App = () => {
   };
 
   // 🔥 Multi-Server Management Functions
+// src/renderer/features/server/pages/job-page.tsx
   const refreshServerStatus = useCallback(async () => {
     if (!multiServerMode) return;
     
@@ -288,15 +289,34 @@ const App = () => {
       const api = ensureApi();
       if (!api) return;
       
-      console.log("Refreshing server status...");
+      console.log("🔄 Refreshing server status...");
       const fullConfigs = await api.getFullConfigs();
-      console.log("Full configs received:", fullConfigs);
-      setServers(fullConfigs);
+      const activeSessions = await api.getActiveSessions();
+      
+      // 세션 정보와 서버 정보 병합
+      const serversWithSessions = await Promise.all(
+        fullConfigs.map(async (server) => {
+          const activeSession = activeSessions.find(
+            session => session.serverName === server.name || session.serverName === server.id
+          );
+          
+          // 저장된 세션 정보 가져오기
+          const savedSession = await api.getServerSession(server.id);
+          
+          return {
+            ...server,
+            sessionId: activeSession?.sessionId || savedSession?.sessionId || null,
+            activeSessions: activeSession?.sessionCount || 0,
+            connectionStatus: server.status === 'running' && activeSession ? 'connected' : 'disconnected',
+          };
+        })
+      );
+      
+      setServers(serversWithSessions);
       
       if (selectedServer) {
-        const updatedServer = fullConfigs.find(server => server.id === selectedServer.id);
+        const updatedServer = serversWithSessions.find(server => server.id === selectedServer.id);
         if (updatedServer) {
-          console.log("Updated selected server:", updatedServer);
           setSelectedServer(updatedServer);
         }
       }
@@ -305,41 +325,189 @@ const App = () => {
     }
   }, [multiServerMode, selectedServer?.id]);
 
-  const startServer = useCallback(async (serverId: string): Promise<void> => {
-    try {
-      const api = ensureApi();
-      if (!api) throw new Error('Electron API not available');
+// src/renderer/features/server/pages/job-page.tsx
+// 서버 시작 시 자동으로 선택하기
+// const startServer = useCallback(async (serverId: string): Promise<void> => {
+//   try {
+//     const api = ensureApi();
+//     if (!api) throw new Error('Electron API not available');
+    
+//     // 🔥 서버 시작 시 해당 서버를 자동으로 선택
+//     const serverToStart = servers.find(server => server.id === serverId);
+//     if (serverToStart) {
+//       console.log("Auto-selecting server on start:", serverToStart.name);
+//       setSelectedServer(serverToStart);
+//     }
+    
+//     const result = await api.startServer(serverId);
+    
+//     if (result.success) {
+//       setNotification({ message: '서버가 시작되었습니다.', type: 'success' });
+//       await new Promise(resolve => setTimeout(resolve, 1000));
+//       await refreshServerStatus();
       
-      // 🔥 서버 시작 시 해당 서버를 자동으로 선택
-      const serverToStart = servers.find(server => server.id === serverId);
-      if (serverToStart) {
-        console.log("Auto-selecting server on start:", serverToStart.name);
-        setSelectedServer(serverToStart);
+//       // 새 세션 ID 확인 및 저장
+//       const servers = await api.getFullConfigs();
+//       const updatedServer = servers.find(s => s.id === serverId);
+      
+//       if (updatedServer?.sessionId) {
+//         await api.saveServerSession(serverId, {
+//           sessionId: updatedServer.sessionId,
+//           lastConnected: new Date(),
+//           transportType: updatedServer.config?.transportType || 'stdio'
+//         });
+//         console.log(`✅ Session saved: ${updatedServer.sessionId}`);
+//       }
+//     } else {
+//       setNotification({ message: `서버 시작 실패: ${result.message}`, type: 'error' });
+//     }
+//   } catch (error) {
+//     console.error('Error starting server:', error);
+//     setNotification({ message: '서버 시작 중 오류가 발생했습니다.', type: 'error' });
+//   }
+// }, [servers, refreshServerStatus]);
+// job-page.tsx의 connectWithSessionReuse 함수 수정
+
+
+const connectWithSessionReuse = useCallback(async () => {
+  if (!selectedServer) return;
+  
+  try {
+    const api = ensureApi();
+    if (!api) return;
+    
+    // 1. 활성 세션 정보 가져오기 (서버 매니저가 관리하는 세션)
+    const activeSessions = await api.getActiveSessions(selectedServer.id);
+    
+    if (activeSessions && activeSessions.length > 0 && activeSessions[0].sessionId) {
+      console.log("🔍 서버에 이미 생성된 세션 발견:", activeSessions[0].sessionId);
+      
+      // 2. 기존 세션 ID를 사용하여 연결 파라미터 설정
+      const existingSessionId = activeSessions[0].sessionId;
+      
+      // 3. 연결 파라미터에 sessionId 포함시키기
+      const updatedParams = { ...connectionParams };
+      
+      // URL에 sessionId 추가
+      if (updatedParams.sseUrl && !updatedParams.sseUrl.includes('sessionId=')) {
+        const separator = updatedParams.sseUrl.includes('?') ? '&' : '?';
+        updatedParams.sseUrl = `${updatedParams.sseUrl}${separator}sessionId=${existingSessionId}`;
       }
       
-      const result = await api.startServer(serverId);
+      console.log("🔄 기존 세션으로 연결 시도:", existingSessionId);
+      console.log("업데이트된 연결 URL:", updatedParams.sseUrl);
       
-      if (result.success) {
-        setNotification({ message: '서버가 시작되었습니다.', type: 'success' });
-        await refreshServerStatus();
-      } else {
-        setNotification({ message: `서버 시작 실패: ${result.message}`, type: 'error' });
-      }
-    } catch (error) {
-      console.error('Error starting server:', error);
-      setNotification({ message: '서버 시작 중 오류가 발생했습니다.', type: 'error' });
+      // 기존 연결 로직 사용
+      await connectMcpServer(updatedParams);
+    } else {
+      console.log("🆕 세션이 없음, 새 세션 생성");
+      await connectMcpServer();
     }
-  }, [servers, refreshServerStatus]);
+  } catch (error) {
+    console.error("Error in session management:", error);
+    await connectMcpServer(); // 에러 시에도 연결 시도
+  }
+}, [selectedServer, connectMcpServer, connectionParams]);
+
+
+
+// App.tsx의 startServer 수정
+const startServer = useCallback(async (serverId: string): Promise<void> => {
+  try {
+    const api = ensureApi();
+    if (!api) throw new Error('Electron API not available');
+    
+    const serverToStart = servers.find(server => server.id === serverId);
+    if (serverToStart) {
+      setSelectedServer(serverToStart);
+    }
+    
+    console.log('🚀 서버 시작 요청:', serverId);
+    const result = await api.startServer(serverId);
+    
+    if (result.success) {
+      setNotification({ message: '서버가 시작되었습니다.', type: 'success' });
+      
+      // 서버 상태 갱신을 기다림 (세션 생성 확인을 위해)
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      await refreshServerStatus();
+      
+      // 새로 갱신된 서버 정보 확인
+      const activeSessions = await api.getActiveSessions(serverId);
+      console.log('✓ 활성 세션 정보:', activeSessions);
+      
+      if (activeSessions && activeSessions.length > 0 && activeSessions[0].sessionId) {
+        // 세션 ID 저장 - 활성 상태로 명시적 표시
+        await api.saveServerSession(serverId, {
+          sessionId: activeSessions[0].sessionId,
+          lastConnected: new Date(),
+          transportType: serverToStart?.config?.transportType || 'stdio',
+          commandType: 'unknown',
+          active: true  // 세션이 활성 상태임을 명시적으로 표시
+        });
+        console.log(`✅ Session saved: ${activeSessions[0].sessionId} (active=true)`);
+      } else {
+        console.log('⚠️ 활성 세션을 찾을 수 없습니다. 자동 연결은 자체 세션을 생성합니다.');
+      }
+      
+      // 서버가 시작된 후 자동으로 세션 재사용 로직으로 연결
+      // 자동 연결 useEffect에서 처리되므로 여기서는 별도로 호출하지 않음
+    } else {
+      setNotification({ message: `서버 시작 실패: ${result.message}`, type: 'error' });
+    }
+  } catch (error) {
+    console.error('Error starting server:', error);
+    setNotification({ message: '서버 시작 중 오류가 발생했습니다.', type: 'error' });
+  }
+}, [servers, refreshServerStatus, setSelectedServer]);
+
+
+  // src/renderer/features/server/pages/job-page.tsx
 
   const stopServer = useCallback(async (serverId: string): Promise<void> => {
     try {
       const api = ensureApi();
       if (!api) throw new Error('Electron API not available');
       
+      // 현재 선택된 서버인지 확인
+      const isSelectedServer = selectedServer && selectedServer.id === serverId;
+      
       const result = await api.stopServer(serverId);
       
       if (result.success) {
         setNotification({ message: '서버가 중지되었습니다.', type: 'success' });
+        
+        // userServer.json 세션 정보 업데이트
+        try {
+          // 서버 세션 정보를 가져옴
+          const savedSession = await api.getServerSession(serverId);
+          if (savedSession && savedSession.sessionId) {
+            // 세션을 비활성 상태로 표시
+            await api.saveServerSession(serverId, {
+              sessionId: savedSession.sessionId,
+              lastConnected: new Date(),
+              transportType: savedSession.transportType || 'stdio',
+              commandType: 'unknown',
+              active: false  // 비활성 상태로 표시
+            });
+            console.log(`✅ 서버 중지됨: userServer.json 세션 정보 업데이트됨`);
+          }
+        } catch (sessionError) {
+          console.error('세션 정보 업데이트 중 오류:', sessionError);
+        }
+        
+        // 중지한 서버가 현재 선택된 서버인 경우 클라이언트 연결 해제 및 상태 초기화
+        if (isSelectedServer && mcpClient) {
+          console.log('🔌 중지된 서버의 클라이언트 연결 해제 중...');
+          await disconnectMcpServer();
+          
+          // 도구 및 리소스 데이터 초기화
+          clearTools();
+          clearResources();
+          clearResourceTemplates();
+          clearPrompts();
+        }
+        
         await refreshServerStatus();
       } else {
         setNotification({ message: `서버 중지 실패: ${result.message}`, type: 'error' });
@@ -348,7 +516,7 @@ const App = () => {
       console.error('Error stopping server:', error);
       setNotification({ message: '서버 중지 중 오류가 발생했습니다.', type: 'error' });
     }
-  }, [refreshServerStatus]);
+  }, [refreshServerStatus, selectedServer, mcpClient, disconnectMcpServer, clearTools, clearResources, clearResourceTemplates, clearPrompts]);
 
   const startMultipleServers = useCallback(async (): Promise<void> => {
     try {
@@ -386,14 +554,17 @@ const App = () => {
       const api = ensureApi();
       if (!api) throw new Error('Electron API not available');
       
-      const serverNames = servers
-        .filter(server => selectedServers.has(server.id))
-        .map(server => server.name);
+      const serversToStop = servers.filter(server => selectedServers.has(server.id));
+      const serverNames = serversToStop.map(server => server.name);
       
       if (serverNames.length === 0) {
         setNotification({ message: '선택된 서버가 없습니다.', type: 'info' });
         return;
       }
+      
+      // 현재 선택된 서버가 중지 대상에 포함되는지 확인
+      const isSelectedServerStopping = selectedServer && 
+        selectedServers.has(selectedServer.id);
       
       const result = await api.stopMultipleServers(serverNames);
       
@@ -402,12 +573,45 @@ const App = () => {
         type: result.succeeded === result.total ? 'success' : 'info'
       });
       
+      // 각 서버의 세션 정보 업데이트
+      await Promise.all(serversToStop.map(async (server) => {
+        try {
+          // 서버 세션 정보를 가져옴
+          const savedSession = await api.getServerSession(server.id);
+          if (savedSession && savedSession.sessionId) {
+            // 세션을 비활성 상태로 표시
+            await api.saveServerSession(server.id, {
+              sessionId: savedSession.sessionId,
+              lastConnected: new Date(),
+              transportType: savedSession.transportType || 'stdio',
+              commandType: 'unknown',
+              active: false  // 비활성 상태로 표시
+            });
+            console.log(`✅ 서버 ${server.id} 중지됨: userServer.json 세션 정보 업데이트됨`);
+          }
+        } catch (sessionError) {
+          console.error(`서버 ${server.id} 세션 정보 업데이트 중 오류:`, sessionError);
+        }
+      }));
+      
+      // 현재 선택된 서버가 중지 대상에 포함된 경우 클라이언트 연결 해제 및 상태 초기화
+      if (isSelectedServerStopping && mcpClient) {
+        console.log('🔌 중지된 서버의 클라이언트 연결 해제 중...');
+        await disconnectMcpServer();
+        
+        // 도구 및 리소스 데이터 초기화
+        clearTools();
+        clearResources();
+        clearResourceTemplates();
+        clearPrompts();
+      }
+      
       await refreshServerStatus();
     } catch (error) {
       console.error('Error stopping multiple servers:', error);
       setNotification({ message: '서버 중지 중 오류가 발생했습니다.', type: 'error' });
     }
-  }, [servers, selectedServers, refreshServerStatus]);
+  }, [servers, selectedServers, refreshServerStatus, selectedServer, mcpClient, disconnectMcpServer, clearTools, clearResources, clearResourceTemplates, clearPrompts]);
 
   const addNewServer = useCallback(async (serverConfig: {
     name: string;
@@ -445,42 +649,32 @@ const App = () => {
   );
 
   // 🔥 Initialize servers in multi-server mode
+// 주기적으로 서버 상태 갱신
   useEffect(() => {
     if (multiServerMode) {
       console.log("Initializing multi-server mode...");
       refreshServerStatus();
+      
+      // 10초마다 서버 상태 갱신
+      const interval = setInterval(refreshServerStatus, 10000);
+      return () => clearInterval(interval);
     }
   }, [multiServerMode, refreshServerStatus]);
 
   // 🔥 Auto-connect when server is selected and running
   useEffect(() => {
-    console.log("=== Auto-connect Logic ===");
-    console.log("multiServerMode:", multiServerMode);
-    console.log("selectedServer:", selectedServer);
-    console.log("selectedServer status:", selectedServer?.status);
-    console.log("mcpClient:", mcpClient ? "exists" : "null");
+    console.log("=== Auto-connect with Session Reuse ===");
     
     if (multiServerMode && selectedServer && selectedServer.status === 'running' && !mcpClient) {
-      console.log('Auto-connecting to selected server...', selectedServer.name);
-      console.log('Connection params:', connectionParams);
+      console.log('Auto-connecting with session reuse...');
       
       const timer = setTimeout(() => {
-        console.log('Starting connection attempt...');
-        connectMcpServer().then(() => {
-          console.log('Connection successful!');
-        }).catch(error => {
-          console.error('Auto-connect failed:', error);
-          setNotification({ 
-            message: `서버 연결 실패: ${error.message}`, 
-            type: 'error' 
-          });
-        });
+        connectWithSessionReuse(); // ✅ 세션 재사용 로직 사용
       }, 1000);
       
       return () => clearTimeout(timer);
     }
-    console.log("========================");
-  }, [multiServerMode, selectedServer, mcpClient, connectMcpServer, connectionParams]);
+  }, [multiServerMode, selectedServer, mcpClient, connectWithSessionReuse]);
 
   // Fetch default environment configuration
   useEffect(() => {
@@ -587,74 +781,10 @@ const App = () => {
     ping().catch(console.error);
   }, [ping]);
 
-  // 🔥 Auto-load resources when connected
-// 🔥 Auto-connect when server is selected and running
-// 🔥 Auto-connect when server is selected and running
-useEffect(() => {
-  console.log("=== Auto-connect Logic ===");
-  console.log("multiServerMode:", multiServerMode);
-  console.log("selectedServer:", selectedServer);
-  console.log("selectedServer status:", selectedServer?.status);
-  console.log("mcpClient:", mcpClient ? "exists" : "null");
-  console.log("connectionStatus:", connectionStatus);
-  
-  // 🔥 Error 상태이거나 이미 연결 중이면 연결 시도하지 않음
-  if (connectionStatus === 'error' || connectionStatus === 'connecting') {
-    console.log("Skipping connection due to error/connecting status");
-    return;
-  }
-  
-  if (multiServerMode && selectedServer && selectedServer.status === 'running' && !mcpClient) {
-    console.log('Auto-connecting to selected server...', selectedServer.name);
-    console.log('Connection params:', connectionParams);
-    
-    const timer = setTimeout(() => {
-      console.log('Starting connection attempt...');
-      console.log('About to call connectMcpServer()');
-      connectMcpServer().then(() => {
-        console.log('Connection successful!');
-      }).catch(error => {
-        console.error('Auto-connect failed:', error);
-        setNotification({ 
-          message: `서버 연결 실패: ${error.message}`, 
-          type: 'error' 
-        });
-        
-        // 🔥 연결 실패 시 상태 리셋
-        setTimeout(() => {
-          if (connectionStatus === 'error') {
-            console.log('Resetting connection status after error');
-            // 상태 리셋 (disconnect 호출)
-            disconnectMcpServer();
-          }
-        }, 5000); // 5초 후 리셋
-      });
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }
-  console.log("========================");
-}, [multiServerMode, selectedServer, mcpClient, connectionStatus, connectMcpServer, disconnectMcpServer, connectionParams]);
-
   // Render the UI
   return (
     <div className="flex h-screen bg-background">
-      {/* 🔥 Debug Panel */}
-      {/* <div className="w-80 p-4 bg-gray-100 text-xs overflow-y-auto">
-        <h3 className="font-bold mb-2">Debug Info</h3>
-        <div className="space-y-2">
-          <div>MultiServer: {multiServerMode ? 'ON' : 'OFF'}</div>
-          <div>Selected Server: {selectedServer ? selectedServer.name : 'None'}</div>
-          <div>Connection Status: {connectionStatus}</div>
-          <div>MCP Client: {mcpClient ? 'Connected' : 'Not connected'}</div>
-          <div>Resources: {resources ? resources.length : 0}</div>
-          <div>Prompts: {prompts ? prompts.length : 0}</div>
-          <div>Tools: {tools ? tools.length : 0}</div>
-          <div>Server Status: {selectedServer?.status || 'N/A'}</div>
-        </div>
-      </div> */}
 
-      {/* Conditional Sidebar */}
       {multiServerMode ? (
         <div className="flex">
           <ServerManagementSidebar

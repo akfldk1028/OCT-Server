@@ -544,6 +544,52 @@ const api = {
   ): Promise<{ success: boolean; message?: string }> => {
     return ipcRenderer.invoke('feature:setFlag', flag, enabled);
   },
+// preload.ts에서 saveServerSession API 수정
+saveServerSession: async (
+  serverId: string,
+  sessionInfo: {
+    sessionId: string;
+    lastConnected: Date;
+    transportType: 'stdio' | 'sse' | 'streamable-http';
+    commandType: string; // 🔥 추가
+    active?: boolean; // 세션 활성 상태를 나타내는 플래그
+  }
+): Promise<{ success: boolean; message?: string }> => {
+  return ipcRenderer.invoke('server:saveSession', serverId, sessionInfo);
+},
+  // 서버별 저장된 세션 정보 가져오기
+  getServerSession: async (
+    serverId: string
+  ): Promise<{
+    sessionId?: string;
+    lastConnected?: string;
+    transportType?: 'stdio' | 'sse' | 'streamable-http';
+    active?: boolean; // 세션 활성 상태
+  } | null> => {
+    return ipcRenderer.invoke('server:getSession', serverId);
+  },
+
+  // 세션 유효성 검사
+  validateSession: async (
+    sessionId: string
+  ): Promise<{ 
+    valid: boolean; 
+    active?: boolean; 
+    message?: string;
+  }> => {
+    return ipcRenderer.invoke('server:validateSession', sessionId);
+  },
+
+  // 세션 정리 (만료된 세션 제거)
+  cleanupSessions: async (): Promise<{ 
+    cleaned: number; 
+    remaining: number; 
+  }> => {
+    return ipcRenderer.invoke('server:cleanupSessions');
+  },
+
+
+
 };
 
 // Context Bridge를 통해 API 노출

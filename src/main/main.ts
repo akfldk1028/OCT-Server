@@ -20,7 +20,13 @@ import { resolveHtmlPath } from './util';
 
 // Load environment variables from .env file at the very beginning
 import dotenv from 'dotenv';
-import { getBaseMCPServerConfig } from './src/common/configLoader';
+import { 
+  getBaseMCPServerConfig, 
+  getMergedMCPServerConfig, 
+  updateServerInstallStatus, 
+  getServerSessionInfo,
+  userConfig // userConfig 변수 가져오기
+} from './src/common/configLoader';
 import type { MCPServerExtended } from './src/common/types/server-config';
 import { ServerInstaller } from './src/common/installer/ServerInstaller';
 import { startExpressServer } from './src/common/server/server';
@@ -404,3 +410,84 @@ ipcMain.handle('server:getAllServers', async () => {
     return { error: '서버 목록 조회 실패' };
   }
 });
+
+
+// src/main/main.ts
+
+// 세션 저장
+ipcMain.handle('server:saveSession', async (_, serverId: string, sessionInfo: any) => {
+  try {
+    // configLoader의 updateServerInstallStatus 함수 사용
+    updateServerInstallStatus(serverId, {
+      sessionId: sessionInfo.sessionId,
+      lastConnected: new Date().toISOString(),
+      transportType: sessionInfo.transportType,
+      active: sessionInfo.active,
+    });
+    console.log(`[Main] 서버 ${serverId} 세션 저장됨: 세션ID ${sessionInfo.sessionId} (active: ${sessionInfo.active ? 'true' : 'false'})`);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to save session:', error);
+    return { success: false, message: error };
+  }
+});
+
+// 세션 가져오기
+// src/main/main.ts
+
+// 세션 가져오기 - 간단한 버전
+ipcMain.handle('server:getSession', async (_, serverId: string) => {
+  try {
+    const sessionInfo = getServerSessionInfo(serverId);
+    return sessionInfo;
+  } catch (error) {
+    console.error('Failed to get session:', error);
+    return null;
+  }
+});
+
+
+// 세션 유효성 검사
+ipcMain.handle('server:validateSession', async (_, sessionId: string) => {
+  try {
+    // 1. Express 서버로 세션 상태 확인 요청
+    try {
+      const response = await fetch(`http://localhost:4303/mcp/session/${sessionId}/status`);
+      if (response.ok) {
+        const data = await response.json();
+        return { valid: true, active: data.active, message: 'Session is valid' };
+      }
+    } catch (error) {
+      console.log('Express 세션 API 사용 불가능, 로컬 설정에서 확인 시도');
+    }
+    
+    // 2. Express 서버 사용 불가능한 경우, userServers.json에서 모든 서버 확인
+    for (const serverId in userConfig.mcpServers) {
+      const sessionInfo = getServerSessionInfo(serverId);
+      if (sessionInfo?.sessionId === sessionId) {
+        // 마지막 연결 시간 확인 (24시간 이내인지)
+        const lastConnected = new Date(sessionInfo.lastConnected || '');
+        const isRecent = !isNaN(lastConnected.getTime()) && 
+          (Date.now() - lastConnected.getTime() < 24 * 60 * 60 * 1000);
+        
+        return { 
+          valid: true, 
+          active: sessionInfo.active === true, 
+          message: isRecent ? 'Session found in local config (recent)' : 'Session found but might be stale'
+        };
+      }
+    }
+    
+    return { valid: false, message: 'Session not found' };
+  } catch (error) {
+    console.error('Failed to validate session:', error);
+    return { valid: false, message: `Error: ${error}` };
+  }
+});
+
+// 만료된 세션 정리
+ipcMain.handle('server:cleanupSessions', async () => {
+  // TODO: 구현
+  return { cleaned: 0, remaining: 0 };
+});
+

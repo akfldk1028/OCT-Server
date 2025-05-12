@@ -255,7 +255,20 @@ export function useConnection({
     return false;
   };
 
-  const connect = async (_e?: unknown, retryCount: number = 0) => {
+  const connect = async (customParams?: Partial<UseConnectionOptions>, retryCount: number = 0) => {
+    // 커스텀 파라미터 적용 (세션 ID가 포함된 URL 등)
+    const effectiveParams = {
+      transportType,
+      command,
+      args,
+      sseUrl,
+      env,
+      bearerToken,
+      headerName,
+      config,
+      ...customParams
+    };
+    
     const client = new Client<Request, Notification, Result>(
       {
         name: "mcp",
@@ -278,28 +291,33 @@ export function useConnection({
       return;
     }
     let mcpProxyServerUrl;
-    switch (transportType) {
+    switch (effectiveParams.transportType) {
       case "stdio":
-        mcpProxyServerUrl = new URL(`${getMCPProxyAddress(config)}/stdio`);
-        mcpProxyServerUrl.searchParams.append("command", command);
-        mcpProxyServerUrl.searchParams.append("args", args);
-        mcpProxyServerUrl.searchParams.append("env", JSON.stringify(env));
+        mcpProxyServerUrl = new URL(`${getMCPProxyAddress(effectiveParams.config)}/stdio`);
+        mcpProxyServerUrl.searchParams.append("command", effectiveParams.command);
+        mcpProxyServerUrl.searchParams.append("args", effectiveParams.args);
+        mcpProxyServerUrl.searchParams.append("env", JSON.stringify(effectiveParams.env));
         break;
 
       case "sse":
-        mcpProxyServerUrl = new URL(`${getMCPProxyAddress(config)}/sse`);
-        mcpProxyServerUrl.searchParams.append("url", sseUrl);
+        mcpProxyServerUrl = new URL(`${getMCPProxyAddress(effectiveParams.config)}/sse`);
+        mcpProxyServerUrl.searchParams.append("url", effectiveParams.sseUrl);
         break;
 
       case "streamable-http":
-        mcpProxyServerUrl = new URL(`${getMCPProxyAddress(config)}/mcp`);
-        mcpProxyServerUrl.searchParams.append("url", sseUrl);
+        mcpProxyServerUrl = new URL(`${getMCPProxyAddress(effectiveParams.config)}/mcp`);
+        mcpProxyServerUrl.searchParams.append("url", effectiveParams.sseUrl);
         break;
     }
     (mcpProxyServerUrl as URL).searchParams.append(
       "transportType",
-      transportType,
+      effectiveParams.transportType,
     );
+
+    // 세션 ID 로그 출력 (디버깅용)
+    if (effectiveParams.sseUrl.includes('sessionId=')) {
+      console.log('🔑 연결 URL에 세션 ID가 포함되어 있습니다:', effectiveParams.sseUrl);
+    }
 
     try {
       // Inject auth manually instead of using SSEClientTransport, because we're
@@ -307,13 +325,13 @@ export function useConnection({
       const headers: HeadersInit = {};
 
       // Create an auth provider with the current server URL
-      const serverAuthProvider = new InspectorOAuthClientProvider(sseUrl);
+      const serverAuthProvider = new InspectorOAuthClientProvider(effectiveParams.sseUrl);
 
       // Use manually provided bearer token if available, otherwise use OAuth tokens
       const token =
-        bearerToken || (await serverAuthProvider.tokens())?.access_token;
+        effectiveParams.bearerToken || (await serverAuthProvider.tokens())?.access_token;
       if (token) {
-        const authHeaderName = headerName || "Authorization";
+        const authHeaderName = effectiveParams.headerName || "Authorization";
         headers[authHeaderName] = `Bearer ${token}`;
       }
 
@@ -330,7 +348,7 @@ export function useConnection({
         },
       };
       const clientTransport =
-        transportType === "streamable-http"
+        effectiveParams.transportType === "streamable-http"
           ? new StreamableHTTPClientTransport(mcpProxyServerUrl as URL, {
               sessionId: undefined,
             })
@@ -383,7 +401,7 @@ export function useConnection({
         );
         const shouldRetry = await handleAuthError(error);
         if (shouldRetry) {
-          return connect(undefined, retryCount + 1);
+          return connect(effectiveParams, retryCount + 1);
         }
 
         if (error instanceof SseError && error.code === 401) {

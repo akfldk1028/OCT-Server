@@ -29,7 +29,7 @@ const appDataPath = path.join(
 const userConfigPath = path.join(appDataPath, 'userServers.json');
 
 // userServers.json 로드 (이건 사용자의 로컬 설치 상태이므로 유지)
-let userConfig: MCPConfig = {
+export let userConfig: MCPConfig = {
   schema_version: '', // 또는 mcpConfigFromLocalFiles.schema_version
   mcpServers: {},
 };
@@ -404,19 +404,21 @@ export function updateServerInstallStatus(
       | 'installedDir'
       | 'isRunning'
       | 'currentMode'
-      | 'installedMethod' /* 기타 로컬 상태 필드들 */
+      | 'installedMethod' 
+      | 'sessionId'          
+      | 'lastConnected'       // 🔥 추가  
+      | 'transportType'       // 🔥 추가
     >
-  >,
+  > & { active?: boolean }, // active 속성 추가
 ): void {
   if (!userConfig.mcpServers[id]) {
-    userConfig.mcpServers[id] = {} as Partial<MCPServerExtended>; // userConfig.mcpServers의 값은 Partial이 맞음
+    userConfig.mcpServers[id] = {} as Partial<MCPServerExtended>;
   }
 
   // 제공된 업데이트만 기존 상태에 병합
-  Object.assign(userConfig.mcpServers[id]!, updates); // non-null assertion, 위에서 할당했으므로
+  Object.assign(userConfig.mcpServers[id]!, updates);
 
   try {
-    // userServers.json 파일 쓰기 전에 폴더 존재 여부 다시 한번 확인 (첫 실행 등 대비)
     if (!fs.existsSync(appDataPath)) {
       fs.mkdirSync(appDataPath, { recursive: true });
     }
@@ -433,3 +435,22 @@ export function updateServerInstallStatus(
     );
   }
 }
+
+export function getServerSessionInfo(id: string): {
+  sessionId?: string;
+  lastConnected?: string;
+  transportType?: string;
+  active?: boolean;
+} | null {
+  const localState = userConfig.mcpServers[id];
+  if (!localState) return null;
+  
+  return {
+    sessionId: localState.sessionId,
+    lastConnected: localState.lastConnected, 
+    transportType: localState.transportType || localState.type,
+    active: localState.active,
+  };
+}
+
+
