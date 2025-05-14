@@ -1,4 +1,10 @@
-import React from 'react';
+import React, {
+  createContext,
+  useContext,
+  useCallback,
+  useReducer,
+} from 'react';
+
 import { createRoot } from 'react-dom/client';
 import {createHashRouter, Outlet, redirect, RouterProvider} from 'react-router';
 import './tailwind.css';
@@ -17,7 +23,17 @@ import ProductOverviewLayout, {loader as ProductOverviewLayoutLoader} from './fe
 import ProductOverviewPage from './features/products/pages/product-overview-page';
 import DailyLeaderboardPage from "@/renderer/features/products/pages/daily-leaderboard-page";
 import CategoriesPage, {loader as CategoriesPageLoader} from "@/renderer/features/products/pages/categories-page";
-import JobPage, {loader as JobPageLoader} from "./features/server/pages/job-page";
+import JobPage from "./features/server/pages/job-page";
+import NodePage from "./features/server/pages/node-page";
+import {
+  ReactFlowProvider,
+} from '@xyflow/react'
+
+import { DnDProvider } from './features/server/components/DnDContext';
+import { FlowProvider, useFlow } from './features/server/components/useFlowEvents';
+import ServerLayout, { loader as serverLayoutLoader } from './features/server/layout/server-layout';
+
+
 
 console.log('📍 Loaded renderer entry index.tsx');
 
@@ -160,14 +176,28 @@ const router = createHashRouter(
         },
         {
           path: 'jobs',
+          element: <ServerLayout />,
+          loader: serverLayoutLoader,
           children: [
             {
               index: true,
-              element: <JobPage/>,
-              // loader: JobPageLoader,
-            }, // /products 경로 접근 시 바로 리다이렉트
+              path: 'inspector',
+              element: <JobPage />, // 탭 공통 레이아웃(탭 바 + Outlet)
+            },
+            {
+              path: 'node',
+              element: <NodePage/>, // 탭 공통 레이아웃(탭 바 + Outlet)
 
-            ],
+            }
+
+            ]
+          // children: [
+          //   { index: true, loader: () => redirect('/jobs/tools') },
+          //   { path: 'resources', element: <ResourcesTab /> },
+          //   { path: 'prompts', element: <PromptsTab /> },
+          //   { path: 'tools', element: <ToolsTab/> },
+          //   // ... (필요한 탭 추가)
+          // ]
         }
 
       ],
@@ -176,15 +206,24 @@ const router = createHashRouter(
   { basename: '/' },
 );
 
+
+
+
 const container = document.getElementById('root')!;
 const root = createRoot(container);
 
 root.render(
   <React.StrictMode>
-    <TooltipProvider>
-      <RouterProvider router={router} />
-      <Toaster />
-    </TooltipProvider>
+    <ReactFlowProvider>
+      <FlowProvider>
+          <DnDProvider>
+            <TooltipProvider>
+              <RouterProvider router={router} />
+              <Toaster />
+            </TooltipProvider>
+          </DnDProvider>
+        </FlowProvider>
+    </ReactFlowProvider>
   </React.StrictMode>,
 );
 

@@ -9,14 +9,11 @@ export interface ServerStatus {
   name: string;
   status?: string;
   online: boolean;
-  pingMs?: number;
-  displayName?: string;
   serverType?: string;
 }
 
 export interface BaseMCPServer {
   name: string;
-  displayName?: string;
   serverType?: string;
   status: string;
   config: any;
@@ -57,27 +54,23 @@ export class ServerManager {
     return Array.from(this.servers.values());
   }
 
-  getStatus(): ServerStatus[] {
-    return Array.from(this.servers.values()).map((srv) => ({
-      name: srv.name,
-      displayName: srv.displayName || srv.name,
-      serverType: srv.serverType || (srv.name === 'local-express-server' ? 'express' : 'mcp'),
-      status: srv.status,
-      online: srv.status === 'running',
-      pingMs: srv.status === 'running' ? 0 : undefined,
-    }));
-  }
+  // getStatus(): ServerStatus[] {
+  //   return Array.from(this.servers.values()).map((srv) => ({
+  //     name: srv.name,
+  //     serverType: srv.serverType || (srv.name === 'local-express-server' ? 'express' : 'mcp'),
+  //     status: srv.status,
+  //     online: srv.status === 'running',
+  //   }));
+  // }
 
   async getServerStatus(name: string): Promise<ServerStatus | null> {
     const server = this.getServer(name);
     if (server) {
       return {
         name: server.name,
-        displayName: server.displayName || server.name,
         serverType: server.serverType,
         status: server.status,
         online: server.status === 'running',
-        pingMs: server.status === 'running' ? 0 : undefined,
       };
     }
     return null;
@@ -335,22 +328,6 @@ export class ServerManager {
     return summary;
   }
 
-  // 📌 기타 헬퍼 메서드들
-  updateServerExecutionDetails(
-    serverName: string,
-    method: ServerInstallationMethod,
-  ): void {
-    const srv = this.servers.get(serverName);
-    if (srv) {
-      srv.config.command = method.command;
-      srv.config.args = method.args;
-      console.log(`[Manager] Updated execution details for ${serverName}`);
-    } else {
-      console.error(
-        `[Manager] Cannot update details: Server ${serverName} not found.`,
-      );
-    }
-  }
 
   updateServerStatus(name: string, status: string): void {
     const server = this.getServer(name);
@@ -393,10 +370,10 @@ export class ServerManager {
           
           if (response.ok) {
             const sessions = await response.json();
-            // console.log(`[ServerManager] 활성 세션 조회 성공: ${sessions.length}개 세션`);
+            console.log(`[ServerManager] 활성 세션 조회 성공: ${sessions.length}개 세션`);
             return sessions;
           } else {
-            // console.log(`[ServerManager] Express API 세션 조회 실패 (${response.status}), 내부 데이터 사용`);
+            console.log(`[ServerManager] Express API 세션 조회 실패 (${response.status}), 내부 데이터 사용`);
             // 404 에러가 지속적으로 발생하면 API 호출 중단
             if (response.status === 404) {
               this._expressApiUnavailable = true;
@@ -404,7 +381,7 @@ export class ServerManager {
             }
           }
         } catch (error) {
-          // console.log(`[ServerManager] Express API 세션 조회 중 오류, 내부 데이터 사용:`, error);
+          console.log(`[ServerManager] Express API 세션 조회 중 오류, 내부 데이터 사용:`, error);
         }
       }
       
@@ -484,7 +461,6 @@ export class ServerManager {
       const serverInfo = {
         id: serverId,
         name: srv.name,
-        displayName: srv.displayName || srv.name,
         serverType: srv.serverType || (srv.name === 'local-express-server' ? 'express' : 'mcp'),
         status: srv.status,
         online: srv.status === 'running',
@@ -510,13 +486,9 @@ export class ServerManager {
             args: fullConfig.execution?.args || fullConfig.args,
             transportType: fullConfig.transportType || 'stdio',
             env: fullConfig.execution?.env || fullConfig.env || {},
-            execution: fullConfig.execution,
           };
           
-          // 전체 이름 정보도 가져오기
-          if (fullConfig.displayName) {
-            serverInfo.displayName = fullConfig.displayName;
-          }
+ 
           
           // 서버 타입 정보도 업데이트
           if (fullConfig.server_type || fullConfig.serverType) {
@@ -524,6 +496,26 @@ export class ServerManager {
           }
           
           console.log(`[ServerManager] ${serverId} 서버의 전체 설정 정보를 가져왔습니다.`);
+          // Type 하나만들어야하나
+
+          // config:{}
+          // displayName:
+          // id:
+          // Name:
+          // online:
+          // serverType
+          // status:
+
+          // SelectedServer
+          // config:{}
+          // connectionStatus
+          // displayName:
+          // id
+          // Name
+          // online
+          // serverType
+          // status:
+          // sessionId
         }
       } catch (error) {
         console.error(`[ServerManager] ${serverId} 서버의 설정 파일 읽기 오류:`, error);

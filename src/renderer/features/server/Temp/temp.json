@@ -1,0 +1,135 @@
+[
+    {
+      "name": "ProjectFlow",
+      "tagline": "Streamline Your Team's Workflow",
+      "description": "ProjectFlow is a comprehensive project management SaaS platform designed to help teams organize tasks, track progress, and collaborate in real-time. It offers features like Gantt charts, kanban boards, and time tracking with integrations for popular tools like Slack and Google Workspace.",
+      "how_it_works": "After signing up, create projects and assign tasks through an intuitive interface. The dashboard provides real-time updates and automated notifications. Team members can collaborate through built-in chat and document sharing features.",
+      "icon": "https://github.com/teslamotors.png",
+      "url": "https://nomadcoders.co",
+      "profile_id": "2a040d91-8acf-40d1-8c07-42471ea091cb",
+      "category_id": 1,
+      "created_at": "2025-05-13T15:00:00+09:00",
+      "updated_at": "2025-05-13T15:00:00+09:00"
+    },
+    {
+      "name": "ChatGenius",
+      "tagline": "AI-Powered Customer Support",
+      "description": "ChatGenius uses natural language processing to provide instant customer support through intelligent chatbots. It understands complex queries and offers accurate responses while learning from every interaction.",
+      "how_it_works": "Integrate via API and train the AI on your knowledge base. The system handles common inquiries automatically and escalates complex issues to human agents. Includes sentiment analysis for better customer understanding.",
+      "icon": "https://github.com/vercel.png",
+      "url": "https://nomadcoders.co",
+      "profile_id": "2a040d91-8acf-40d1-8c07-42471ea091cb",
+      "category_id": 2,
+      "created_at": "2025-05-13T15:00:00+09:00",
+      "updated_at": "2025-05-13T15:00:00+09:00"
+    },
+    {
+      "name": "CodeLint Pro",
+      "tagline": "Write Cleaner Code Automatically",
+      "description": "Advanced static code analysis tool that identifies bugs and security vulnerabilities in real-time. Supports multiple languages and integrates with popular IDEs and CI/CD pipelines.",
+      "how_it_works": "Install the plugin and configure custom rules. Continuous scanning provides instant feedback during development. Generates detailed reports with actionable insights for code quality improvement.",
+      "icon": "https://github.com/airbnb.png",
+      "url": "https://nomadcoders.co",
+      "profile_id": "2a040d91-8acf-40d1-8c07-42471ea091cb",
+      "category_id": 3,
+      "created_at": "2025-05-13T15:00:00+09:00",
+      "updated_at": "2025-05-13T15:00:00+09:00"
+    },
+    {
+      "name": "PixelPerfect",
+      "tagline": "Design Collaboration Made Simple",
+      "description": "Cloud-based design platform with version control and real-time collaboration. Supports vector graphics, prototyping, and design system management for teams of all sizes.",
+      "how_it_works": "Upload designs or start from templates. Collaborate with comments and annotations. Maintain consistency with shared design libraries and automated style guides.",
+      "icon": "https://github.com/remix-run.png",
+      "url": "https://nomadcoders.co",
+      "profile_id": "2a040d91-8acf-40d1-8c07-42471ea091cb",
+      "category_id": 4,
+      "created_at": "2025-05-13T15:00:00+09:00",
+      "updated_at": "2025-05-13T15:00:00+09:00"
+    },
+    {
+      "name": "SocialPulse",
+      "tagline": "AI-Driven Social Media Optimization",
+      "description": "Comprehensive social media management platform with predictive analytics and automated posting. Analyzes engagement patterns to recommend optimal posting times and content strategies.",
+      "how_it_works": "Connect your social accounts and set campaign goals. The AI analyzes your audience and suggests content. Schedule posts and track performance through detailed analytics dashboards.",
+      "icon": "https://github.com/linear.png",
+      "url": "https://nomadcoders.co",
+      "profile_id": "2a040d91-8acf-40d1-8c07-42471ea091cb",
+      "category_id": 5,
+      "created_at": "2025-05-13T15:00:00+09:00",
+      "updated_at": "2025-05-13T15:00:00+09:00"
+    },
+    {
+      "name": "API Nexus",
+      "tagline": "Unified API Management Platform",
+      "description": "Complete solution for API development, monitoring, and security. Supports version control, rate limiting, and automated documentation generation.",
+      "how_it_works": "Define API schemas using OpenAPI specification. Test endpoints through built-in tools and monitor performance with real-time dashboards. Implement security policies with click-to-configure options.",
+      "icon": "https://github.com/teslamotors.png",
+      "url": "https://nomadcoders.co",
+      "profile_id": "2a040d91-8acf-40d1-8c07-42471ea091cb",
+      "category_id": 1,
+      "created_at": "2025-05-13T15:00:00+09:00",
+      "updated_at": "2025-05-13T15:00:00+09:00"
+    },
+    {
+      "name": "DeepAnalyze",
+      "tagline": "Predictive Business Intelligence",
+      "description": "Machine learning platform that processes complex datasets to forecast trends and identify hidden patterns. Offers natural language querying and automated report generation.",
+      "how_it_works": "Connect data sources and define key metrics. The system processes historical data to create predictive models. Ask questions in plain English and receive insights through interactive visualizations.",
+      "icon": "https://github.com/vercel.png",
+      "url": "https://nomadcoders.co",
+      "profile_id": "2a040d91-8acf-40d1-8c07-42471ea091cb",
+      "category_id": 2,
+      "created_at": "2025-05-13T15:00:00+09:00",
+      "updated_at": "2025-05-13T15:00:00+09:00"
+    },
+    {
+      "name": "DevOpsFlow",
+      "tagline": "Continuous Deployment Made Simple",
+      "description": "End-to-end CI/CD pipeline automation with built-in testing environments and infrastructure management. Supports Kubernetes, Docker, and all major cloud providers.",
+      "how_it_works": "Configure your build process through YAML files or visual editor. Automated testing runs parallel across multiple environments. One-click rollbacks and performance monitoring included.",
+      "icon": "https://github.com/airbnb.png",
+      "url": "https://nomadcoders.co",
+      "profile_id": "2a040d91-8acf-40d1-8c07-42471ea091cb",
+      "category_id": 3,
+      "created_at": "2025-05-13T15:00:00+09:00",
+      "updated_at": "2025-05-13T15:00:00+09:00"
+    },
+    {
+      "name": "VectorWave",
+      "tagline": "Next-Gen Vector Graphics Editor",
+      "description": "Browser-based design tool with AI-assisted drawing and animation capabilities. Export to multiple formats with perfect resolution preservation.",
+      "how_it_works": "Start with templates or blank canvas. Use AI-powered shape recognition to convert sketches to vectors. Create animations through timeline-based interface and export as Lottie files or GIFs.",
+      "icon": "https://github.com/remix-run.png",
+      "url": "https://nomadcoders.co",
+      "profile_id": "2a040d91-8acf-40d1-8c07-42471ea091cb",
+      "category_id": 4,
+      "created_at": "2025-05-13T15:00:00+09:00",
+      "updated_at": "2025-05-13T15:00:00+09:00"
+    },
+    {
+      "name": "EmailForge",
+      "tagline": "Intelligent Email Campaign Builder",
+      "description": "AI-powered email marketing platform that optimizes subject lines, content, and sending times. Includes advanced segmentation and A/B testing capabilities.",
+      "how_it_works": "Create email templates or use AI-generated content. Define audience segments based on behavior patterns. Test different variations and automatically send top-performing version to entire list.",
+      "icon": "https://github.com/linear.png",
+      "url": "https://nomadcoders.co",
+      "profile_id": "2a040d91-8acf-40d1-8c07-42471ea091cb",
+      "category_id": 5,
+      "created_at": "2025-05-13T15:00:00+09:00",
+      "updated_at": "2025-05-13T15:00:00+09:00"
+    },
+    {
+      "name": "CloudSecure",
+      "tagline": "Enterprise-Grade Cloud Security",
+      "description": "Comprehensive security suite for cloud infrastructure with real-time threat detection and automated compliance auditing. Supports AWS, Azure, and GCP.",
+      "how_it_works": "Connect your cloud accounts and define security policies. Continuous monitoring detects anomalies and potential breaches. Generate compliance reports for HIPAA, GDPR, and SOC2 with one click.",
+      "icon": "https://github.com/teslamotors.png",
+      "url": "https://nomadcoders.co",
+      "profile_id": "2a040d91-8acf-40d1-8c07-42471ea091cb",
+      "category_id": 1,
+      "created_at": "2025-05-13T15:00:00+09:00",
+      "updated_at": "2025-05-13T15:00:00+09:00"
+    }
+  ]
+  

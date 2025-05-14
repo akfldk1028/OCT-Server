@@ -17,6 +17,10 @@ const dist = webpackPaths.dllPath;
 // MCP SDK와 관련 패키지를 DLL에서 제외
 const excludePackages = [
   '@modelcontextprotocol/sdk',
+  '@xyflow/react', // XYFlow React도 렌더러 DLL에 포함할 필요 없으면 제외
+  'type-fest', // type-fest 모듈 파싱 오류 방지
+  'yaml', // yaml/browser → CJS로 alias 하지 않을 거면 제외
+  'swagger-jsdoc', // swagger-jsdoc 의존성 제거
   // 추가적으로 문제가 되는 패키지 여기에 추가
 ];
 
@@ -24,13 +28,21 @@ const excludePackages = [
 // const dllDependencies = Object.keys(dependencies || {}).filter(
 //   (dependency) => !excludePackages.includes(dependency),
 // );
+
+
 const dllDependencies = [
   ...Object.keys(dependencies || {}).filter(
-    (dep) => !excludePackages.includes(dep) && dep !== 'react-router' && dep !== '@react-router/dev'
+    (dep) =>
+      !excludePackages.includes(dep) &&
+      dep !== 'react-router' &&
+      dep !== '@react-router/dev',
   ),
 ];
 // 'react-router'가 필요하고 아직 없다면 여기서 한 번만 추가
-if (!dllDependencies.includes('react-router-dom') && dependencies['react-router-dom']) {
+if (
+  !dllDependencies.includes('react-router-dom') &&
+  dependencies['react-router-dom']
+) {
   dllDependencies.push('react-router-dom');
 }
 

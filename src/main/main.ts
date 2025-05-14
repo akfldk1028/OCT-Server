@@ -345,8 +345,10 @@ app
 ipcMain.handle('server:getStatus', async () => {
   try {
     // 모든 서버 상태를 가져온 다음, Express 서버를 필터링하여 제외
-    const allServers = await manager.getStatus();
-    return allServers.filter(server => server.name !== 'local-express-server');
+    const allServers = await Promise.all(
+      manager.getAllServers().map(server => manager.getServerStatus(server.name))
+    );
+    return allServers.filter(server => server && server.name !== 'local-express-server');
   } catch (error) {
     console.error('서버 상태 조회 오류:', error);
     return { error: '서버 상태 조회 실패' };
@@ -411,6 +413,18 @@ ipcMain.handle('server:getAllServers', async () => {
   }
 });
 
+ipcMain.handle('mcp:getSessionId', async (event, config) => {
+  // config에서 서버 id나 name을 추출
+  const serverId = config?.id || config?.name;
+  if (!serverId) return null;
+  try {
+    const sessionInfo = getServerSessionInfo(serverId);
+    return sessionInfo?.sessionId || null;
+  } catch (e) {
+    console.error('[main] mcp:getSessionId error:', e);
+    return null;
+  }
+});
 
 // src/main/main.ts
 

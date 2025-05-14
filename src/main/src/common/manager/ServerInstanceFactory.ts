@@ -21,7 +21,6 @@ export class ServerInstanceFactory {
     
     const serverInstance: BaseMCPServer = {
       name: serverName,
-      displayName: config.name || serverName,
       serverType: config.server_type || config.type || 'mcp',
       status: 'stopped',
       config: { ...config },
@@ -73,11 +72,9 @@ export class ServerInstanceFactory {
         }
         return {
           name: this.name,
-          displayName: this.displayName,
           serverType: this.serverType,
           online: this.status === 'running',
           status: this.status,
-          pingMs: this.status === 'running' ? 0 : undefined,
         };
       },
     };

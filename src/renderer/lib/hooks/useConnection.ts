@@ -55,6 +55,7 @@ interface UseConnectionOptions {
   onStdErrNotification?: (notification: Notification) => void;
   onPendingRequest?: (request: any, resolve: any, reject: any) => void;
   getRoots?: () => any[];
+  serverName?: string;
 }
 
 export function useConnection({
@@ -70,6 +71,7 @@ export function useConnection({
   onStdErrNotification,
   onPendingRequest,
   getRoots,
+  serverName,
 }: UseConnectionOptions) {
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("disconnected");
@@ -256,6 +258,8 @@ export function useConnection({
   };
 
   const connect = async (customParams?: Partial<UseConnectionOptions>, retryCount: number = 0) => {
+
+    
     // 커스텀 파라미터 적용 (세션 ID가 포함된 URL 등)
     const effectiveParams = {
       transportType,
@@ -297,6 +301,9 @@ export function useConnection({
         mcpProxyServerUrl.searchParams.append("command", effectiveParams.command);
         mcpProxyServerUrl.searchParams.append("args", effectiveParams.args);
         mcpProxyServerUrl.searchParams.append("env", JSON.stringify(effectiveParams.env));
+        if (effectiveParams.serverName) {
+          mcpProxyServerUrl.searchParams.append("serverName", effectiveParams.serverName);
+        } 
         break;
 
       case "sse":

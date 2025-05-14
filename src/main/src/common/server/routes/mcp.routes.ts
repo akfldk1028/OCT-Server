@@ -12,6 +12,9 @@ import {
   webAppTransports,
   generateSessionId
 } from '../services/mcp/transport';
+import { updateServerInstallStatus } from '../../configLoader';
+import { manager } from '../../manager/managerInstance';
+
 
 const router = express.Router();
 
@@ -235,6 +238,16 @@ router.get('/stdio', async (req, res) => {
     webAppTransports.set(sessionKey, webAppTransport);
 
     console.log(`✓ Created web app transport: ${sessionKey}`);
+
+    // === 세션ID를 userServers.json에 저장 ===
+    const serverId = String(req.query.serverName);
+    updateServerInstallStatus(serverId, {
+      sessionId: sessionKey,
+      lastConnected: new Date().toISOString(),
+      transportType: 'stdio',
+      active: true
+    });
+    // ======================================
 
     // 세션 ID 헤더 설정
     res.setHeader('mcp-session-id', sessionKey);
@@ -666,5 +679,53 @@ router.get('/mcp/active-servers', (req, res) => {
     servers: activeServers
   });
 });
+
+
+/**
+ * @swagger
+ * /servers/full-config:
+ *   get:
+ *     summary: 모든 서버의 전체 설정 정보 조회
+ *     tags: [MCP]
+ *     responses:
+ *       200:
+ *         description: 전체 서버 설정 정보
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ */
+router.get('/servers/full-config', (req, res) => {
+  try {
+    const allServers = manager.getAllServersWithFullConfig();
+    // allServers
+    const args = parseMcpArgs(process.argv.slice(2));
+    res.json({
+      allServers:allServers,
+      defaultEnvironment:mcpConfig.defaultEnvironment,
+      defaultCommand:args.env,
+      defaultArgs:args.args,
+    });
+  } catch (error) {
+    console.error('Error in /servers/full-config route:', error);
+    res.status(500).json(error);
+  }
+});
+// defaultEnvironment
+// router.get('/config', (req, res) => {
+//   try {
+//     const args = parseMcpArgs(process.argv.slice(2));
+//     res.json({
+//       defaultEnvironment: mcpConfig.defaultEnvironment,
+//       defaultCommand: args.env,
+//       defaultArgs: args.args,
+//     });
+//   } catch (error) {
+//     console.error('Error in /config route:', error);
+//     res.status(500).json(error);
+//   }
+// });
 
 export default router;

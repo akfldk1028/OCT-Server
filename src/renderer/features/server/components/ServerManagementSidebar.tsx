@@ -60,8 +60,7 @@ interface ServerManagementSidebarProps {
   setSelectedServers: (servers: Set<string>) => void;
   startServer: (serverId: string) => Promise<void>;
   stopServer: (serverId: string) => Promise<void>;
-  startMultiple: () => Promise<void>;
-  stopMultiple: () => Promise<void>;
+
   refreshStatus: () => Promise<void>;
   addNewServer?: (serverConfig: {
     name: string;
@@ -80,8 +79,6 @@ function ServerManagementSidebar({
   setSelectedServers,
   startServer,
   stopServer,
-  startMultiple,
-  stopMultiple,
   refreshStatus,
   addNewServer,
 }: ServerManagementSidebarProps) {
@@ -219,26 +216,7 @@ function ServerManagementSidebar({
               선택 해제
             </Button>
           </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={startMultiple}
-              size="sm"
-              className="flex-1"
-              variant="default"
-            >
-              <Play className="w-3 h-3 mr-1" />
-              일괄 시작
-            </Button>
-            <Button
-              onClick={stopMultiple}
-              size="sm"
-              className="flex-1"
-              variant="destructive"
-            >
-              <Square className="w-3 h-3 mr-1" />
-              일괄 종료
-            </Button>
-          </div>
+
         </div>
       )}
 
@@ -278,8 +256,8 @@ function ServerManagementSidebar({
                 key={server.id}
                 className={`mb-2 p-3 rounded border transition-colors ${
                   selectedServer?.id === server.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:bg-gray-50'
+                    ? 'border-pink-500'
+                    : 'border-gray-200'
                 }`}
               >
                 <div className="flex items-center">
@@ -389,7 +367,7 @@ function ServerManagementSidebar({
 
       {/* Selected Server Details */}
       {selectedServer && (
-        <div className="border-t border-gray-200 bg-gray-50">
+        <div className="border-t">
           <Button
             variant="ghost"
             onClick={() => setShowDetails(!showDetails)}
@@ -420,13 +398,13 @@ function ServerManagementSidebar({
               </div>
               <div>
                 <label className="text-gray-600">명령어:</label>
-                <p className="font-mono text-xs bg-white p-2 rounded border">
+                <p className="font-mono text-xs  p-2 rounded border">
                   {selectedServer.config?.command || 'N/A'}
                 </p>
               </div>
               <div>
                 <label className="text-gray-600">인자:</label>
-                <p className="font-mono text-xs bg-white p-2 rounded border">
+                <p className="font-mono text-xs p-2 rounded border">
                   {selectedServer.config?.args?.join(' ') || 'N/A'}
                 </p>
               </div>
@@ -439,7 +417,7 @@ function ServerManagementSidebar({
               {selectedServer.sessionId && (
                 <div>
                   <label className="text-gray-600">세션 ID:</label>
-                  <p className="font-mono text-xs bg-white p-2 rounded border">
+                  <p className="font-mono text-xs p-2 rounded border">
                     {selectedServer.sessionId}
                   </p>
                 </div>

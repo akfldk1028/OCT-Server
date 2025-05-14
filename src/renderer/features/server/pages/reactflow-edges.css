@@ -1,0 +1,35 @@
+/* 커스텀 엣지 스타일 */
+.react-flow__edge-path {
+  stroke-width: 2px;
+  stroke-dasharray: 5;
+}
+
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 5;
+  animation: dashdraw 0.5s linear infinite;
+}
+
+@keyframes dashdraw {
+  from {
+    stroke-dashoffset: 10;
+  }
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #ff0072 !important;
+  stroke-width: 3px !important;
+}
+
+/* 연결선 스타일 */
+.react-flow__connection-path {
+  stroke-width: 3px;
+  stroke-dasharray: 5;
+  animation: dashdraw 0.5s linear infinite;
+}
+
+/* 엣지 레이블 스타일 */
+.react-flow__edge .react-flow__edge-text {
+  font-size: 12px;
+  font-weight: bold;
+  fill: #555;
+} 

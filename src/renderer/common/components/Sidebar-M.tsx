@@ -1,4 +1,4 @@
-import { JSX, useState } from 'react';
+import { JSX, useState, useEffect } from 'react';
 import { Link, NavLink } from 'react-router';
 import {
   Home,
@@ -77,32 +77,32 @@ const menus = [
     ],
   },
   {
-    name: 'Jobs',
+    name: 'Server',
     to: '/jobs',
     icon: <Folder className="w-4 h-4" />,
     items: [
       {
-        name: 'Remote Jobs',
+        name: 'Inspector',
         description: 'Find a remote job in our community',
-        to: '/jobs?location=remote',
+        to: '/jobs/inspector',
       },
       {
-        name: 'Full-Time Jobs',
+        name: 'Node',
         description: 'Find a full-time job in our community',
-        to: '/jobs?type=full-time',
+        to: '/jobs/node',
       },
       {
-        name: 'Freelance Jobs',
+        name: 'alt1',
         description: 'Find a freelance job in our community',
         to: '/jobs?type=freelance',
       },
       {
-        name: 'Internships',
+        name: 'alt2',
         description: 'Find an internship in our community',
         to: '/jobs?type=internship',
       },
       {
-        name: 'Post a Job',
+        name: 'alt3',
         description: 'Post a job to our community',
         to: '/jobs/submit',
       },
@@ -166,6 +166,7 @@ export default function Sidebar({
   username,
   avatar,
   name,
+  collapsed: collapsedProp,
 }: {
   isLoggedIn: boolean;
   hasNotifications: boolean;
@@ -173,9 +174,14 @@ export default function Sidebar({
   username?: string;
   avatar?: string | null;
   name?: string;
+  collapsed?: boolean;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(collapsedProp ?? false);
   const [theme, setTheme] = useTheme();
+
+  useEffect(() => {
+    if (collapsedProp !== undefined) setCollapsed(collapsedProp);
+  }, [collapsedProp]);
 
   return (
     <aside

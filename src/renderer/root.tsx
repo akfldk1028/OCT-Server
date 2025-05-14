@@ -63,7 +63,12 @@ export function Root() {
   const navigation = useNavigation();
   const isLoading = navigation.state === 'loading';
   const isLoggedIn = !!loaderData.user;
-
+//   <main
+//   className={cn('flex-1 overflow-y-auto h-full', {
+//     'py-10 md:py-20 px-5 md:px-10': !pathname.includes('/auth/'),
+//     'transition-opacity animate-pulse': isLoading,
+//   })}
+// >
   return (
     <div className="flex h-screen overflow-hidden">
       {!pathname.includes('/auth') && (
@@ -74,13 +79,18 @@ export function Root() {
           name={loaderData.profile?.name || ""}
           hasNotifications={!!loaderData.notificationsCount}
           hasMessages={false}
+          collapsed={pathname.includes('/jobs/node')}
         />
       )}
       <main
-        className={cn('flex-1 overflow-y-auto h-full', {
-          'py-10 md:py-20 px-5 md:px-10': !pathname.includes('/auth/'),
-          'transition-opacity animate-pulse': isLoading,
-        })}
+        className={cn(
+          'flex-1 h-full', // overflow-y-auto 제거!
+          {
+            'overflow-y-auto py-10 md:py-10 px-5 md:px-10': !pathname.includes('/auth/') && !pathname.includes('/server/node-page'),
+            'overflow-hidden  py-0 md:py-0 px-0 md:px-0': pathname.includes('/jobs/node'), // node-page일 때만!
+            'transition-opacity animate-pulse': isLoading,
+          }
+        )}
       >
         <Outlet
           context={{

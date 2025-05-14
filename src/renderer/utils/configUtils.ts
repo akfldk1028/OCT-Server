@@ -3,9 +3,13 @@ import { DEFAULT_MCP_PROXY_LISTEN_PORT } from '@/lib/constants';
 
 export const getMCPProxyAddress = (config: InspectorConfig): string => {
   const proxyFullAddress = config.MCP_PROXY_FULL_ADDRESS.value as string;
+  console.log('✅❌❌✅', window.location.protocol, window.location.hostname, DEFAULT_MCP_PROXY_LISTEN_PORT);
+  //✅❌❌✅ http: localhost 4303
+
   if (proxyFullAddress) {
     return proxyFullAddress;
   }
+
   return `${window.location.protocol}//${window.location.hostname}:${DEFAULT_MCP_PROXY_LISTEN_PORT}`;
 };
 

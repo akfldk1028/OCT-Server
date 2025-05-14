@@ -26,7 +26,7 @@ import RootsTab from "../../../common/components/RootsTab";
 import SamplingTab from "../../../common/components/SamplingTab";
 import Sidebar from "../../../common/components/Sidebar";
 import ToolsTab from "../../../common/components/ToolsTab";
-import { DEFAULT_INSPECTOR_CONFIG } from "../../../lib/constants";
+import { DEFAULT_INSPECTOR_CONFIG, CONFIG_LOCAL_STORAGE_KEY } from "../../../lib/constants";
 import { getMCPProxyAddress } from "../../../utils/configUtils";
 
 // Import refactored modules
@@ -38,7 +38,6 @@ import TabsContainer from "../../../common/components/inspector/TabsContainer";
 // Multi-Server Components
 import ServerManagementSidebar from "../../../features/server/components/ServerManagementSidebar";
 
-const CONFIG_LOCAL_STORAGE_KEY = "inspectorConfig_v1";
 
 // Server Info interface for multi-server support
 interface ServerInfo {
@@ -68,7 +67,9 @@ interface ServerInfo {
   lastError?: string;
 }
 
-const App = () => {
+const JobPage = () => {
+  const [tab, setTab] = useState("resources"); // 기본값
+
   // 🔥 Multi-Server State
   const [servers, setServers] = useState<ServerInfo[]>([]);
   const [selectedServer, setSelectedServer] = useState<ServerInfo | null>(null);
@@ -134,7 +135,9 @@ const App = () => {
           const envStr = Object.keys(execConfig.env || {}).length > 0 ? 
           encodeURIComponent(JSON.stringify(execConfig.env)) : 
           encodeURIComponent('{}');
-          serverSseUrl = `http://localhost:4303/stdio?transportType=stdio&command=${encodeURIComponent(execConfig.command)}&args=${encodeURIComponent(execConfig.args ? execConfig.args.join(' ') : '')}&env=${envStr}`;
+          serverSseUrl = `http://localhost:4303/stdio?transportType=stdio&command=${encodeURIComponent(execConfig.command)}&args=${encodeURIComponent(execConfig.args ? execConfig.args.join(' ') : '')}&env=${envStr}&serverName=${selectedServer.id}`;
+
+          // serverSseUrl = `http://localhost:4303/stdio?transportType=stdio&command=${encodeURIComponent(execConfig.command)}&args=${encodeURIComponent(execConfig.args ? execConfig.args.join(' ') : '')}&env=${envStr}`;
           break;
         case 'sse':
           serverSseUrl = `http://localhost:4303/sse?transportType=sse`;
@@ -155,6 +158,7 @@ const App = () => {
         bearerToken,
         headerName,
         config,
+        serverName: selectedServer?.id
       };
       
       console.log("Generated connection params:", params);
@@ -171,6 +175,7 @@ const App = () => {
         bearerToken,
         headerName,
         config,
+        serverName: selectedServer?.id
       };
       
       console.log("Single server mode params:", params);
@@ -261,15 +266,7 @@ const App = () => {
     tools: null,
   });
 
-  // 🔥 API Data Debug
-  useEffect(() => {
-    console.log("=== API Data Debug ===");
-    console.log("resources:", resources);
-    console.log("prompts:", prompts);
-    console.log("tools:", tools);
-    console.log("errors:", errors);
-    console.log("=====================");
-  }, [resources, prompts, tools, errors]);
+
 
   // 🔥 Electron API helper (only for multi-server mode)
   const ensureApi = () => {
@@ -283,7 +280,6 @@ const App = () => {
   // 🔥 Multi-Server Management Functions
 // src/renderer/features/server/pages/job-page.tsx
   const refreshServerStatus = useCallback(async () => {
-    if (!multiServerMode) return;
     
     try {
       const api = ensureApi();
@@ -296,8 +292,8 @@ const App = () => {
       // 세션 정보와 서버 정보 병합
       const serversWithSessions = await Promise.all(
         fullConfigs.map(async (server) => {
-          const activeSession = activeSessions.find(
-            session => session.serverName === server.name || session.serverName === server.id
+          const mySession = activeSessions.find(
+            (s: any) => s.serverName === server.name || s.serverName === server.id
           );
           
           // 저장된 세션 정보 가져오기
@@ -305,9 +301,9 @@ const App = () => {
           
           return {
             ...server,
-            sessionId: activeSession?.sessionId || savedSession?.sessionId || null,
-            activeSessions: activeSession?.sessionCount || 0,
-            connectionStatus: server.status === 'running' && activeSession ? 'connected' : 'disconnected',
+            sessionId: mySession?.sessionId || savedSession?.sessionId || null,
+            activeSessions: mySession?.sessionCount || 0,
+            connectionStatus: server.status === 'running' && mySession ? 'connected' : 'disconnected',
           };
         })
       );
@@ -325,83 +321,56 @@ const App = () => {
     }
   }, [multiServerMode, selectedServer?.id]);
 
-// src/renderer/features/server/pages/job-page.tsx
-// 서버 시작 시 자동으로 선택하기
-// const startServer = useCallback(async (serverId: string): Promise<void> => {
-//   try {
-//     const api = ensureApi();
-//     if (!api) throw new Error('Electron API not available');
-    
-//     // 🔥 서버 시작 시 해당 서버를 자동으로 선택
-//     const serverToStart = servers.find(server => server.id === serverId);
-//     if (serverToStart) {
-//       console.log("Auto-selecting server on start:", serverToStart.name);
-//       setSelectedServer(serverToStart);
-//     }
-    
-//     const result = await api.startServer(serverId);
-    
-//     if (result.success) {
-//       setNotification({ message: '서버가 시작되었습니다.', type: 'success' });
-//       await new Promise(resolve => setTimeout(resolve, 1000));
-//       await refreshServerStatus();
-      
-//       // 새 세션 ID 확인 및 저장
-//       const servers = await api.getFullConfigs();
-//       const updatedServer = servers.find(s => s.id === serverId);
-      
-//       if (updatedServer?.sessionId) {
-//         await api.saveServerSession(serverId, {
-//           sessionId: updatedServer.sessionId,
-//           lastConnected: new Date(),
-//           transportType: updatedServer.config?.transportType || 'stdio'
-//         });
-//         console.log(`✅ Session saved: ${updatedServer.sessionId}`);
-//       }
-//     } else {
-//       setNotification({ message: `서버 시작 실패: ${result.message}`, type: 'error' });
-//     }
-//   } catch (error) {
-//     console.error('Error starting server:', error);
-//     setNotification({ message: '서버 시작 중 오류가 발생했습니다.', type: 'error' });
-//   }
-// }, [servers, refreshServerStatus]);
-// job-page.tsx의 connectWithSessionReuse 함수 수정
-
 
 const connectWithSessionReuse = useCallback(async () => {
   if (!selectedServer) return;
-  
+  if (connectionStatus === "connected" && mcpClient) {
+    console.log("이미 연결되어 있습니다.");
+    return;
+  }
   try {
     const api = ensureApi();
     if (!api) return;
-    
-    // 1. 활성 세션 정보 가져오기 (서버 매니저가 관리하는 세션)
+
+    // 1. 활성 세션 정보 가져오기
     const activeSessions = await api.getActiveSessions(selectedServer.id);
-    
-    if (activeSessions && activeSessions.length > 0 && activeSessions[0].sessionId) {
-      console.log("🔍 서버에 이미 생성된 세션 발견:", activeSessions[0].sessionId);
-      
-      // 2. 기존 세션 ID를 사용하여 연결 파라미터 설정
-      const existingSessionId = activeSessions[0].sessionId;
-      
-      // 3. 연결 파라미터에 sessionId 포함시키기
-      const updatedParams = { ...connectionParams };
-      
-      // URL에 sessionId 추가
-      if (updatedParams.sseUrl && !updatedParams.sseUrl.includes('sessionId=')) {
-        const separator = updatedParams.sseUrl.includes('?') ? '&' : '?';
-        updatedParams.sseUrl = `${updatedParams.sseUrl}${separator}sessionId=${existingSessionId}`;
-      }
-      
-      console.log("🔄 기존 세션으로 연결 시도:", existingSessionId);
-      console.log("업데이트된 연결 URL:", updatedParams.sseUrl);
-      
-      // 기존 연결 로직 사용
-      await connectMcpServer(updatedParams);
+    const mySession = activeSessions.find(
+      (s: any) => s.serverName === selectedServer.id || s.serverName === selectedServer.name
+    );
+
+    if (mySession && mySession.sessionId) {
+      // ✅ 기존 세션이 있으면 아무것도 하지 않음!
+      console.log("🔄 ✅✅✅✅기존 세션이 있음:", mySession.sessionId);
+      await connectMcpServer();
+      return;
     } else {
+      // ❌ 기존 세션이 없을 때만 새로 연결
       console.log("🆕 세션이 없음, 새 세션 생성");
       await connectMcpServer();
+
+      // 연결 성공 후 sessionId 받아와서 저장
+      async function fetchSessionIdWithRetry(api, config, maxRetries = 3, delay = 500) {
+        for (let i = 0; i < maxRetries; i++) {
+          const sessionId = await api.getMcpSessionId(config);
+          if (sessionId) return sessionId;
+          await new Promise(res => setTimeout(res, delay));
+        }
+        return null;
+      }
+      const sessionId = await fetchSessionIdWithRetry(api, selectedServer.config);
+      console.log("❌❌❌❌ 세션 ID:", sessionId)
+
+      if (sessionId) {
+        await api.saveServerSession(selectedServer.id, {
+          sessionId,
+          lastConnected: new Date(),
+          transportType: selectedServer.config?.transportType || 'stdio',
+          active: true
+        });
+        console.log(`[connectWithSessionReuse] 연결 성공 후 세션 저장: ${sessionId}`);
+      } else {
+        console.warn('[connectWithSessionReuse] 연결 성공 후 세션ID를 받아오지 못함 (재시도 후에도 실패)');
+      }
     }
   } catch (error) {
     console.error("Error in session management:", error);
@@ -420,6 +389,11 @@ const startServer = useCallback(async (serverId: string): Promise<void> => {
     const serverToStart = servers.find(server => server.id === serverId);
     if (serverToStart) {
       setSelectedServer(serverToStart);
+      // 이미 running 상태면 실행하지 않음
+      if (serverToStart.status === 'running') {
+        setNotification({ message: '서버가 이미 실행 중입니다.', type: 'info' });
+        return;
+      }
     }
     
     console.log('🚀 서버 시작 요청:', serverId);
@@ -427,31 +401,10 @@ const startServer = useCallback(async (serverId: string): Promise<void> => {
     
     if (result.success) {
       setNotification({ message: '서버가 시작되었습니다.', type: 'success' });
-      
       // 서버 상태 갱신을 기다림 (세션 생성 확인을 위해)
       await new Promise(resolve => setTimeout(resolve, 1500));
       await refreshServerStatus();
-      
-      // 새로 갱신된 서버 정보 확인
-      const activeSessions = await api.getActiveSessions(serverId);
-      console.log('✓ 활성 세션 정보:', activeSessions);
-      
-      if (activeSessions && activeSessions.length > 0 && activeSessions[0].sessionId) {
-        // 세션 ID 저장 - 활성 상태로 명시적 표시
-        await api.saveServerSession(serverId, {
-          sessionId: activeSessions[0].sessionId,
-          lastConnected: new Date(),
-          transportType: serverToStart?.config?.transportType || 'stdio',
-          commandType: 'unknown',
-          active: true  // 세션이 활성 상태임을 명시적으로 표시
-        });
-        console.log(`✅ Session saved: ${activeSessions[0].sessionId} (active=true)`);
-      } else {
-        console.log('⚠️ 활성 세션을 찾을 수 없습니다. 자동 연결은 자체 세션을 생성합니다.');
-      }
-      
-      // 서버가 시작된 후 자동으로 세션 재사용 로직으로 연결
-      // 자동 연결 useEffect에서 처리되므로 여기서는 별도로 호출하지 않음
+      // 세션 저장은 연결 성공 후 useEffect에서만 처리
     } else {
       setNotification({ message: `서버 시작 실패: ${result.message}`, type: 'error' });
     }
@@ -484,7 +437,7 @@ const startServer = useCallback(async (serverId: string): Promise<void> => {
           if (savedSession && savedSession.sessionId) {
             // 세션을 비활성 상태로 표시
             await api.saveServerSession(serverId, {
-              sessionId: savedSession.sessionId,
+              sessionId: '',
               lastConnected: new Date(),
               transportType: savedSession.transportType || 'stdio',
               commandType: 'unknown',
@@ -518,100 +471,6 @@ const startServer = useCallback(async (serverId: string): Promise<void> => {
     }
   }, [refreshServerStatus, selectedServer, mcpClient, disconnectMcpServer, clearTools, clearResources, clearResourceTemplates, clearPrompts]);
 
-  const startMultipleServers = useCallback(async (): Promise<void> => {
-    try {
-      const api = ensureApi();
-      if (!api) throw new Error('Electron API not available');
-      
-      const serverConfigs = servers
-        .filter(server => selectedServers.has(server.id))
-        .map(server => ({
-          serverName: server.name,
-          config: server.config || {}
-        }));
-      
-      if (serverConfigs.length === 0) {
-        setNotification({ message: '선택된 서버가 없습니다.', type: 'info' });
-        return;
-      }
-      
-      const result = await api.startMultipleServers(serverConfigs);
-      
-      setNotification({
-        message: `${result.succeeded}/${result.total} 서버가 시작되었습니다.`,
-        type: result.succeeded === result.total ? 'success' : 'info'
-      });
-      
-      await refreshServerStatus();
-    } catch (error) {
-      console.error('Error starting multiple servers:', error);
-      setNotification({ message: '서버 시작 중 오류가 발생했습니다.', type: 'error' });
-    }
-  }, [servers, selectedServers, refreshServerStatus]);
-
-  const stopMultipleServers = useCallback(async (): Promise<void> => {
-    try {
-      const api = ensureApi();
-      if (!api) throw new Error('Electron API not available');
-      
-      const serversToStop = servers.filter(server => selectedServers.has(server.id));
-      const serverNames = serversToStop.map(server => server.name);
-      
-      if (serverNames.length === 0) {
-        setNotification({ message: '선택된 서버가 없습니다.', type: 'info' });
-        return;
-      }
-      
-      // 현재 선택된 서버가 중지 대상에 포함되는지 확인
-      const isSelectedServerStopping = selectedServer && 
-        selectedServers.has(selectedServer.id);
-      
-      const result = await api.stopMultipleServers(serverNames);
-      
-      setNotification({
-        message: `${result.succeeded}/${result.total} 서버가 중지되었습니다.`,
-        type: result.succeeded === result.total ? 'success' : 'info'
-      });
-      
-      // 각 서버의 세션 정보 업데이트
-      await Promise.all(serversToStop.map(async (server) => {
-        try {
-          // 서버 세션 정보를 가져옴
-          const savedSession = await api.getServerSession(server.id);
-          if (savedSession && savedSession.sessionId) {
-            // 세션을 비활성 상태로 표시
-            await api.saveServerSession(server.id, {
-              sessionId: savedSession.sessionId,
-              lastConnected: new Date(),
-              transportType: savedSession.transportType || 'stdio',
-              commandType: 'unknown',
-              active: false  // 비활성 상태로 표시
-            });
-            console.log(`✅ 서버 ${server.id} 중지됨: userServer.json 세션 정보 업데이트됨`);
-          }
-        } catch (sessionError) {
-          console.error(`서버 ${server.id} 세션 정보 업데이트 중 오류:`, sessionError);
-        }
-      }));
-      
-      // 현재 선택된 서버가 중지 대상에 포함된 경우 클라이언트 연결 해제 및 상태 초기화
-      if (isSelectedServerStopping && mcpClient) {
-        console.log('🔌 중지된 서버의 클라이언트 연결 해제 중...');
-        await disconnectMcpServer();
-        
-        // 도구 및 리소스 데이터 초기화
-        clearTools();
-        clearResources();
-        clearResourceTemplates();
-        clearPrompts();
-      }
-      
-      await refreshServerStatus();
-    } catch (error) {
-      console.error('Error stopping multiple servers:', error);
-      setNotification({ message: '서버 중지 중 오류가 발생했습니다.', type: 'error' });
-    }
-  }, [servers, selectedServers, refreshServerStatus, selectedServer, mcpClient, disconnectMcpServer, clearTools, clearResources, clearResourceTemplates, clearPrompts]);
 
   const addNewServer = useCallback(async (serverConfig: {
     name: string;
@@ -678,9 +537,19 @@ const startServer = useCallback(async (serverId: string): Promise<void> => {
 
   // Fetch default environment configuration
   useEffect(() => {
+
+    // fetch(`${getMCPProxyAddress(config)}/servers/full-config`)
+    //   .then((response) => {
+    //     console.log(response.json())
+    //     console.log("✅✅✅✅✅✅✅✅✅✅✅✅✅")
+      
+    //   })
+   
+    
     fetch(`${getMCPProxyAddress(config)}/config`)
       .then((response) => response.json())
       .then((data) => {
+        console.log('✅❌❌✅', data);
         setEnv(data.defaultEnvironment);
         if (data.defaultCommand) {
           setCommand(data.defaultCommand);
@@ -781,22 +650,72 @@ const startServer = useCallback(async (serverId: string): Promise<void> => {
     ping().catch(console.error);
   }, [ping]);
 
+  // 서버 실행 + 연결 + 세션 저장을 한 번에 처리하는 함수
+  const handleStartAndConnect = useCallback(async (serverId: string) => {
+    try {
+      const api = ensureApi();
+      if (!api) throw new Error('Electron API not available');
+      console.log('1️⃣ [START] 서버 실행 요청 시작:', serverId);
+      const serverToStart = servers.find(server => server.id === serverId);
+      if (!serverToStart) {
+        setNotification({ message: '서버를 찾을 수 없습니다.', type: 'error' });
+        console.log('❌ [ERROR] 서버를 찾을 수 없음:', serverId);
+        return;
+      }
+      // 1. 서버가 이미 실행 중이면 패스
+      if (serverToStart.status === 'running') {
+        setSelectedServer(serverToStart); // 선택만 확실히!
+        setNotification({ message: '서버가 이미 실행 중입니다.', type: 'info' });
+        console.log('2️⃣ [SKIP] 이미 실행 중인 서버:', serverToStart);
+      } else {
+        // 2. 서버 실행
+        setNotification({ message: '서버를 시작합니다...', type: 'info' });
+        console.log('2️⃣ [RUN] 서버 실행 시도:', serverId);
+        const result = await api.startServer(serverId);
+        console.log('3️⃣ [RESULT] 서버 실행 결과:', result);
+        if (!result.success) {
+          setNotification({ message: `서버 시작 실패: ${result.message}`, type: 'error' });
+          console.log('❌ [ERROR] 서버 시작 실패:', result.message);
+          return;
+        }
+        // 상태 갱신 대기
+        console.log('4️⃣ [WAIT] 상태 갱신 대기...');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        await refreshServerStatus();
+        console.log('5️⃣ [REFRESH] 서버 상태 갱신 완료');
+        // 서버 상태 갱신 후, selectedServer를 다시 set
+        const updatedServers = await api.getFullConfigs();
+        console.log('6️⃣ [UPDATED_SERVERS] 최신 서버 목록:', updatedServers);
+        const updated = updatedServers.find((s: ServerInfo) => s.id === serverId);
+        console.log('7️⃣ [UPDATED] 갱신된 서버 정보:', updated);
+        if (updated) {
+          setSelectedServer(updated);
+
+        } else {
+          console.log('7️⃣ [UPDATED] 갱신된 서버 정보 없음');
+        }
+      }
+      // 연결(connect)은 useEffect에서 자동으로!
+      console.log('9️⃣ [END] handleStartAndConnect 종료');
+    } catch (error) {
+      console.error('❌ [ERROR] handleStartAndConnect:', error);
+      setNotification({ message: '서버 실행/연결 중 오류가 발생했습니다.', type: 'error' });
+    }
+  }, [servers, refreshServerStatus, setSelectedServer]);
+  // flex-1 overflow-y-auto h-full py-10 md:py-20 px-5 md:px-10
   // Render the UI
   return (
-    <div className="flex h-screen bg-background">
-
+<div className="flex bg-background" style={{ height: "calc(100vh - 5rem)" }}>
       {multiServerMode ? (
-        <div className="flex">
+        <div className="flex ">
           <ServerManagementSidebar
             servers={servers as any[]}
             selectedServer={selectedServer as any}
             selectedServers={selectedServers}
             setSelectedServer={setSelectedServer}
             setSelectedServers={setSelectedServers}
-            startServer={startServer}
+            startServer={handleStartAndConnect}
             stopServer={stopServer}
-            startMultiple={startMultipleServers}
-            stopMultiple={stopMultipleServers}
             refreshStatus={refreshServerStatus}
             addNewServer={addNewServer}
           />
@@ -852,79 +771,69 @@ const startServer = useCallback(async (serverId: string): Promise<void> => {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col">
         {/* Notification Bar */}
-        {notification && (
-          <div className={`p-4 text-center ${
-            notification.type === 'success' ? 'bg-green-500' :
-            notification.type === 'error' ? 'bg-red-500' :
-            'bg-blue-500'
-          } text-white`}>
-            {notification.message}
-            <button 
-              onClick={() => setNotification(null)}
-              className="ml-4 text-white hover:text-gray-200"
-            >
-              ×
-            </button>
-          </div>
-        )}
 
         <div className="flex-1 overflow-auto">
           {mcpClient ? (
             <TabsContainer
               serverCapabilities={serverCapabilities}
               pendingRequestsCount={pendingSampleRequests.length}
+              value={tab}
+              onValueChange={setTab}
             >
-              <ResourcesTab
-                resources={resources}
-                resourceTemplates={resourceTemplates}
-                listResources={handleListResources}
-                clearResources={clearResources}
-                listResourceTemplates={handleListResourceTemplates}
-                clearResourceTemplates={clearResourceTemplates}
-                readResource={handleReadResource}
-                selectedResource={selectedResource}
-                setSelectedResource={setSelectedResource}
-                resourceSubscriptionsSupported={
-                  serverCapabilities?.resources?.subscribe || false
-                }
-                resourceSubscriptions={resourceSubscriptions}
-                subscribeToResource={handleSubscribeToResource}
-                unsubscribeFromResource={handleUnsubscribeFromResource}
-                handleCompletion={handleCompletion}
-                completionsSupported={completionsSupported}
-                resourceContent={resourceContent}
-                nextCursor={undefined}
-                nextTemplateCursor={undefined}
-                error={errors.resources}
-              />
-              <PromptsTab
-                prompts={prompts}
-                listPrompts={handleListPrompts}
-                clearPrompts={clearPrompts}
-                getPrompt={handleGetPrompt}
-                selectedPrompt={selectedPrompt}
-                setSelectedPrompt={(prompt) => {
-                  setSelectedPrompt(prompt);
-                }}
-                handleCompletion={handleCompletion}
-                completionsSupported={completionsSupported}
-                promptContent={promptContent}
-                nextCursor={undefined}
-                error={errors.prompts}
-              />
-              <ToolsTab
-                tools={tools}
-                listTools={handleListTools}
-                clearTools={clearTools}
-                callTool={handleCallTool}
-                selectedTool={selectedTool}
-                setSelectedTool={setSelectedTool}
-                toolResult={toolResult}
-                nextCursor={undefined}
-                error={errors.tools}
-              />
+              {tab === "resources" && (
+                <ResourcesTab
+                  resources={resources}
+                  resourceTemplates={resourceTemplates}
+                  listResources={handleListResources}
+                  clearResources={clearResources}
+                  listResourceTemplates={handleListResourceTemplates}
+                  clearResourceTemplates={clearResourceTemplates}
+                  readResource={handleReadResource}
+                  selectedResource={selectedResource}
+                  setSelectedResource={setSelectedResource}
+                  resourceSubscriptionsSupported={serverCapabilities?.resources?.subscribe || false}
+                  resourceSubscriptions={resourceSubscriptions}
+                  subscribeToResource={handleSubscribeToResource}
+                  unsubscribeFromResource={handleUnsubscribeFromResource}
+                  handleCompletion={handleCompletion}
+                  completionsSupported={completionsSupported}
+                  resourceContent={resourceContent}
+                  nextCursor={undefined}
+                  nextTemplateCursor={undefined}
+                  error={errors.resources}
+                />
+              )}
+              {tab === "prompts" && (
+                <PromptsTab
+                  prompts={prompts}
+                  listPrompts={handleListPrompts}
+                  clearPrompts={clearPrompts}
+                  getPrompt={handleGetPrompt}
+                  selectedPrompt={selectedPrompt}
+                  setSelectedPrompt={setSelectedPrompt}
+                  handleCompletion={handleCompletion}
+                  completionsSupported={completionsSupported}
+                  promptContent={promptContent}
+                  nextCursor={undefined}
+                  error={errors.prompts}
+                  serverCapabilities={serverCapabilities}
+                />
+              )}
+              {tab === "tools" && (
+                <ToolsTab
+                  tools={tools}
+                  listTools={handleListTools}
+                  clearTools={clearTools}
+                  callTool={handleCallTool}
+                  selectedTool={selectedTool}
+                  setSelectedTool={setSelectedTool}
+                  toolResult={toolResult}
+                  nextCursor={undefined}
+                  error={errors.tools}
+                />
+              )}
               <ConsoleTab />
               <PingTab onPingClick={handlePing} />
               <SamplingTab
@@ -950,14 +859,6 @@ const startServer = useCallback(async (serverId: string): Promise<void> => {
                     `Connect to an MCP server to start inspecting`
                   }
                 </p>
-                {multiServerMode && selectedServer && selectedServer.status !== 'running' && (
-                  <button
-                    onClick={() => startServer(selectedServer.id)}
-                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                  >
-                    Start Server
-                  </button>
-                )}
               </div>
             </div>
           )}
@@ -986,4 +887,4 @@ const startServer = useCallback(async (serverId: string): Promise<void> => {
   );
 };
 
-export default App;
+export default JobPage;

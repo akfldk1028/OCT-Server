@@ -14,44 +14,68 @@ type TabsContainerProps = {
   serverCapabilities: any;
   pendingRequestsCount: number;
   children: React.ReactNode;
+  value: string;
+  onValueChange: (value: string) => void;
 };
 
 function TabsContainer({
   serverCapabilities,
   pendingRequestsCount,
   children,
+  value,
+  onValueChange,
 }: TabsContainerProps) {
+  // 탭 값 상태를 해시와 동기화
+  const validTabs = [
+    'resources',
+    'prompts',
+    'tools',
+    'ping',
+    'sampling',
+    'roots',
+  ];
+  const getInitialTab = () => {
+    const hash = window.location.hash.slice(1);
+    return validTabs.includes(hash)
+      ? hash
+      : serverCapabilities?.resources
+        ? 'resources'
+        : serverCapabilities?.prompts
+          ? 'prompts'
+          : serverCapabilities?.tools
+            ? 'tools'
+            : 'ping';
+  };
+  const [tabValue, setTabValue] = React.useState(getInitialTab);
+
+  React.useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      setTabValue(validTabs.includes(hash) ? hash : getInitialTab());
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverCapabilities]);
+
   return (
     <Tabs
-      defaultValue={
-        Object.keys(serverCapabilities ?? {}).includes(
-          window.location.hash.slice(1),
-        )
-          ? window.location.hash.slice(1)
-          : serverCapabilities?.resources
-            ? 'resources'
-            : serverCapabilities?.prompts
-              ? 'prompts'
-              : serverCapabilities?.tools
-                ? 'tools'
-                : 'ping'
-      }
+      value={value}
+      onValueChange={onValueChange}
       className="w-full p-4"
-      onValueChange={(value) => (window.location.hash = value)}
     >
       <TabsList className="mb-4 p-0">
         <TabsTrigger
           value="resources"
-          disabled={!serverCapabilities?.resources}
         >
           <Files className="w-4 h-4 mr-2" />
           Resources
         </TabsTrigger>
-        <TabsTrigger value="prompts" disabled={!serverCapabilities?.prompts}>
+        <TabsTrigger value="prompts">
           <MessageSquare className="w-4 h-4 mr-2" />
           Prompts
         </TabsTrigger>
-        <TabsTrigger value="tools" disabled={!serverCapabilities?.tools}>
+        <TabsTrigger value="tools">
           <Hammer className="w-4 h-4 mr-2" />
           Tools
         </TabsTrigger>

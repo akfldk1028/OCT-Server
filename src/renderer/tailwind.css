@@ -76,6 +76,8 @@
   }
 }
 
+
+
 @layer base {
   * {
     /* @apply border-border; 이 줄을 제거하거나 수정 */
@@ -83,5 +85,49 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+.react-flow__controls {
+  background: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  box-shadow: var(--tw-shadow) !important;
+}
+
+.react-flow__controls-button {
+  color: hsl(var(--card-foreground)) !important;
+  background: transparent !important;
+}
+
+.react-flow__controls-button:hover {
+  background: hsl(var(--muted)) !important;
+}
+
+
+/* 사이드바 토글 애니메이션 */
+.sidebar-transition {
+  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+}
+
+/* 사이드바 숨김/표시 애니메이션 */
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
   }
 }
