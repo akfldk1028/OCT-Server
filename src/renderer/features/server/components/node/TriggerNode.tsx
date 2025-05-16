@@ -1,37 +1,162 @@
 import React, { useState } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
+import { dfsTraverse, FlowNode, FlowEdge } from './FlowDfsUtil';
+import { executeWorkflow } from '../Flow/FlowEngine';
+import { enhanceNodeData, enhanceWorkflowData } from '../Flow/NodeDataEnhancer';
+import { useToast } from '@/renderer/hooks/use-toast';
 
 interface TriggerNodeProps {
   id: string;
   data: {
     label?: string;
     onTrigger?: () => void;
+    onExtractJson?: (json: any) => void;
   };
   selected?: boolean;
 }
 
 export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
+  const { getNodes, getEdges } = useReactFlow();
+  const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
 
-  const handleTrigger = () => {
+  const handleTrigger = async () => {
     setIsRunning(true);
+
+    // 디버깅용 로그 추가
+    console.log('TriggerNode handleTrigger 호출');
     
-    // 로그 추가
-    const newLog = `[${new Date().toLocaleTimeString()}] Trigger ${id} activated`;
-    setLogs((prevLogs) => [...prevLogs.slice(-4), newLog]); // 최대 5개 로그 유지
+    // useReactFlow로 전체 노드/엣지 가져오기
+    const nodes = getNodes();
+    const edges = getEdges();
     
-    console.log(newLog);
+    console.log('nodes:', nodes);
+    console.log('edges:', edges);
+    const triggerNode = (Array.isArray(nodes) ? nodes : []).find(n => n.id === id);
+    console.log('triggerNode:', triggerNode);
+    const connectedEdges = (Array.isArray(edges) ? edges : []).filter(e => e.source === id);
+    console.log('connectedEdges:', connectedEdges);
+
+    // 1. 트리거 활성화 로그
+    const newLog = `🚀 [${new Date().toLocaleTimeString()}] Trigger ${id} activated`;
+    setLogs((prevLogs) => [...prevLogs.slice(-4), newLog]);
+
+    // 2. DFS로 연결된 노드 순서대로 추출 후 JSON 변환 (워크플로우 스타일)
+    const safeNodes = Array.isArray(nodes) ? nodes : [];
+    const safeEdges = Array.isArray(edges) ? edges : [];
+    const orderedNodes = dfsTraverse(id, safeNodes, safeEdges);
     
+    // 순서대로 노드 출력 디버깅 추가
+    console.log('순서대로 정렬된 노드들:', orderedNodes);
+    
+    // const json = orderedNodes.map((node) => {
+    //   // NodeDataEnhancer를 사용하여 노드 데이터 강화
+    //   const enhancedData = enhanceNodeData({
+    //     id: node.id,
+    //     type: node.type,
+    //     data: node.data,
+    //   });
+      
+    //   return {
+    //     ...enhancedData,
+    //     id: node.id,
+    //     position: (node as any).position,
+    //     type: node.type,
+    //   };
+    // });
+    
+    // // 로그 추가 - 메타데이터 확인
+    // console.log('강화된 노드 JSON:', json);
+
+    // 3. 각 노드 방문 로그 (이모지 + 노드별 JSON)
+    // json.forEach((node, idx) => {
+    //   const emoji = idx === 0 ? '🟢' : idx === json.length - 1 ? '🏁' : '➡️';
+    //   const nodeLog = `${emoji} [${idx + 1}] ${node.type} (${node.id}): ${JSON.stringify(node, null, 2)}`;
+    //   setLogs((prevLogs) => [...prevLogs.slice(-4), nodeLog]);
+    //   console.log(`🟢🟢🟢노드 ${idx+1}: 🟢🟢🟢🟢🟢🟢🟢🟢🟢`, node); // 디버깅용 콘솔 로그 추가
+    // });
+
+    // 4. 워크플로우 실행 (FlowEngine 사용)
+    try {
+      // 워크플로우 실행
+      const executionResult = await executeWorkflow(id, nodes, edges);
+      console.log('워크플로우 실행 결과:', executionResult);
+      
+      // finalData 전체를 순회하며 isLast와 message가 있는 객체를 찾는다
+      if (executionResult.finalData) {
+        Object.entries(executionResult.finalData).forEach(([k, v]) => {
+          console.log('finalData key:', k, v);
+        });
+
+        const lastNode = Object.values(executionResult.finalData).find(
+          (r: any) =>
+            r &&
+            typeof r === 'object' &&
+            r.isLast === true &&
+            typeof r.message === 'string' &&
+            r.message.length > 0
+        );
+        if (lastNode) {
+          console.log('toast 호출!', lastNode);
+          const msg = (lastNode as any).message as string;
+          const isSuccess = msg.includes('성공') || msg.toLowerCase().includes('success');
+          toast({
+            title: isSuccess ? '워크플로우 성공' : '워크플로우 실패',
+            description: msg,
+            variant: isSuccess ? 'success' : 'error',
+          });
+        }
+      }
+
+
+      // 실행 결과도 로그에 추가
+      const executionLog = `⚙️ 워크플로우 실행 결과: ${executionResult.success ? '성공' : '실패'}`;
+      setLogs((prevLogs) => [...prevLogs.slice(-4), executionLog]);
+      
+      // 각 노드별 실행 결과도 로그에 추가
+      if (executionResult.success && executionResult.results) {
+        Object.entries(executionResult.results).forEach(([nodeId, result]) => {
+          const resultLog = `🔹 노드 ${nodeId} 실행 결과: ${JSON.stringify(result)}`;
+          setLogs((prevLogs) => [...prevLogs.slice(-4), resultLog]);
+        });
+      }
+    } catch (error) {
+      console.error('워크플로우 실행 오류:', error);
+      setLogs((prevLogs) => [...prevLogs.slice(-4), `❌ 오류: ${error}`]);
+    }
+
+    // 5. 전체 결과 JSON 로그 (이모지 포함)
+    // const resultLog = `📦 전체 결과: ${JSON.stringify(json, null, 2)}`;
+    // setLogs((prevLogs) => [...prevLogs.slice(-4), resultLog]);
+
+    // 결과 콜백
+    // if (data.onExtractJson) {
+    //   // 워크플로우 실행 결과와 함께 전달
+    //   try {
+    //     const executionResult = await executeWorkflow(id, nodes, edges);
+    //     data.onExtractJson({
+    //       nodes: json, // 원래 노드 구조
+    //       workflow: executionResult // 실행 결과
+    //     });
+    //   } catch (error) {
+    //     // 오류 발생 시 원래 구조만 전달
+    //     data.onExtractJson(json);
+    //   }
+    // }
+    
+    // 콘솔 출력도 가능
+    // console.log(JSON.stringify(json, null, 2));
+
     // 커스텀 콜백 실행
     if (data.onTrigger) {
       data.onTrigger();
     }
-    
+
     // 1초 후 실행 완료 상태로 변경
     setTimeout(() => {
       setIsRunning(false);
-      const completedLog = `[${new Date().toLocaleTimeString()}] Trigger ${id} completed`;
+      const completedLog = `✅ [${new Date().toLocaleTimeString()}] Trigger ${id} completed`;
       setLogs((prevLogs) => [...prevLogs.slice(-4), completedLog]);
       console.log(completedLog);
     }, 1000);
@@ -39,13 +164,9 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
 
   return (
     <div className={`p-4 bg-card border ${selected ? 'border-primary shadow-md ring-2 ring-primary/30' : 'border-border shadow'} rounded-lg flex flex-col max-w-[250px] transition-shadow duration-200`}>
-      
-      <Handle type="target" position={Position.Left} className="!w-5 !h-5 !bg-primary !border-2 !border-white dark:!border-gray-800" />
-      
       <div className="text-lg font-bold text-center mb-3">
         {data.label || "START TRIGGER"}
       </div>
-      
       <button
         className={`py-3 px-4 rounded-lg font-bold text-white ${
           isRunning 
@@ -72,16 +193,13 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
           </>
         )}
       </button>
-      
       {logs.length > 0 && (
-        <div className="mt-3 text-xs bg-gray-100 dark:bg-gray-800 rounded p-2 max-h-[100px] overflow-y-auto">
+        <div className="mt-3 text-xs bg-gray-100 dark:bg-gray-800 rounded p-2 max-h-[500px] overflow-y-auto">
           {logs.map((log, index) => (
-            <div key={index} className="text-muted-foreground">{log}</div>
+            <div key={index} className="text-muted-foreground whitespace-pre-wrap">{log}</div>
           ))}
         </div>
       )}
-      
-      
       <Handle type="source" position={Position.Right} className="!w-5 !h-5 !bg-primary !border-2 !border-white dark:!border-gray-800" />
     </div>
   );

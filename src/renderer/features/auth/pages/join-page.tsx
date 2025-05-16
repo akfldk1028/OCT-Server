@@ -6,6 +6,7 @@ import { makeSSRClient } from "../../../supa-client";
 import { z } from "zod";
 import { checkUsernameExists } from "../queries";
 import {LoaderCircle, Route} from "lucide-react";
+import { type ActionFunctionArgs, type LoaderFunctionArgs, type MetaFunction } from "react-router";
 
 export const meta  = () => {
   return [{ title: "Join | wemake" }];
@@ -22,7 +23,7 @@ export const joinLoader = () => {
   return { title: "Join | wemake" };
 };
 
-export const joinAction = async ({ request }) => {
+export const joinAction = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const { success, error, data } = formSchema.safeParse(
     Object.fromEntries(formData)

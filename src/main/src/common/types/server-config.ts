@@ -16,6 +16,7 @@ export interface MCPConfig {
       installedDir?: string;
       currentMode?: string;
       execution?: ExecutionConfig;
+      executions?: TypedExecutionConfig[];
       userInputs?: { [key: string]: any };
       type: 'git' | 'docker' | 'npm' | 'npx' | 'local' | 'uvx' | 'uv';
       dockerImage?: string;
@@ -40,4 +41,8 @@ export interface MCPConfig {
     args: string[];
     env?: { [key: string]: string };
   }
+
+export interface TypedExecutionConfig extends ExecutionConfig {
+  type: MCPServerExtended['type'];
+}
 

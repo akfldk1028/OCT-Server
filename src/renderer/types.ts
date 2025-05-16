@@ -56,6 +56,26 @@ export interface NotificationState {
   stdErrNotifications: StdErrNotification[];
 }
 
+// 클라이언트 정보를 나타내는 타입
+export interface ClientRow {
+  client_id: number;
+  name: string;
+  tagline: string;
+  description: string;
+  how_it_works: string;
+  icon: string;
+  url: string;
+  stats: {
+    views: number;
+    reviews: number;
+    upvotes: number;
+  };
+  promoted_from: string | null;
+  promoted_to: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // MCP 서버/Express 서버 등 다양한 서버 정보를 포괄하는 타입 정의
 
 export interface GithubInfo {
@@ -147,4 +167,32 @@ export interface AllServersResponse {
   defaultEnvironment: Record<string, string>;
   defaultCommand: string;
   defaultArgs: string;
+}
+
+
+
+
+export interface ServiceConfig {
+  client_id: number;
+  name: string;
+  tagline: string;
+  description: string;
+  how_it_works: string;
+  icon: string;
+  url: string;
+  stats: {
+    views: number;
+    reviews: number;
+    upvotes: number;
+  };
+  promoted_from: string | null;
+  promoted_to: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+
+
+export interface ServiceItem {
+  config: ServiceConfig;
 }

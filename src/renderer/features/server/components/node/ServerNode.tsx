@@ -47,8 +47,13 @@ export default function ServerNode({ data, id, selected }: ServerNodeProps) {
   const avatarUrl = config?.github_info?.ownerAvatarUrl || 'https://github.com/github.png';
   
   return (
-    <div className={`p-4 bg-card border ${selected ? 'border-primary shadow-md ring-2 ring-primary/30' : 'border-border shadow'} rounded-lg flex flex-col items-center max-w-[220px] transition-shadow duration-200`}>
-      <Handle type="target" position={Position.Top} className="!w-5 !h-5 !bg-primary !border-2 !border-white dark:!border-gray-800" />
+    <div className={`relative p-4 bg-card border ${selected ? 'border-primary shadow-md ring-2 ring-primary/30' : 'border-border shadow'} rounded-lg flex flex-col items-center max-w-[220px] transition-shadow duration-200`}>
+      <Handle
+        type="target"
+        position={Position.Top}
+        style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)' }}
+        className="!w-5 !h-5 !bg-primary !border-2 !border-white dark:!border-gray-800"
+      />
       <img src={avatarUrl} alt={name} className="w-14 h-14 rounded-full object-contain mb-3 bg-muted p-1" />
       <div className="text-card-foreground font-bold text-base text-center mb-1">{name}</div>
       {description && (
@@ -66,7 +71,12 @@ export default function ServerNode({ data, id, selected }: ServerNodeProps) {
       <div className="mt-2 text-xs text-muted-foreground">
         ID: {data?.id ? data.id.substring(0, 8) + '...' : 'New Server'}
       </div>
-      <Handle type="source" position={Position.Bottom} className="!w-5 !h-5 !bg-primary !border-2 !border-white dark:!border-gray-800" />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        style={{ position: 'absolute', bottom: '-12px', left: '50%', transform: 'translateX(-50%)' }}
+        className="!w-5 !h-5 !bg-primary !border-2 !border-white dark:!border-gray-800"
+      />
     </div>
   );
 } 

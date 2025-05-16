@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { useDnD } from './DnDContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import NodesTab from './NodesTab';
-import SettingsTab from './SettingsTab';
-import HelpTab from './HelpTab';
+import NodesTab from './tab/NodesTab';
+import ServiceTab from './tab/ServiceTab';
+import ServerTab from './tab/ServerTab';
 import { useOutletContext } from 'react-router';
-import type { AllServersResponse, ServerItem } from '../../../types';
+import type { AllServersResponse, ServerItem, ClientRow } from '../../../types';
 
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
-  const { servers } = useOutletContext<{ servers: AllServersResponse }>();
+  const { servers, clients } = useOutletContext<{ servers: AllServersResponse, clients: ClientRow[] }>();
+
   const [_, setType] = useDnD();
   const [collapsed, setCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState<'nodes' | 'settings' | 'help'>('nodes');
+  const [activeTab, setActiveTab] = useState<'Toolbox' | 'Client' | 'Server'>('Toolbox');
 
   const handleDragStart = (event: React.DragEvent, nodeType: string) => {
     setType(nodeType);
@@ -62,36 +63,36 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
         <div className={`flex-1 overflow-y-auto p-4 flex flex-col gap-3 transition-all duration-300 ${collapsed ? 'items-center p-2' : ''}`}>
           <div className={`flex gap-2 border-b mb-2 ${collapsed ? 'flex-col items-center gap-1 p-0 justify-center' : ''}`}>
             <button
-              onClick={() => setActiveTab('nodes')}
-              className={`${activeTab === 'nodes' ? 'font-bold' : ''} ${collapsed ? 'w-8 h-8 p-0 flex items-center justify-center text-lg' : ''}`}
-              title="노드"
+              onClick={() => setActiveTab('Toolbox')}
+              className={`${activeTab === 'Toolbox' ? 'font-bold' : ''} ${collapsed ? 'w-8 h-8 p-0 flex items-center justify-center text-lg' : ''}`}
+              title="Toolbox"
             >
-              {collapsed ? <span>🧩</span> : '노드'}
+              {collapsed ? <span>🧩</span> : 'Toolbox'}
             </button>
             <button
-              onClick={() => setActiveTab('settings')}
-              className={`${activeTab === 'settings' ? 'font-bold' : ''} ${collapsed ? 'w-8 h-8 p-0 flex items-center justify-center text-lg' : ''}`}
-              title="설정"
+              onClick={() => setActiveTab('Client')}
+              className={`${activeTab === 'Client' ? 'font-bold' : ''} ${collapsed ? 'w-8 h-8 p-0 flex items-center justify-center text-lg' : ''}`}
+              title="Client"
             >
-              {collapsed ? <span>⚙️</span> : '설정'}
+              {collapsed ? <span>⚙️</span> : 'Client'}
             </button>
             <button
-              onClick={() => setActiveTab('help')}
-              className={`${activeTab === 'help' ? 'font-bold' : ''} ${collapsed ? 'w-8 h-8 p-0 flex items-center justify-center text-lg' : ''}`}
-              title="도움말"
+              onClick={() => setActiveTab('Server')}
+              className={`${activeTab === 'Server' ? 'font-bold' : ''} ${collapsed ? 'w-8 h-8 p-0 flex items-center justify-center text-lg' : ''}`}
+              title="Server"
             >
-              {collapsed ? <span>❓</span> : '도움말'}
+              {collapsed ? <span>❓</span> : 'Server'}
             </button>
           </div>
           <div>
-            {activeTab === 'nodes' && (
+            {activeTab === 'Toolbox' && (
               <NodesTab collapsed={collapsed} onDragStart={handleDragStart} />
             )}
-            {activeTab === 'settings' && (
-              <SettingsTab collapsed={collapsed} onDragStart={handleDragStart} />
+            {activeTab === 'Client' && (
+              <ServiceTab collapsed={collapsed} onDragStart={handleDragStart} clients={clients} />
             )}
-            {activeTab === 'help' && (
-              <HelpTab collapsed={collapsed} onDragStart={handleDragStart} servers={servers?.allServers ?? []} />
+            {activeTab === 'Server' && (
+              <ServerTab collapsed={collapsed} onDragStart={handleDragStart} servers={servers?.allServers ?? []} />
             )}
           </div>
         </div>

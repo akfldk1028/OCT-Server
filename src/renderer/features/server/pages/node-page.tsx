@@ -45,7 +45,8 @@ import { useDragAndDrop } from '../components/useDragAndDrop';
 import { useKeyboardShortcuts } from '../components/useKeyboardShortcuts'; // 새로 추가
 import { type MyNode } from '../components/initialElements';
 import { useOutletContext } from 'react-router';
-import type { AllServersResponse } from '../../../types';
+import type { AllServersResponse, ClientRow } from '../../../types';
+import { config } from 'process';
 
 // ResizeObserver 에러 무시 (ReactFlow의 알려진 무해한 에러)
 const suppressResizeObserverError = () => {
@@ -108,33 +109,15 @@ const defaultEdgeOptions = {
   animated: true,
 };
 
-// Initial graph data
 const initNodes: MyNode[] = [
-  {
-    id: '1',
-    type: 'text',
-    data: { text: 'hello' },
-    position: { x: 100, y: 50 },
-  },
-  {
-    id: '2',
-    type: 'text',
-    data: { text: 'world' },
-    position: { x: 100, y: 200 },
-  },
-  {
-    id: '4',
-    type: 'result',
-    data: {},
-    position: { x: 700, y: 125 },
-  },
+  { id: '1', type: 'trigger', data: { label: 'START TRIGGER' }, position: { x: 100, y: 50 } },
+  { id: '2', type: 'service', data: { name: 'Service', icon: 'https://github.com/teslamotors.png', description: 'Service Node' }, position: { x: 300, y: 50 } },
+  { id: '3', type: 'server', data: { name: 'Server', id: 'server-1', status: 'active', config: { name: 'Server', description: 'Server Node', github_info: { ownerAvatarUrl: 'https://github.com/github.png' } } }, position: { x: 500, y: 50 } },
 ];
 
-// 초기 엣지에 스타일 적용
 const initEdges: Edge[] = [
-  { id: 'e1-3', source: '1', target: '3', animated: true, style: { strokeWidth: 2 }, type: 'smoothstep' },
-  { id: 'e2-4', source: '2', target: '4', animated: true, style: { strokeWidth: 2 }, type: 'smoothstep' },
-  { id: 'e3-4', source: '3', target: '4', animated: true, style: { strokeWidth: 2 }, type: 'smoothstep' },
+  { id: 'e1-2', source: '1', target: '2', animated: true, style: { strokeWidth: 2 }, type: 'smoothstep' },
+  { id: 'e2-3', source: '2', target: '3', animated: true, style: { strokeWidth: 2 }, type: 'smoothstep' },
 ];
 
 // ELK layout setup
@@ -181,17 +164,34 @@ const getLayoutedElements = async (
 };
 
 export default function NodePage() {
+  // 실제 데이터 context에서 받아오기
+  const { servers, clients } = useOutletContext<{ servers: AllServersResponse, clients: ClientRow[] }>();
 
-  const { isLoggedIn, servers } = useOutletContext<{ isLoggedIn: boolean; servers: AllServersResponse }>();
+  
+    // console.log("[node-page] ✅✅")
+    // console.log(servers)
+    // console.log( clients)
+    // console.log("[node-page] ✅✅")
 
-  console.log("[node-page] ✅✅")
-  console.log(servers)
-  console.log("[node-page] ✅✅")
+  const dynamicInitNodes: MyNode[] = [
+    { id: '1', type: 'trigger', data: { label: 'START TRIGGER' }, position: { x: 100, y: 50 } },
+    clients && clients.length > 0 ?
+      { id: '2', type: 'service', data: { config: clients[0] }, position: { x: 300, y: 50 } } : null,
+    servers && servers.allServers && servers.allServers.length > 0 ?
+      { id: '3', type: 'server', data: servers.allServers[0], position: { x: 500, y: 50 } } : null,
+  ].filter(Boolean) as MyNode[];
+
+  const dynamicInitEdges: Edge[] = [
+    { id: 'e1-2', source: '1', target: '2', animated: true, style: { strokeWidth: 2 }, type: 'smoothstep' },
+    { id: 'e2-3', source: '2', target: '3', animated: true, style: { strokeWidth: 2 }, type: 'smoothstep' },
+  ];
+
+
 
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState(initNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState(dynamicInitNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(dynamicInitEdges);
   const { fitView } = useReactFlow();
   const [menu, setMenu] = useState<{
     id: string;

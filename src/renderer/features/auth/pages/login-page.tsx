@@ -69,46 +69,7 @@ export default function LoginPage() {
 
       <div className="flex items-center flex-col justify-center w-full max-w-md gap-10">
         <h1 className="text-2xl font-semibold">Log in to your account</h1>
-        <Form className="w-full space-y-4" method="post">
-          <InputPair
-            label="Email"
-            description="Enter your email address"
-            name="email"
-            id="email"
-            required
-            type="email"
-            placeholder="i.e wemake@example.com"
-          />
-          {actionData && "formErrors" in actionData && (
-            <p className="text-sm text-red-500">
-              {actionData?.formErrors?.email?.join(", ")}
-            </p>
-          )}
-          <InputPair
-            id="password"
-            label="Password"
-            description="Enter your password"
-            name="password"
-            required
-            type="password"
-            placeholder="Enter your password"
-          />
-          {actionData && "formErrors" in actionData && (
-            <p className="text-sm text-red-500">
-              {actionData?.formErrors?.password?.join(", ")}
-            </p>
-          )}
-          <Button className="w-full" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <LoaderCircle className="animate-spin" />
-            ) : (
-              "Log in"
-            )}
-          </Button>
-          {actionData && "loginError" in actionData && (
-            <p className="text-sm text-red-500">{actionData.loginError}</p>
-          )}
-        </Form>
+
         <AuthButtons />
       </div>
     </div>

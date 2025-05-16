@@ -17,7 +17,10 @@ if (process.env.NODE_ENV === 'production') {
   checkNodeEnv('development');
 }
 
-const port = process.env.PORT || 1212;
+// 웹 모드 확인 (PLATFORM 환경변수 체크)
+const isWebMode = process.env.PLATFORM === 'web';
+
+const port = process.env.PORT || (isWebMode ? 3000 : 1212);
 const manifest = path.resolve(webpackPaths.dllPath, 'renderer.json');
 const skipDLLs =
   module.parent?.filename.includes('webpack.config.renderer.dev.dll') ||
@@ -43,7 +46,8 @@ const configuration: webpack.Configuration = {
 
   mode: 'development',
 
-  target: ['web', 'electron-renderer'],
+  // 웹 모드일 때는 'web'만, 일렉트론 모드일 때는 기존 설정 유지
+  target: isWebMode ? ['web'] : ['web', 'electron-renderer'],
 
   entry: [
     `webpack-dev-server/client?http://localhost:${port}/dist`,
@@ -153,6 +157,7 @@ const configuration: webpack.Configuration = {
      */
     new webpack.EnvironmentPlugin({
       NODE_ENV: 'development',
+      PLATFORM: isWebMode ? 'web' : 'electron', // PLATFORM 환경변수 추가
     }),
 
     new webpack.LoaderOptionsPlugin({
@@ -169,7 +174,7 @@ const configuration: webpack.Configuration = {
         removeAttributeQuotes: true,
         removeComments: true,
       },
-      isBrowser: false,
+      isBrowser: isWebMode, // 웹 모드일 때는 true, 일렉트론 모드일 때는 false
       env: process.env.NODE_ENV,
       isDevelopment: process.env.NODE_ENV !== 'production',
       nodeModules: webpackPaths.appNodeModulesPath,
@@ -193,30 +198,35 @@ const configuration: webpack.Configuration = {
       verbose: true,
     },
     setupMiddlewares(middlewares) {
-      console.log('Starting preload.js builder...');
-      const preloadProcess = spawn('npm', ['run', 'start:preload'], {
-        shell: true,
-        stdio: 'inherit',
-      })
-        .on('close', (code: number) => process.exit(code!))
-        .on('error', (spawnError) => console.error(spawnError));
-
-      console.log('Starting Main Process...');
-      let args = ['run', 'start:main'];
-      if (process.env.MAIN_ARGS) {
-        args = args.concat(
-          ['--', ...process.env.MAIN_ARGS.matchAll(/"[^"]+"|[^\s"]+/g)].flat(),
-        );
-      }
-      spawn('npm', args, {
-        shell: true,
-        stdio: 'inherit',
-      })
-        .on('close', (code: number) => {
-          preloadProcess.kill();
-          process.exit(code!);
+      // 웹 모드가 아닐 때만 일렉트론 프로세스 시작
+      if (!isWebMode) {
+        console.log('Starting preload.js builder...');
+        const preloadProcess = spawn('npm', ['run', 'start:preload'], {
+          shell: true,
+          stdio: 'inherit',
         })
-        .on('error', (spawnError) => console.error(spawnError));
+          .on('close', (code: number) => process.exit(code!))
+          .on('error', (spawnError) => console.error(spawnError));
+
+        console.log('Starting Main Process...');
+        let args = ['run', 'start:main'];
+        if (process.env.MAIN_ARGS) {
+          args = args.concat(
+            ['--', ...process.env.MAIN_ARGS.matchAll(/"[^"]+"|[^\s"]+/g)].flat(),
+          );
+        }
+        spawn('npm', args, {
+          shell: true,
+          stdio: 'inherit',
+        })
+          .on('close', (code: number) => {
+            preloadProcess.kill();
+            process.exit(code!);
+          })
+          .on('error', (spawnError) => console.error(spawnError));
+      } else {
+        console.log('🌐 Running in web mode - Electron processes skipped');
+      }
       return middlewares;
     },
   },

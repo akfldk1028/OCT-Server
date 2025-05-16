@@ -1,12 +1,5 @@
 import { Link } from 'react-router';
-import { DateTime } from 'luxon';
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '../../../common/components/ui/card';
+import { Card } from '../../../common/components/ui/card';
 import { Button } from '../../../common/components/ui/button';
 import { Badge } from '../../../common/components/ui/badge';
 
@@ -36,36 +29,22 @@ export function JobCard({
   className,
 }: JobCardProps) {
   return (
-    <Link to={`/jobs/${id}`} className="block w-full h-full">
-      <Card
-        className={`flex flex-col items-center justify-between bg-transparent w-full h-full transition-colors hover:bg-card/50 ${className ?? ''}`}
-      >
-        <CardHeader className="flex flex-col items-center pb-0">
+    <Card
+      className={`flex flex-col items-center justify-center bg-transparent rounded-2xl shadow-lg w-full h-44 min-h-44 max-h-44 p-4 transition-colors hover:bg-card/90 ${className ?? ''}`}
+    >
+      <div className="flex flex-col items-center w-full">
+        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-transparent shadow mb-2">
           <img
             src={companyLogoUrl}
             alt={`${company} Logo`}
-            className="size-14 rounded-full mb-2 object-contain"
+            className="w-10 h-10 object-contain rounded-full"
           />
-          <span className="text-accent-foreground font-bold text-center text-base break-words w-full">
-            {company}
-          </span>
-        </CardHeader>
-        <CardContent className="flex flex-col items-center gap-2 w-full px-2 py-0">
-          <Badge variant="outline" className="capitalize mb-2">
-            {type}
-          </Badge>
-          {/* <span className="text-sm text-muted-foreground text-center line-clamp-3 break-words w-full" style={{display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical', overflow:'hidden'}}>{title}</span> */}
-        </CardContent>
-        <CardFooter className="flex justify-center w-full mt-auto pt-0 pb-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="w-full max-w-[120px]"
-          >
-            Apply now
-          </Button>
-        </CardFooter>
-      </Card>
-    </Link>
+        </div>
+        <span className="text-base font-semibold text-gray-900 dark:text-accent-foreground text-center truncate w-full">
+          {company}
+        </span>
+    
+      </div>
+    </Card>
   );
 }

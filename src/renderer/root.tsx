@@ -13,20 +13,22 @@ import { Button } from '@/components/ui/button';
 import { cn } from './lib/utils';
 import useTheme from '@/lib/useTheme';
 import Sidebar from './common/components/Sidebar-M';
-import { makeSSRClient } from './supa-client';
-import { getUserById, countNotifications } from './features/users/queries';
+import { makeSSRClient, supabase } from './supa-client';
+import { getUserById } from './features/users/queries';
+import {  IS_ELECTRON, IS_WEB } from './utils/environment';
+import Navigation from './common/components/navigation';
+
 
 // loader 함수 정의
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { client } = makeSSRClient(request);
   const {
     data: { user },
-  } = await client.auth.getUser();
+  } = await supabase.auth.getUser();
   if (user && user.id) {
-    const [profile, count] = await Promise.all([getUserById(client, {id: user.id}), countNotifications(client, {userId: user.id})]);
-    return { user, profile, notificationsCount: count };
+    const [profile] = await Promise.all([getUserById(supabase as any, {id: user.id})]);
+    return { user, profile };
   }
-  return { user: null, profile: null, notificationsCount: 0 };
+  return { user: null, profile: null };
 };
 
 // 로더 데이터 타입 정의
@@ -38,56 +40,79 @@ type LoaderData = {
     username: string;
     avatar: string | null;
   } | null;
-  notificationsCount: number;
 };
 
 // 이 타입은 Route.LoaderArgs를 대체합니다
 
 export function Root() {
-  Settings.defaultLocale = 'ko';
-  Settings.defaultZone = 'utc';
-  const [theme, setTheme] = useTheme();
+  const loaderData = useLoaderData() as LoaderData | undefined;
 
-  // loader에서 반환된 데이터 가져오기
-  const rawLoaderData = useLoaderData();
-
-  // 안전한 기본값을 가진 loaderData 객체 생성
-  const loaderData = {
-    user: null,
-    profile: null,
-    notificationsCount: 0,
-    
-    ...(rawLoaderData as object || {})
-  };
-  const { pathname } = useLocation();
+  const { user, profile} = loaderData ?? { user: null, profile: null };  const { pathname } = useLocation();
   const navigation = useNavigation();
   const isLoading = navigation.state === 'loading';
-  const isLoggedIn = !!loaderData.user;
-//   <main
-//   className={cn('flex-1 overflow-y-auto h-full', {
-//     'py-10 md:py-20 px-5 md:px-10': !pathname.includes('/auth/'),
-//     'transition-opacity animate-pulse': isLoading,
-//   })}
-// >
+  const isLoggedIn = !!user;
+
+  Settings.defaultLocale = 'ko';
+  Settings.defaultZone = 'utc';
+
+
+
+  console.log(isLoggedIn);
+  if (IS_WEB) {
+    return (
+      <div
+        className={cn({
+          'py-20 md:py-40 px-5 md:px-20': !pathname.includes('/auth/'),
+          'transition-opacity animate-pulse': isLoading,
+        })}
+      >
+        {pathname.includes('/auth') ? null : (
+          <Navigation
+            isLoggedIn={isLoggedIn}
+            username={profile?.username}
+            avatar={profile?.avatar}
+            name={profile?.name}
+            hasNotifications={false}
+            hasMessages={false}
+          />
+        )}
+        <Outlet
+          context={{
+            isLoggedIn,
+            name: profile?.name,
+            userId: user?.id,
+            username: profile?.username,
+            avatar: profile?.avatar,
+            email: user?.email,
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Electron 환경 (기존)
   return (
     <div className="flex h-screen overflow-hidden">
       {!pathname.includes('/auth') && (
         <Sidebar
           isLoggedIn={isLoggedIn}
-          username={loaderData.profile?.username || ""}
-          avatar={loaderData.profile?.avatar || null}
-          name={loaderData.profile?.name || ""}
-          hasNotifications={!!loaderData.notificationsCount}
+          username={profile?.username || ""}
+          avatar={profile?.avatar || null}
+          name={profile?.name || ""}
+          hasNotifications={false}
           hasMessages={false}
           collapsed={pathname.includes('/jobs/node')}
         />
       )}
       <main
         className={cn(
-          'flex-1 h-full', // overflow-y-auto 제거!
+          'flex-1 h-full',
           {
-            'overflow-y-auto py-10 md:py-10 px-5 md:px-10': !pathname.includes('/auth/') && !pathname.includes('/server/node-page'),
-            'overflow-hidden  py-0 md:py-0 px-0 md:px-0': pathname.includes('/jobs/node'), // node-page일 때만!
+            'overflow-y-auto py-20 md:py-40 px-5 md:px-20': (!pathname.includes('/auth/') && !pathname.includes('/server/node-page') && !(typeof window !== 'undefined' && (window as any).IS_ELECTRON && pathname === '/')),
+            'overflow-hidden  py-0 md:py-0 px-0 md:px-0': pathname.includes('/jobs/node'),
+            'overflow-hidden  py-10 md:py-10 px-5 md:px-10': pathname.includes('/jobs/inspector'),
+            'overflow-y-auto py-10 md:py-20 px-5 md:px-20': IS_ELECTRON && pathname === '/',
+
             'transition-opacity animate-pulse': isLoading,
           }
         )}
@@ -95,11 +120,11 @@ export function Root() {
         <Outlet
           context={{
             isLoggedIn,
-            name: loaderData.profile?.name || "",
-            userId: loaderData.user?.id || "",
-            username: loaderData.profile?.username || "",
-            avatar: loaderData.profile?.avatar || null,
-            email: loaderData.user?.email || "",
+            name: profile?.name || "",
+            userId: user?.id || "",
+            username: profile?.username || "",
+            avatar: profile?.avatar || null,
+            email: user?.email || "",
           }}
         />
       </main>

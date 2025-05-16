@@ -1,0 +1,678 @@
+ ⬇️ main: workflow:execute handler received for {
+   "workflowId": "1",
+   "nodes": [
+     {
+       "id": "1",
+       "type": "trigger",
+       "data": {
+         "label": "START TRIGGER"
+       },
+       "position": {
+         "x": 12,
+         "y": 12
+       },
+       "width": 200,
+       "height": 80,
+       "targetPosition": "top",
+       "sourcePosition": "bottom",
+       "$H": 350,
+       "x": 12,
+       "y": 12,
+       "measured": {
+         "width": 200,
+         "height": 80
+       }
+     },
+     {
+       "id": "2",
+       "type": "service",
+       "data": {
+         "config": {
+           "client_id": 1,
+           "name": "Claude AI",
+           "tagline": "Advanced AI Assistant for Complex Tasks",
+           "description": "Claude is an AI assistant by Anthropic that excels at reasoning, writing, coding, and analysis. Built with constitutional AI principles for helpful, harmless, and honest interactions.",
+           "how_it_works": "Access through web interface, API, or mobile app. Type questions or upload documents for analysis. Claude can help with writing, coding, research, and complex problem-solving with detailed explanations.",
+           "icon": "https://github.com/claude.png",
+           "url": "https://claude.ai",
+           "stats": {
+             "views": 867,
+             "reviews": 0,
+             "upvotes": 26
+           },
+           "promoted_from": null,
+           "promoted_to": null,
+           "created_at": "2025-05-15T11:57:43.140613",
+           "updated_at": "2025-05-15T11:57:43.140613"
+         }
+       },
+       "position": {
+         "x": 12,
+         "y": 192
+       },
+       "width": 200,
+       "height": 80,
+       "targetPosition": "top",
+       "sourcePosition": "bottom",
+       "$H": 352,
+       "x": 12,
+       "y": 192,
+       "measured": {
+         "width": 200,
+         "height": 80
+       }
+     },
+     {
+       "id": "3",
+       "type": "server",
+       "data": {
+         "id": "471",
+         "name": "471",
+         "serverType": "Tool",
+         "status": "stopped",
+         "online": false,
+         "config": {
+           "id": 471,
+           "name": "sequential-thinking",
+           "unique_id": "modelcontextprotocol/servers/src/sequentialthinking",
+           "description": "An MCP server implementation that provides a tool for dynamic and reflective problem-solving through a structured thinking process.",
+           "server_type": "Tool",
+           "primary_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+           "github_info": {
+             "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+             "repo": "servers",
+             "forks": 4997,
+             "owner": "modelcontextprotocol",
+             "stars": 44972,
+             "topics": [],
+             "license": "MIT License",
+             "language": "JavaScript",
+             "folderPath": "src/sequentialthinking",
+             "description": "Model Context Protocol Servers",
+             "lastUpdated": "2025-05-09T18:21:06Z",
+             "readmeContent": "# Sequential Thinking MCP Server\n\nAn MCP server implementation that provides a tool for dynamic and reflective problem-solving through a structured thinking proces
+s.\n\n## Features\n\n- Break down complex problems into manageable steps\n- Revise and refine thoughts as understanding deepens\n- Branch into alternative paths of reasoning\n- Adjust the total numbe
+r of thoughts dynamically\n- Generate and verify solution hypotheses\n\n## Tool\n\n### sequential_thinking\n\nFacilitates a detailed, step-by-step thinking process for problem-solving and analysis.\n
+\n**Inputs:**\n- `thought` (string): The current thinking step\n- `nextThoughtNeeded` (boolean): Whether another thought step is needed\n- `thoughtNumber` (integer): Current thought number\n- `totalT
+houghts` (integer): Estimated total thoughts needed\n- `isRevision` (boolean, optional): Whether this revises previous thinking\n- `revisesThought` (integer, optional): Which thought is being reconsi
+dered\n- `branchFromThought` (integer, optional): Branching point thought number\n- `branchId` (string, optional): Branch identifier\n- `needsMoreThoughts` (boolean, optional): If more thoughts are n
+eeded\n\n## Usage\n\nThe Sequential Thinking tool is designed for:\n- Breaking down complex problems into steps\n- Planning and design with room for revision\n- Analysis that might need course correc
+tion\n- Problems where the full scope might not be clear initially\n- Tasks that need to maintain context over multiple steps\n- Situations where irrelevant information needs to be filtered out\n\n##
+ Configuration\n\n### Usage with Claude Desktop\n\nAdd this to your `claude_desktop_config.json`:\n\n#### npx\n\n```json\n{\n  \"mcpServers\": {\n    \"sequential-thinking\": {\n      \"command\": \"
+npx\",\n      \"args\": [\n        \"-y\",\n        \"@modelcontextprotocol/server-sequential-thinking\"\n      ]\n    }\n  }\n}\n```\n\n#### docker\n\n```json\n{\n  \"mcpServers\": {\n    \"sequenti
+althinking\": {\n      \"command\": \"docker\",\n      \"args\": [\n        \"run\",\n        \"--rm\",\n        \"-i\",\n        \"mcp/sequentialthinking\"\n      ]\n    }\n  }\n}\n```\n\n### Usage 
+with VS Code\n\nFor quick installation, click one of the installation buttons below...\n\n[![Install with NPX in VS Code](https://img.shields.io/badge/VS_Code-NPM-0098FF?style=flat-square&logo=visual
+studiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=sequentialthinking&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40modelcontextprotocol%2Fser
+ver-sequential-thinking%22%5D%7D) [![Install with NPX in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-NPM-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://i
+nsiders.vscode.dev/redirect/mcp/install?name=sequentialthinking&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40modelcontextprotocol%2Fserver-sequential-thinking%22%5D%7D&quali
+ty=insiders)\n\n[![Install with Docker in VS Code](https://img.shields.io/badge/VS_Code-Docker-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mc
+p/install?name=sequentialthinking&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22--rm%22%2C%22-i%22%2C%22mcp%2Fsequentialthinking%22%5D%7D) [![Install with Docker in VS Code 
+Insiders](https://img.shields.io/badge/VS_Code_Insiders-Docker-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=sequentialthinkin
+g&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22--rm%22%2C%22-i%22%2C%22mcp%2Fsequentialthinking%22%5D%7D&quality=insiders)\n\nFor manual installation, add the following JSO
+N block to your User Settings (JSON) file in VS Code. You can do this by pressing `Ctrl + Shift + P` and typing `Preferences: Open Settings (JSON)`.\n\nOptionally, you can add it to a file called `.v
+scode/mcp.json` in your workspace. This will allow you to share the configuration with others.\n\n> Note that the `mcp` key is not needed in the `.vscode/mcp.json` file.\n\nFor NPX installation:\n\n`
+``json\n{\n  \"mcp\": {\n    \"servers\": {\n      \"sequential-thinking\": {\n        \"command\": \"npx\",\n        \"args\": [\n          \"-y\",\n          \"@modelcontextprotocol/server-sequenti
+al-thinking\"\n        ]\n      }\n    }\n  }\n}\n```\n\nFor Docker installation:\n\n```json\n{\n  \"mcp\": {\n    \"servers\": {\n      \"sequential-thinking\": {\n        \"command\": \"docker\",\n
+        \"args\": [\n          \"run\",\n          \"--rm\",\n          \"-i\",\n          \"mcp/sequentialthinking\"\n        ]\n      }\n    }\n  }\n}\n```\n\n## Building\n\nDocker:\n\n```bash\ndoc
+ker build -t mcp/sequentialthinking -f src/sequentialthinking/Dockerfile .\n```\n\n## License\n\nThis MCP server is licensed under the MIT License. This means you are free to use, modify, and distribute the software, subject to the terms and conditions of the MIT License. For more details, please see the LICENSE file in the project repository.\n",
+             "ownerAvatarUrl": "https://avatars.githubusercontent.com/u/182288589?v=4"
+           },
+           "repo_name": "servers",
+           "owner": "modelcontextprotocol",
+           "stars": 44972,
+           "github_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+           "created_at": "2025-05-09T12:50:00.701",
+           "updated_at": "2025-05-09T18:26:25.735",
+           "analysis_result": {
+             "title": "Sequential Thinking MCP Server",
+             "mcpConfig": {
+               "mcpServers": {
+                 "sequentialthinking": [
+                   {
+                     "args": [
+                       "run",
+                       "--rm",
+                       "-i",
+                       "mcp/sequentialthinking"
+                     ],
+                     "command": "docker"
+                   }
+                 ],
+                 "sequential-thinking": [
+                   {
+                     "args": [
+                       "-y",
+                       "@modelcontextprotocol/server-sequential-thinking"
+                     ],
+                     "command": "npx"
+                   }
+                 ]
+               }
+             },
+             "analyzedName": "sequential-thinking",
+             "installation": {
+               "generic": [
+                 {
+                   "multiCommand": {
+                     "commands": [
+                       {
+                         "args": [
+                           "build",
+                           "-t",
+                           "mcp/sequentialthinking",
+                           "-f",
+                           "src/sequentialthinking/Dockerfile",
+                           "."
+                         ],
+                         "command": "docker"
+                       }
+                     ],
+                     "description": "Build Docker image for Sequential Thinking server"
+                   }
+                 },
+                 {
+                   "args": [
+                     "-y",
+                     "@modelcontextprotocol/server-sequential-thinking"
+                   ],
+                   "command": "npx",
+                   "description": "Alternatively, run directly with NPX—no build step required"
+                 }
+               ]
+             },
+             "configExample": "",
+             "configOptions": [
+               {
+                 "name": "thought",
+                 "type": "string",
+                 "required": true,
+                 "description": "The current thinking step",
+                 "defaultValue": null
+               },
+               {
+                 "name": "nextThoughtNeeded",
+                 "type": "boolean",
+                 "required": true,
+                 "description": "Whether another thought step is needed",
+                 "defaultValue": null
+               },
+               {
+                 "name": "thoughtNumber",
+                 "type": "integer",
+                 "required": true,
+                 "description": "Current thought number",
+                 "defaultValue": null
+               },
+               {
+                 "name": "totalThoughts",
+                 "type": "integer",
+                 "required": true,
+                 "description": "Estimated total thoughts needed",
+                 "defaultValue": null
+               },
+               {
+                 "name": "isRevision",
+                 "type": "boolean",
+                 "required": false,
+                 "description": "Whether this revises previous thinking",
+                 "defaultValue": null
+               },
+               {
+                 "name": "revisesThought",
+                 "type": "integer",
+                 "required": false,
+                 "description": "Which thought is being reconsidered",
+                 "defaultValue": null
+               },
+               {
+                 "name": "branchFromThought",
+                 "type": "integer",
+                 "required": false,
+                 "description": "Branching point thought number",
+                 "defaultValue": null
+               },
+               {
+                 "name": "branchId",
+                 "type": "string",
+                 "required": false,
+                 "description": "Branch identifier",
+                 "defaultValue": null
+               },
+               {
+                 "name": "needsMoreThoughts",
+                 "type": "boolean",
+                 "required": false,
+                 "description": "If more thoughts are needed",
+                 "defaultValue": null
+               }
+             ],
+             "detectedTools": [
+               {
+                 "name": "sequential_thinking",
+                 "parameters": [
+                   {
+                     "name": "thought",
+                     "type": "string",
+                     "required": true,
+                     "description": "The current thinking step"
+                   },
+                   {
+                     "name": "nextThoughtNeeded",
+                     "type": "boolean",
+                     "required": true,
+                     "description": "Whether another thought step is needed"
+                   },
+                   {
+                     "name": "thoughtNumber",
+                     "type": "integer",
+                     "required": true,
+                     "description": "Current thought number"
+                   },
+                   {
+                     "name": "totalThoughts",
+                     "type": "integer",
+                     "required": true,
+                     "description": "Estimated total thoughts needed"
+                   },
+                   {
+                     "name": "isRevision",
+                     "type": "boolean",
+                     "required": false,
+                     "description": "Whether this revises previous thinking"
+                   },
+                   {
+                     "name": "revisesThought",
+                     "type": "integer",
+                     "required": false,
+                     "description": "Which thought is being reconsidered"
+                   },
+                   {
+                     "name": "branchFromThought",
+                     "type": "integer",
+                     "required": false,
+                     "description": "Branching point thought number"
+                   },
+                   {
+                     "name": "branchId",
+                     "type": "string",
+                     "required": false,
+                     "description": "Branch identifier"
+                   },
+                   {
+                     "name": "needsMoreThoughts",
+                     "type": "boolean",
+                     "required": false,
+                     "description": "If more thoughts are needed"
+                   }
+                 ],
+                 "description": "Facilitates a detailed, step-by-step thinking process for problem-solving and analysis."
+               }
+             ],
+             "serverMetadata": {
+               "tags": [],
+               "license": "MIT",
+               "version": null,
+               "categories": [
+                 "tool",
+                 "workflow"
+               ],
+               "isFeatured": false,
+               "isOfficial": false,
+               "isCommunity": false,
+               "requirements": [],
+               "isRemoteAvailable": false,
+               "supportedLanguages": [],
+               "supportedPlatforms": [
+                 "Docker",
+                 "NPX"
+               ],
+               "anthropicReferences": []
+             },
+             "usageInstructions": "The Sequential Thinking tool is designed for breaking down complex problems into steps, planning and design with room for revision, analysis that might need cour
+se correction, problems where the full scope might not be clear initially, tasks that need to maintain context over multiple steps, and situations where irrelevant information needs to be filtered out.",
+             "detectedServerType": [
+               "Tool"
+             ],
+             "analyzedDescription": "An MCP server implementation that provides a tool for dynamic and reflective problem-solving through a structured thinking process.",
+             "runtimeConfigurationNotes": ""
+           },
+           "forks": 4997,
+           "last_updated": "2025-05-09T18:21:06Z",
+           "fallback_avatar_color": null,
+           "fallback_avatar_initials": null,
+           "local_image_path": "D:\\250430_OCT_Server\\OCT-SERVER\\data\\images\\github\\modelcontextprotocol-servers-src-sequentialthinking.jpg",
+           "installation": {
+             "generic": [
+               {
+                 "multiCommand": {
+                   "commands": [
+                     {
+                       "args": [
+                         "build",
+                         "-t",
+                         "mcp/sequentialthinking",
+                         "-f",
+                         "src/sequentialthinking/Dockerfile",
+                         "."
+                       ],
+                       "command": "docker"
+                     }
+                   ],
+                   "description": "Build Docker image for Sequential Thinking server"
+                 }
+               },
+               {
+                 "args": [
+                   "-y",
+                   "@modelcontextprotocol/server-sequential-thinking"
+                 ],
+                 "command": "npx",
+                 "description": "Alternatively, run directly with NPX—no build step required"
+               }
+             ]
+           },
+           "mcp_config": {
+             "mcpServers": {
+               "sequentialthinking": [
+                 {
+                   "args": [
+                     "run",
+                     "--rm",
+                     "-i",
+                     "mcp/sequentialthinking"
+                   ],
+                   "command": "docker"
+                 }
+               ],
+               "sequential-thinking": [
+                 {
+                   "args": [
+                     "-y",
+                     "@modelcontextprotocol/server-sequential-thinking"
+                   ],
+                   "command": "npx"
+                 }
+               ]
+             }
+           },
+           "analysis_title": "Sequential Thinking MCP Server",
+           "analyzed_name": "sequential-thinking",
+           "analyzed_description": "An MCP server implementation that provides a tool for dynamic and reflective problem-solving through a structured thinking process.",
+           "version": null,
+           "license": "MIT",
+           "supported_platforms": [
+             "Docker",
+             "NPX"
+           ],
+           "supported_languages": [],
+           "tags": [],
+           "categories": [
+             "tool",
+             "workflow"
+           ],
+           "is_official": "false",
+           "is_community": "false",
+           "is_featured": "false",
+           "is_remote_available": "false",
+           "detected_tools": [
+             {
+               "name": "sequential_thinking",
+               "parameters": [
+                 {
+                   "name": "thought",
+                   "type": "string",
+                   "required": true,
+                   "description": "The current thinking step"
+                 },
+                 {
+                   "name": "nextThoughtNeeded",
+                   "type": "boolean",
+                   "required": true,
+                   "description": "Whether another thought step is needed"
+                 },
+                 {
+                   "name": "thoughtNumber",
+                   "type": "integer",
+                   "required": true,
+                   "description": "Current thought number"
+                 },
+                 {
+                   "name": "totalThoughts",
+                   "type": "integer",
+                   "required": true,
+                   "description": "Estimated total thoughts needed"
+                 },
+                 {
+                   "name": "isRevision",
+                   "type": "boolean",
+                   "required": false,
+                   "description": "Whether this revises previous thinking"
+                 },
+                 {
+                   "name": "revisesThought",
+                   "type": "integer",
+                   "required": false,
+                   "description": "Which thought is being reconsidered"
+                 },
+                 {
+                   "name": "branchFromThought",
+                   "type": "integer",
+                   "required": false,
+                   "description": "Branching point thought number"
+                 },
+                 {
+                   "name": "branchId",
+                   "type": "string",
+                   "required": false,
+                   "description": "Branch identifier"
+                 },
+                 {
+                   "name": "needsMoreThoughts",
+                   "type": "boolean",
+                   "required": false,
+                   "description": "If more thoughts are needed"
+                 }
+               ],
+               "description": "Facilitates a detailed, step-by-step thinking process for problem-solving and analysis."
+             }
+           ],
+           "config_options": [
+             {
+               "name": "thought",
+               "type": "string",
+               "required": true,
+               "description": "The current thinking step",
+               "defaultValue": null
+             },
+             {
+               "name": "nextThoughtNeeded",
+               "type": "boolean",
+               "required": true,
+               "description": "Whether another thought step is needed",
+               "defaultValue": null
+             },
+             {
+               "name": "thoughtNumber",
+               "type": "integer",
+               "required": true,
+               "description": "Current thought number",
+               "defaultValue": null
+             },
+             {
+               "name": "totalThoughts",
+               "type": "integer",
+               "required": true,
+               "description": "Estimated total thoughts needed",
+               "defaultValue": null
+             },
+             {
+               "name": "isRevision",
+               "type": "boolean",
+               "required": false,
+               "description": "Whether this revises previous thinking",
+               "defaultValue": null
+             },
+             {
+               "name": "revisesThought",
+               "type": "integer",
+               "required": false,
+               "description": "Which thought is being reconsidered",
+               "defaultValue": null
+             },
+             {
+               "name": "branchFromThought",
+               "type": "integer",
+               "required": false,
+               "description": "Branching point thought number",
+               "defaultValue": null
+             },
+             {
+               "name": "branchId",
+               "type": "string",
+               "required": false,
+               "description": "Branch identifier",
+               "defaultValue": null
+             },
+             {
+               "name": "needsMoreThoughts",
+               "type": "boolean",
+               "required": false,
+               "description": "If more thoughts are needed",
+               "defaultValue": null
+             }
+           ],
+           "usage_instructions": "The Sequential Thinking tool is designed for breaking down complex problems into steps, planning and design with room for revision, analysis that might need cours
+e correction, problems where the full scope might not be clear initially, tasks that need to maintain context over multiple steps, and situations where irrelevant information needs to be filtered out.",
+           "runtime_config_notes": "",
+           "metadata_map": {
+             "Stars": "44972",
+             "Forks": "4997",
+             "Language": "JavaScript",
+             "License": "MIT License",
+             "Supported Platforms": "Docker, NPX",
+             "Categories": "tool, workflow"
+           },
+           "metadata": [
+             {
+               "label": "Stars",
+               "value": "44972"
+             },
+             {
+               "label": "Forks",
+               "value": "4997"
+             },
+             {
+               "label": "Language",
+               "value": "JavaScript"
+             },
+             {
+               "label": "License",
+               "value": "MIT License"
+             },
+             {
+               "label": "Supported Platforms",
+               "value": "Docker, NPX"
+             },
+             {
+               "label": "Categories",
+               "value": "tool, workflow"
+             }
+           ],
+           "is_test": false,
+           "is_zero_install": true,
+           "type": "npx",
+           "execution": {
+             "command": "npx",
+             "args": [
+               "-y",
+               "@modelcontextprotocol/server-sequential-thinking"
+             ],
+             "env": {}
+           },
+           "host": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+           "isInstalled": false,
+           "isRunning": false,
+           "command": "npx",
+           "args": [
+             "-y",
+             "@modelcontextprotocol/server-sequential-thinking"
+           ],
+           "transportType": "stdio",
+           "env": {}
+         }
+       },
+       "position": {
+         "x": 12,
+         "y": 372
+       },
+       "width": 200,
+       "height": 80,
+       "targetPosition": "top",
+       "sourcePosition": "bottom",
+       "$H": 354,
+       "x": 12,
+       "y": 372,
+       "measured": {
+         "width": 200,
+         "height": 80
+       }
+     }
+   ],
+   "edges": [
+     {
+       "id": "e1-2",
+       "source": "1",
+       "target": "2",
+       "animated": true,
+       "style": {
+         "strokeWidth": 2
+       },
+       "type": "smoothstep",
+       "container": "root",
+       "sections": [
+         {
+           "id": "e1-2_s0",
+           "startPoint": {
+             "x": 112,
+             "y": 92
+           },
+           "endPoint": {
+             "x": 112,
+             "y": 192
+           },
+           "incomingShape": "1",
+           "outgoingShape": "2"
+         }
+       ]
+     },
+     {
+       "id": "e2-3",
+       "source": "2",
+       "target": "3",
+       "animated": true,
+       "style": {
+         "strokeWidth": 2
+       },
+       "type": "smoothstep",
+       "container": "root",
+       "sections": [
+         {
+           "id": "e2-3_s0",
+           "startPoint": {
+             "x": 112,
+             "y": 272
+           },
+           "endPoint": {
+             "x": 112,
+             "y": 372
+           },
+           "incomingShape": "2",
+           "outgoingShape": "3"
+         }
+       ]
+     }
+   ],
+   "triggerId": "1",
+   "context": {}
+ }
+

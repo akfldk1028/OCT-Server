@@ -86,81 +86,40 @@ const menus = [
     ],
   },
   {
-    name: 'MyServer',
+    name: 'Server',
     to: '/jobs',
     items: [
       {
-        name: 'Remote Jobs',
+        name: 'Inspector',
         description: 'Find a remote job in our community',
-        to: '/inspector',
+        to: '/jobs/inspector',
       },
       {
-        name: 'Full-Time Jobs',
+        name: 'Node',
         description: 'Find a full-time job in our community',
-        to: '/jobs?type=full-time',
+        to: '/jobs/node',
       },
       {
-        name: 'Freelance Jobs',
+        name: 'alt1',
         description: 'Find a freelance job in our community',
         to: '/jobs?type=freelance',
       },
       {
-        name: 'Internships',
+        name: 'alt2',
         description: 'Find an internship in our community',
         to: '/jobs?type=internship',
       },
       {
-        name: 'Post a Job',
+        name: 'alt3',
         description: 'Post a job to our community',
         to: '/jobs/submit',
       },
     ],
   },
   {
-    name: 'Community',
-    to: '/community',
-    items: [
-      {
-        name: 'All Posts',
-        description: 'See all posts in our community',
-        to: '/community',
-      },
-      {
-        name: 'Top Posts',
-        description: 'See the top posts in our community',
-        to: '/community?sorting=popular',
-      },
-      {
-        name: 'New Posts',
-        description: 'See the new posts in our community',
-        to: '/community?sorting=newest',
-      },
-      {
-        name: 'Create a Post',
-        description: 'Create a post in our community',
-        to: '/community/submit',
-      },
-    ],
-  },
-  {
-    name: 'IdeasGPT',
-    to: '/ideas',
-  },
-  {
-    name: 'Teams',
-    to: '/teams',
-    items: [
-      {
-        name: 'All Teams',
-        description: 'See all teams in our community',
-        to: '/teams',
-      },
-      {
-        name: 'Create a Team',
-        description: 'Create a team in our community',
-        to: '/teams/create',
-      },
-    ],
+    name: 'Pricing',
+    to: '/pricing',
+
   },
 ];
 
@@ -187,7 +146,7 @@ export default function Navigation({
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center">
               <Link to="/" className="font-bold tracking-tighter text-lg">
-                MCP
+                Contextor
               </Link>
               <Separator
                 orientation="vertical"

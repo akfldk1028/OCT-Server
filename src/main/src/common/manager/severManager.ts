@@ -438,6 +438,7 @@ export class ServerManager {
     return statuses;
   }
 
+  //[TODO] 서버 정보 조회 시 설정 파일 읽기 오류 해결
   // 서버의 전체 설정 정보를 포함한 모든 서버 정보 반환
   getAllServersWithFullConfig(): any[] {
     const fs = require('fs');
@@ -496,26 +497,7 @@ export class ServerManager {
           }
           
           console.log(`[ServerManager] ${serverId} 서버의 전체 설정 정보를 가져왔습니다.`);
-          // Type 하나만들어야하나
 
-          // config:{}
-          // displayName:
-          // id:
-          // Name:
-          // online:
-          // serverType
-          // status:
-
-          // SelectedServer
-          // config:{}
-          // connectionStatus
-          // displayName:
-          // id
-          // Name
-          // online
-          // serverType
-          // status:
-          // sessionId
         }
       } catch (error) {
         console.error(`[ServerManager] ${serverId} 서버의 설정 파일 읽기 오류:`, error);

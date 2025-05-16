@@ -9,6 +9,51 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      clients: {
+        Row: {
+          client_id: number
+          created_at: string
+          description: string
+          how_it_works: string
+          icon: string
+          name: string
+          promoted_from: string | null
+          promoted_to: string | null
+          stats: Json
+          tagline: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          client_id?: never
+          created_at?: string
+          description: string
+          how_it_works: string
+          icon: string
+          name: string
+          promoted_from?: string | null
+          promoted_to?: string | null
+          stats?: Json
+          tagline: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          client_id?: never
+          created_at?: string
+          description?: string
+          how_it_works?: string
+          icon?: string
+          name?: string
+          promoted_from?: string | null
+          promoted_to?: string | null
+          stats?: Json
+          tagline?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           created_at: string | null
@@ -29,6 +74,53 @@ export type Database = {
           event_type?: Database["public"]["Enums"]["event_type"] | null
         }
         Relationships: []
+      }
+      follows: {
+        Row: {
+          created_at: string
+          follower_id: string
+          following_id: string
+        }
+        Insert: {
+          created_at?: string
+          follower_id: string
+          following_id: string
+        }
+        Update: {
+          created_at?: string
+          follower_id?: string
+          following_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follows_follower_id_profiles_profile_id_fk"
+            columns: ["follower_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "follows_follower_id_profiles_profile_id_fk"
+            columns: ["follower_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "follows_following_id_profiles_profile_id_fk"
+            columns: ["following_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "follows_following_id_profiles_profile_id_fk"
+            columns: ["following_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_view"
+            referencedColumns: ["profile_id"]
+          },
+        ]
       }
       mcp_servers: {
         Row: {
@@ -99,39 +191,48 @@ export type Database = {
         }
         Relationships: []
       }
-      users: {
+      profiles: {
         Row: {
+          avatar: string | null
           bio: string | null
           created_at: string
-          email: string
-          id: number
-          is_active: boolean
-          name: string | null
-          password: string
-          role: string
+          headline: string | null
+          name: string
+          profile_id: string
+          role: Database["public"]["Enums"]["role"]
+          stats: Json | null
           updated_at: string
+          user_id: string
+          username: string
+          views: Json | null
         }
         Insert: {
+          avatar?: string | null
           bio?: string | null
           created_at?: string
-          email: string
-          id?: number
-          is_active?: boolean
-          name?: string | null
-          password: string
-          role?: string
+          headline?: string | null
+          name: string
+          profile_id: string
+          role?: Database["public"]["Enums"]["role"]
+          stats?: Json | null
           updated_at?: string
+          user_id: string
+          username: string
+          views?: Json | null
         }
         Update: {
+          avatar?: string | null
           bio?: string | null
           created_at?: string
-          email?: string
-          id?: number
-          is_active?: boolean
-          name?: string | null
-          password?: string
-          role?: string
+          headline?: string | null
+          name?: string
+          profile_id?: string
+          role?: Database["public"]["Enums"]["role"]
+          stats?: Json | null
           updated_at?: string
+          user_id?: string
+          username?: string
+          views?: Json | null
         }
         Relationships: []
       }
@@ -488,12 +589,67 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles_view: {
+        Row: {
+          avatar: string | null
+          bio: string | null
+          created_at: string | null
+          headline: string | null
+          is_following: boolean | null
+          name: string | null
+          profile_id: string | null
+          role: Database["public"]["Enums"]["role"] | null
+          stats: Json | null
+          updated_at: string | null
+          user_id: string | null
+          username: string | null
+          views: Json | null
+        }
+        Insert: {
+          avatar?: string | null
+          bio?: string | null
+          created_at?: string | null
+          headline?: string | null
+          is_following?: never
+          name?: string | null
+          profile_id?: string | null
+          role?: Database["public"]["Enums"]["role"] | null
+          stats?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+          username?: string | null
+          views?: Json | null
+        }
+        Update: {
+          avatar?: string | null
+          bio?: string | null
+          created_at?: string | null
+          headline?: string | null
+          is_following?: never
+          name?: string | null
+          profile_id?: string | null
+          role?: Database["public"]["Enums"]["role"] | null
+          stats?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+          username?: string | null
+          views?: Json | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
     }
     Enums: {
       event_type: "product_view" | "product_visit" | "profile_view"
+      notification_type: "follow" | "review" | "reply"
+      role:
+        | "developer"
+        | "designer"
+        | "marketer"
+        | "founder"
+        | "product-manager"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -610,6 +766,8 @@ export const Constants = {
   public: {
     Enums: {
       event_type: ["product_view", "product_visit", "profile_view"],
+      notification_type: ["follow", "review", "reply"],
+      role: ["developer", "designer", "marketer", "founder", "product-manager"],
     },
   },
 } as const

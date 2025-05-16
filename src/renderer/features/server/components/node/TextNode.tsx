@@ -18,6 +18,12 @@ function TextNode({
 
   return (
     <div className="p-3 border-2 border-blue-500 rounded-lg bg-card min-w-[150px] shadow-md">
+ 
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!w-3 !h-3 !bg-blue-500"
+      />
       <div className="font-bold text-card-foreground mb-2 text-center">
         {data.label || `node ${id}`}
       </div>
@@ -30,9 +36,10 @@ function TextNode({
           className="w-full p-1.5 border border-border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-card text-card-foreground"
         />
       </div>
+   
       <Handle
         type="source"
-        position={Position.Right}
+        position={Position.Bottom}
         className="!w-3 !h-3 !bg-blue-500"
       />
     </div>

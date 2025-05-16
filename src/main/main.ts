@@ -33,6 +33,7 @@ import { startExpressServer } from './src/common/server/server';
 import { manager } from './src/common/manager/managerInstance';
 import { setupMcpHealthCheckHandlers } from './src/common/server/services/mcpHealthCheck';
 import { ServerInstanceFactory } from './src/common/manager/ServerInstanceFactory';
+import { createNodeExecutor } from './src/common/server/node/NodeExecutorFactory';
 
 dotenv.config();
 
@@ -505,3 +506,58 @@ ipcMain.handle('server:cleanupSessions', async () => {
   return { cleaned: 0, remaining: 0 };
 });
 
+// ///////////////////////////////////////////////////
+
+ipcMain.handle('workflow:execute', async (event, payload) => {
+  const { workflowId, nodes, edges, triggerId, context } = payload;
+  const results: Record<string, any> = {};
+  let currentContext = context || {};
+
+  for (const node of nodes) {
+    try {
+      const executor = createNodeExecutor(node, nodes, edges, triggerId);
+      const result = await executor.execute(currentContext, nodes, edges, triggerId);
+      results[node.id] = result;
+      currentContext[node.id] = result;
+      Object.assign(currentContext, result);
+    } catch (error: unknown) {
+      let message = 'Unknown error';
+      if (error && typeof error === 'object' && 'message' in error) {
+        message = (error as any).message;
+      } else if (typeof error === 'string') {
+        message = error;
+      }
+      results[node.id] = { error: true, message };
+      break;
+    }
+  }
+
+  return {
+    success: true,
+    finalData: currentContext,
+  };
+});
+
+// ipcMain.handle('workflow:execute', async (event, payload) => {
+//   // payload 전체를 depth 제한 없이 예쁘게 출력
+//   console.log('⬇️ main: workflow:execute handler received for',
+//     JSON.stringify(payload, (key, value) => {
+//       // 순환 참조 방지 및 함수 등 제외
+//       if (typeof value === 'function') return '[Function]';
+//       return value;
+//     }, 2)
+//   );
+//   // payload.nodes, payload.edges, payload.triggerId, payload.context 등
+//   // 모든 데이터 접근 가능
+// });
+import { ClaudeDesktopIntegration } from '../main/src/common/server/node/service/claude'; // 실제 경로로 수정
+
+ipcMain.handle('claude:getAllServers', () => {
+  const claude = new ClaudeDesktopIntegration();
+  return claude.getAllConnectedServers();
+});
+
+ipcMain.handle('claude:removeServer', (event, serverName) => {
+  const claude = new ClaudeDesktopIntegration();
+  return claude.disconnectServer(serverName);
+});

@@ -14,6 +14,7 @@ import type {
   InstallationConfig,
   MCPConfig,
   MCPServerExtended,
+  TypedExecutionConfig,
 } from './types/server-config';
 
 // --------------------------------------------------------------------
@@ -74,6 +75,34 @@ function getSupabaseClient(): SupabaseClient {
   return supabaseClientInstance;
 }
 
+// mcpConfig.mcpServers, mcpConfig.servers에서 executionConfig를 찾는 헬퍼 함수 (공통화)
+function findExecutionConfig(configRoot: any, serverName: string, selectedCommandType: string, envVars?: Record<string, string>) {
+  if (!configRoot?.[serverName]) return undefined;
+  const serverConfig = configRoot[serverName];
+
+  if (Array.isArray(serverConfig)) {
+    const configForCommand = serverConfig.find(
+      (conf: any) => conf.command === selectedCommandType,
+    );
+    if (configForCommand) {
+      return {
+        command: configForCommand.command,
+        args: configForCommand.args || [],
+        env: { ...(configForCommand.env || {}), ...(envVars || {}) },
+      };
+    }
+  } else if (typeof serverConfig === 'object' && serverConfig !== null) {
+    if (serverConfig.command === selectedCommandType) {
+      return {
+        command: serverConfig.command,
+        args: serverConfig.args || [],
+        env: { ...(serverConfig.env || {}), ...(envVars || {}) },
+      };
+    }
+  }
+  return undefined;
+}
+
 // src/common/configLoader.ts
 // src/common/configLoader.ts
 export async function getBaseMCPServerConfig(
@@ -87,128 +116,25 @@ export async function getBaseMCPServerConfig(
       await getProductById(supabase, { id: Number(id) });
 
     if (!productData) {
-      console.warn(
-        `[configLoader] Supabase에서 ID '${id}'에 해당하는 서버 정보를 찾을 수 없습니다.`,
-      );
+      console.warn(`[configLoader] Supabase에서 ID '${id}'에 해당하는 서버 정보를 찾을 수 없습니다.`);
       return undefined;
     }
 
-    // 데이터 구조 로깅
-    console.log(`[configLoader] Product Data 구조:`, {
-      id: productData.id,
-      name: productData.name,
-      hasMcpConfig: productData.mcp_config !== null,
-    });
-
-    // 서버 이름 확인
     const serverName = productData.name;
     if (!serverName) {
-      console.warn(
-        `[configLoader] ID '${id}': productData.name이 null이거나 undefined입니다.`,
-      );
+      console.warn(`[configLoader] ID '${id}': productData.name이 null이거나 undefined입니다.`);
       return undefined;
     }
 
-    // mcp_config 구조 확인
     const mcpConfig = productData.mcp_config as any;
 
-    // 실행 설정 초기화
-    let executionConfig: ExecutionConfig | undefined;
-    let installationConfig: InstallationConfig | undefined;
-    // 여러 경로로 config 찾기 시도
-    // 1. productData.installation.generic 확인
-    // if (productData.installation?.generic && Array.isArray(productData.installation.generic)) {
-    //   const matchingInstall = productData.installation.generic.find(
-    //     (config: any) => config.command === selectedCommandType
-    //   );
-
-    //   if (matchingInstall) {
-    //     console.log(`[configLoader] ID '${id}': installation.generic에서 '${selectedCommandType}' 설정 찾음`);
-    //     executionConfig = {
-    //       command: matchingInstall.command,
-    //       args: matchingInstall.args || [],
-    //       env: { ...(matchingInstall.env || {}), ...(envVars || {}) }
-    //     };
-    //   }
-    // }
-
-    // 2. mcpConfig.mcpServers 확인
-    if (!executionConfig && mcpConfig?.mcpServers?.[serverName]) {
-      const serverConfig = mcpConfig.mcpServers[serverName];
-
-      // 배열인 경우
-      if (Array.isArray(serverConfig)) {
-        const configForCommand = serverConfig.find(
-          (conf: any) => conf.command === selectedCommandType,
-        );
-
-        if (configForCommand) {
-          console.log(
-            `[configLoader] ID '${id}': mcpConfig.mcpServers['${serverName}'] 배열에서 '${selectedCommandType}' 설정 찾음`,
-          );
-          executionConfig = {
-            command: configForCommand.command,
-            args: configForCommand.args || [],
-            env: { ...(configForCommand.env || {}), ...(envVars || {}) },
-          };
-        }
-      }
-      // 객체인 경우
-      else if (typeof serverConfig === 'object' && serverConfig !== null) {
-        if (serverConfig.command === selectedCommandType) {
-          console.log(
-            `[configLoader] ID '${id}': mcpConfig.mcpServers['${serverName}'] 객체에서 '${selectedCommandType}' 설정 찾음`,
-          );
-          executionConfig = {
-            command: serverConfig.command,
-            args: serverConfig.args || [],
-            env: { ...(serverConfig.env || {}), ...(envVars || {}) },
-          };
-        }
-      }
-    }
-
-    // 3. mcpConfig.servers 확인 (이전 버전 호환성)
-    if (!executionConfig && mcpConfig?.servers?.[serverName]) {
-      const serverConfig = mcpConfig.servers[serverName];
-
-      // 배열인 경우
-      if (Array.isArray(serverConfig)) {
-        const configForCommand = serverConfig.find(
-          (conf: any) => conf.command === selectedCommandType,
-        );
-
-        if (configForCommand) {
-          console.log(
-            `[configLoader] ID '${id}': mcpConfig.servers['${serverName}'] 배열에서 '${selectedCommandType}' 설정 찾음`,
-          );
-          executionConfig = {
-            command: configForCommand.command,
-            args: configForCommand.args || [],
-            env: { ...(configForCommand.env || {}), ...(envVars || {}) },
-          };
-        }
-      }
-      // 객체인 경우
-      else if (typeof serverConfig === 'object' && serverConfig !== null) {
-        if (serverConfig.command === selectedCommandType) {
-          console.log(
-            `[configLoader] ID '${id}': mcpConfig.servers['${serverName}'] 객체에서 '${selectedCommandType}' 설정 찾음`,
-          );
-          executionConfig = {
-            command: serverConfig.command,
-            args: serverConfig.args || [],
-            env: { ...(serverConfig.env || {}), ...(envVars || {}) },
-          };
-        }
-      }
-    }
+    // executionConfig 추출 (헬퍼 함수 활용)
+    let executionConfig: ExecutionConfig | undefined =
+      findExecutionConfig(mcpConfig?.mcpServers, serverName, selectedCommandType, envVars) ||
+      findExecutionConfig(mcpConfig?.servers, serverName, selectedCommandType, envVars);
 
     // 설정을 찾지 못한 경우 기본값 사용
     if (!executionConfig) {
-      console.warn(
-        `[configLoader] ID '${id}': '${selectedCommandType}' 실행 설정을 찾을 수 없어 기본값 사용`,
-      );
       executionConfig = {
         command: selectedCommandType,
         args: [],
@@ -216,23 +142,27 @@ export async function getBaseMCPServerConfig(
       };
     }
 
-    console.log(`[configLoader] installationConfig:`, installationConfig);
-    console.log(`[configLoader] executionConfig:`, executionConfig);
-    console.log(`[configLoader] executionConfig:`, executionConfig);
-    console.log(`[configLoader] executionConfig:`, executionConfig);
-    console.log(`[configLoader] executionConfig:`, executionConfig);
-    console.log(`[configLoader] executionConfig:`, executionConfig);
-    console.log(`[configLoader] executionConfig:`, executionConfig);
-    console.log(`[configLoader] executionConfig:`, executionConfig);
-    console.log(`[configLoader] executionConfig:`, executionConfig);
+    // executions 배열에 현재 실행 설정을 type과 함께 추가
+    let executions: TypedExecutionConfig[] | undefined = undefined;
+    if (executionConfig) {
+      executions = [
+        {
+          ...executionConfig,
+          type: selectedCommandType,
+        },
+      ];
+    }
 
-    // 최종 서버 템플릿 생성
+    // installationConfig 추출(필요시 확장)
+    let installationConfig: InstallationConfig | undefined = undefined;
+
+    // 서버 템플릿 생성
     const serverTemplate: MCPServerExtended = {
       ...(productData as Tables<'mcp_servers_full_view'>),
       type: selectedCommandType,
       execution: executionConfig,
+      executions: executions,
       installConfig: installationConfig,
-      // 기타 필드 설정 (안전하게 액세스)
       defaultMethod:
         getNestedProperty(mcpConfig, 'defaultMethod') ||
         (mcpConfig?.mcpServers?.[serverName]
@@ -249,59 +179,6 @@ export async function getBaseMCPServerConfig(
               selectedCommandType,
             )
           : undefined),
-
-      host:
-        (mcpConfig?.mcpServers?.[serverName]
-          ? getCommandProperty(
-              mcpConfig.mcpServers[serverName],
-              'host',
-              selectedCommandType,
-            )
-          : undefined) ||
-        (mcpConfig?.servers?.[serverName]
-          ? getCommandProperty(
-              mcpConfig.servers[serverName],
-              'host',
-              selectedCommandType,
-            )
-          : undefined) ||
-        getNestedProperty(mcpConfig, 'host') ||
-        productData.primary_url,
-
-      dockerImage:
-        (mcpConfig?.mcpServers?.[serverName]
-          ? getCommandProperty(
-              mcpConfig.mcpServers[serverName],
-              'dockerImage',
-              selectedCommandType,
-            )
-          : undefined) ||
-        (mcpConfig?.servers?.[serverName]
-          ? getCommandProperty(
-              mcpConfig.servers[serverName],
-              'dockerImage',
-              selectedCommandType,
-            )
-          : undefined) ||
-        getNestedProperty(mcpConfig, 'dockerImage'),
-
-      uvxPackage:
-        (mcpConfig?.mcpServers?.[serverName]
-          ? getCommandProperty(
-              mcpConfig.mcpServers[serverName],
-              'uvxPackage',
-              selectedCommandType,
-            )
-          : undefined) ||
-        (mcpConfig?.servers?.[serverName]
-          ? getCommandProperty(
-              mcpConfig.servers[serverName],
-              'uvxPackage',
-              selectedCommandType,
-            )
-          : undefined) ||
-        getNestedProperty(mcpConfig, 'uvxPackage'),
-
       userInputs:
         (mcpConfig?.mcpServers?.[serverName]
           ? getCommandProperty(
@@ -318,22 +195,12 @@ export async function getBaseMCPServerConfig(
             )
           : undefined) ||
         getNestedProperty(mcpConfig, 'userInputs'),
-
-      // 로컬 상태 초기값
       isInstalled: false,
       isRunning: false,
       installedMethod: undefined,
       installedDir: undefined,
       currentMode: undefined,
     };
-
-    console.log(`[configLoader] 최종 서버 템플릿 생성 완료:`, {
-      id: serverTemplate.id,
-      name: serverTemplate.name,
-      type: serverTemplate.type,
-      executionCommand: serverTemplate.execution?.command,
-      executionArgs: serverTemplate.execution?.args,
-    });
 
     return serverTemplate;
   } catch (error) {

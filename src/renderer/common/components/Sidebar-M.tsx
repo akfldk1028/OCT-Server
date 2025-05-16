@@ -91,21 +91,7 @@ const menus = [
         description: 'Find a full-time job in our community',
         to: '/jobs/node',
       },
-      {
-        name: 'alt1',
-        description: 'Find a freelance job in our community',
-        to: '/jobs?type=freelance',
-      },
-      {
-        name: 'alt2',
-        description: 'Find an internship in our community',
-        to: '/jobs?type=internship',
-      },
-      {
-        name: 'alt3',
-        description: 'Post a job to our community',
-        to: '/jobs/submit',
-      },
+
     ],
   },
   {
@@ -134,11 +120,6 @@ const menus = [
         to: '/community/submit',
       },
     ],
-  },
-  {
-    name: 'Agents',
-    to: '/ideas',
-    icon: <CircleHelp className="w-4 h-4" />,
   },
   {
     name: 'Tools',
@@ -192,11 +173,13 @@ export default function Sidebar({
     >
       {/* 헤더 */}
       <div className="h-16 px-4 flex items-center justify-between border-b">
+        <Link to="/">
         <span
           className={cn('font-bold text-lg truncate', collapsed && 'hidden')}
         >
-          MCP v0.0.1
+          Contextor v0.0.1
         </span>
+        </Link>
         <Button
           variant="ghost"
           size="icon"
@@ -404,7 +387,7 @@ export default function Sidebar({
           <div className="flex justify-center my-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild className="cursor-pointer">
-                <Avatar className="size-8">
+                <Avatar>
                   {avatar ? (
                     <AvatarImage className="object-cover" src={avatar} />
                   ) : (

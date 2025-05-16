@@ -1,16 +1,10 @@
-// preload.js
+// preload.js (올바른 수정 버전)
 // Disable no-unused-vars, broken for spread args
 /* eslint no-unused-vars: off */
 
-// 일반 사용자용 앱 빌드:
-//
-// USER_ROLE=user npm run build
-//
-// 관리자용 앱 빌드:
-//
-// USER_ROLE=admin npm run build
-
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { workflowAPI } from './preload-workflow';
+
 
 export type Channels =
   | 'ipc-example'
@@ -38,7 +32,13 @@ export type Channels =
   // MCP 서버 헬스 체크 및 세션 관련 채널 추가
   | 'mcp:checkHealth'
   | 'mcp:getSessionId'
-  | 'mcp:healthUpdate';
+  | 'mcp:healthUpdate'
+  // 워크플로우 관련 채널 추가
+  | 'workflow:execute'
+  | 'workflow:executeNode'
+  | 'workflow:progress'
+  | 'workflow:complete'
+  | 'mcp-workflow:tool-call';
 
 const electronHandler = {
   ipcRenderer: {
@@ -98,7 +98,6 @@ const electronHandler = {
     },
   },
 };
-
 
 // 사용자 역할 확인 (메인 프로세스에서 전달받거나 환경 변수로 설정)
 const isAdmin = process.env.USER_ROLE === 'admin';
@@ -168,6 +167,8 @@ interface ServerInfo {
   lastError?: string;
 }
 
+
+
 // Electron API 정의
 const api = {
   // 서버 관리
@@ -209,13 +210,8 @@ const api = {
       command,
       envVars,
     );
-    // return ipcRenderer.invoke('server:install', name, command, envVars);
   },
 
-  // installServer: async (name: string, command: string, envVars?: Record<string, string>) => {
-  //   console.log('⏩ preload: invoke installServer', name, command, envVars ? '(with env vars)' : '');
-  //   return await electronHandler.ipcRenderer.invoke('installServer', name, command, envVars);
-  // },
   // 멀티 서버 관리
   startMultipleServers: async (
     serverConfigs: Array<{ serverName: string; config: any }>,
@@ -544,32 +540,32 @@ const api = {
   ): Promise<{ success: boolean; message?: string }> => {
     return ipcRenderer.invoke('feature:setFlag', flag, enabled);
   },
-// preload.ts에서 saveServerSession API 수정
-saveServerSession: async (
-  serverId: string,
-  sessionInfo: {
-    sessionId: string;
-    lastConnected: Date;
-    transportType: 'stdio' | 'sse' | 'streamable-http';
-    commandType: string; // 🔥 추가
-    active?: boolean; // 세션 활성 상태를 나타내는 플래그
-  }
-): Promise<{ success: boolean; message?: string }> => {
-  return ipcRenderer.invoke('server:saveSession', serverId, sessionInfo);
-},
-  // 서버별 저장된 세션 정보 가져오기
+
+  // 세션 관련 API
+  saveServerSession: async (
+    serverId: string,
+    sessionInfo: {
+      sessionId: string;
+      lastConnected: Date;
+      transportType: 'stdio' | 'sse' | 'streamable-http';
+      commandType: string;
+      active?: boolean;
+    }
+  ): Promise<{ success: boolean; message?: string }> => {
+    return ipcRenderer.invoke('server:saveSession', serverId, sessionInfo);
+  },
+
   getServerSession: async (
     serverId: string
   ): Promise<{
     sessionId?: string;
     lastConnected?: string;
     transportType?: 'stdio' | 'sse' | 'streamable-http';
-    active?: boolean; // 세션 활성 상태
+    active?: boolean;
   } | null> => {
     return ipcRenderer.invoke('server:getSession', serverId);
   },
 
-  // 세션 유효성 검사
   validateSession: async (
     sessionId: string
   ): Promise<{ 
@@ -580,7 +576,6 @@ saveServerSession: async (
     return ipcRenderer.invoke('server:validateSession', sessionId);
   },
 
-  // 세션 정리 (만료된 세션 제거)
   cleanupSessions: async (): Promise<{ 
     cleaned: number; 
     remaining: number; 
@@ -588,16 +583,24 @@ saveServerSession: async (
     return ipcRenderer.invoke('server:cleanupSessions');
   },
 
+  // 워크플로우 API 병합
+  // 워크플로우 API 직접 병합
+  ...workflowAPI,
 
+  // 워크플로우 네임스페이스로도 접근 가능하게
+  workflow: workflowAPI,
+};
 
+// Claude Desktop 관련 API
+const claudeManager = {
+  getAllServers: () => ipcRenderer.invoke('claude:getAllServers'),
+  removeServer: (serverName: string) => ipcRenderer.invoke('claude:removeServer', serverName),
 };
 
 // Context Bridge를 통해 API 노출
-// contextBridge.exposeInMainWorld('api', electronAPI);
-
-// 기본 API 노출
 contextBridge.exposeInMainWorld('electron', electronHandler);
 contextBridge.exposeInMainWorld('api', api);
+contextBridge.exposeInMainWorld('claudeAPI', claudeManager);
 
 export type ElectronHandler = typeof electronHandler;
 export type Api = typeof api;
