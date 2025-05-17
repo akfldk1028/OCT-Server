@@ -137,6 +137,7 @@
     "luxon": "^3.6.1",
     "morgan": "^1.10.0",
     "motion": "^12.9.4",
+    "node-window-manager": "^2.2.4",
     "prismjs": "^1.30.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

@@ -4,6 +4,7 @@
 
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { workflowAPI } from './preload-workflow';
+import { overlayAPI } from './preload-overlay';
 
 
 export type Channels =
@@ -587,8 +588,14 @@ const api = {
   // 워크플로우 API 직접 병합
   ...workflowAPI,
 
+  // 오버레이 API 병합
+  ...overlayAPI,
+
   // 워크플로우 네임스페이스로도 접근 가능하게
   workflow: workflowAPI,
+
+  // 오버레이 API 병합
+  overlay: overlayAPI,
 };
 
 // Claude Desktop 관련 API

@@ -21,6 +21,7 @@ const excludePackages = [
   'type-fest', // type-fest 모듈 파싱 오류 방지
   'yaml', // yaml/browser → CJS로 alias 하지 않을 거면 제외
   'swagger-jsdoc', // swagger-jsdoc 의존성 제거
+  'elkjs',
   // 추가적으로 문제가 되는 패키지 여기에 추가
 ];
 
