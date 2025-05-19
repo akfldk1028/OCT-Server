@@ -42,6 +42,9 @@ import { FlowProvider, useFlow } from './features/server/components/useFlowEvent
 import ServerLayout, { loader as serverLayoutLoader } from './features/server/layout/server-layout';
 import { isElectron } from './utils/environment';
 import PricePage, { loader as priceLoader } from './features/price/pages/price-page';
+import OverlayHome from './features/guide/pages/overlayHome-page';
+
+import AntropicComputer from './features/guide/pages/AntropicComputer';
 
 console.log('📍 Loaded renderer entry index.tsx');
 
@@ -58,6 +61,10 @@ const electronRouter = createHashRouter(
           index: true,
           element: <HomePage />,
           loader: homePageLoader,
+        },
+        {
+          path: 'overlay',
+          element: <OverlayHome />,
         },
         {
           path: 'auth',
@@ -191,6 +198,7 @@ const webRouter = createBrowserRouter(
           element: <HomePage />,
           loader: homePageLoader,
         },
+
         {
           path: 'auth',
           children: [

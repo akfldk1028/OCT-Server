@@ -3,9 +3,15 @@
 /* eslint no-unused-vars: off */
 
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+// import { preloadZustandBridge } from 'zutron/preload';
 import { workflowAPI } from './preload-workflow';
 import { overlayAPI } from './preload-overlay';
 
+import type { AppState as OverlayState } from '../common/types/overlay-types';
+import type { AppState as AnthropicState } from '../common/types/action-types';
+
+import { preloadBridge } from '@zubridge/electron/preload';
+import type { RootState }   from  '../common/types/root-types';
 
 export type Channels =
   | 'ipc-example'
@@ -39,7 +45,10 @@ export type Channels =
   | 'workflow:executeNode'
   | 'workflow:progress'
   | 'workflow:complete'
-  | 'mcp-workflow:tool-call';
+  | 'mcp-workflow:tool-call'
+  // ...기존 채널
+  | 'set-guide-window'
+  | 'reset-window';
 
 const electronHandler = {
   ipcRenderer: {
@@ -167,8 +176,6 @@ interface ServerInfo {
   connectionStatus?: 'connected' | 'disconnected' | 'connecting';
   lastError?: string;
 }
-
-
 
 // Electron API 정의
 const api = {
@@ -551,13 +558,13 @@ const api = {
       transportType: 'stdio' | 'sse' | 'streamable-http';
       commandType: string;
       active?: boolean;
-    }
+    },
   ): Promise<{ success: boolean; message?: string }> => {
     return ipcRenderer.invoke('server:saveSession', serverId, sessionInfo);
   },
 
   getServerSession: async (
-    serverId: string
+    serverId: string,
   ): Promise<{
     sessionId?: string;
     lastConnected?: string;
@@ -568,18 +575,18 @@ const api = {
   },
 
   validateSession: async (
-    sessionId: string
-  ): Promise<{ 
-    valid: boolean; 
-    active?: boolean; 
+    sessionId: string,
+  ): Promise<{
+    valid: boolean;
+    active?: boolean;
     message?: string;
   }> => {
     return ipcRenderer.invoke('server:validateSession', sessionId);
   },
 
-  cleanupSessions: async (): Promise<{ 
-    cleaned: number; 
-    remaining: number; 
+  cleanupSessions: async (): Promise<{
+    cleaned: number;
+    remaining: number;
   }> => {
     return ipcRenderer.invoke('server:cleanupSessions');
   },
@@ -589,25 +596,53 @@ const api = {
   ...workflowAPI,
 
   // 오버레이 API 병합
-  ...overlayAPI,
+  // ...overlayAPI,
 
   // 워크플로우 네임스페이스로도 접근 가능하게
   workflow: workflowAPI,
 
   // 오버레이 API 병합
-  overlay: overlayAPI,
+  // overlay: overlayAPI,
 };
 
 // Claude Desktop 관련 API
 const claudeManager = {
   getAllServers: () => ipcRenderer.invoke('claude:getAllServers'),
-  removeServer: (serverName: string) => ipcRenderer.invoke('claude:removeServer', serverName),
+  removeServer: (serverName: string) =>
+    ipcRenderer.invoke('claude:removeServer', serverName),
 };
+
+// import { store, dispatch } from './computer/overlay/create';
+// import { store as anthropicStore, dispatch as anthropicDispatch } from './computer/antropic/create';
+
+// const overlayBridge = preloadZustandBridge<OverlayState>();
+// const { handlers: overlayHandlers } =  preloadBridge<OverlayState>();
+const { handlers } = preloadBridge<RootState>();
 
 // Context Bridge를 통해 API 노출
 contextBridge.exposeInMainWorld('electron', electronHandler);
 contextBridge.exposeInMainWorld('api', api);
 contextBridge.exposeInMainWorld('claudeAPI', claudeManager);
+contextBridge.exposeInMainWorld('zubridge', handlers);
+// contextBridge.exposeInMainWorld('overlayZubridge', overlayHandlers);
+// 서로 다른 이름으로 노출
+// contextBridge.exposeInMainWorld('overlayZutron', overlayBridge.handlers);
+// contextBridge.exposeInMainWorld('anthropicZutron', handlers);
+
+
+contextBridge.exposeInMainWorld('overlayAPI', {
+  sendMessage: (channel: string, ...args: any[]) =>
+    ipcRenderer.send(channel, ...args),
+  onMessage: (channel: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.on(channel, (_event, ...args) => callback(...args));
+  },
+  // ...overlayAPI,
+  // overlay: overlayAPI,
+  // getState: () => ipcRenderer.invoke('getState'),
+
+  // 필요시 추가 메서드...
+});
+
 
 export type ElectronHandler = typeof electronHandler;
 export type Api = typeof api;

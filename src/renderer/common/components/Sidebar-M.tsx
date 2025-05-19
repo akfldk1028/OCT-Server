@@ -96,13 +96,13 @@ const menus = [
   },
   {
     name: 'Community',
-    to: '/community',
+    to: '/overlay',
     icon: <MessageSquare className="w-4 h-4" />,
     items: [
       {
         name: 'All Posts',
         description: 'See all posts in our community',
-        to: '/community',
+        to: '/overlay',
       },
       {
         name: 'Top Posts',

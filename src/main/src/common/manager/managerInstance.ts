@@ -18,7 +18,7 @@ const SERVER_TYPES = {
 // 서버 목록 생성 함수
 function createServers() {
   let expressServerInstance: any = null;
-  
+
   return [{
     name: 'local-express-server', // 이름을 더 명확하게 변경
     displayName: 'Express 로컬 서버', // 표시 이름 추가
@@ -27,7 +27,7 @@ function createServers() {
     config: {
       command: 'node',
       args: ['server.js'],
-      port: 4303
+      port: 4302
     },
     // Express 서버 시작 메소드
     start: async function() {

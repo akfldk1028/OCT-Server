@@ -112,7 +112,7 @@ export class ServerManager {
       }
 
       // API 호출 구성
-      const PORT = 4303;
+      const PORT = 4302;
       const command = config.command || config.execution?.command || '';
       const args =
         config.args?.join(' ') || config.execution?.args?.join(' ') || '';
@@ -132,7 +132,7 @@ export class ServerManager {
           console.log(
             `[ServerManager] Session ID for ${serverName}: ${sessionId}`,
           );
-          
+
           this.addSession(serverName, sessionId);
         }
 
@@ -255,7 +255,7 @@ export class ServerManager {
     if (response.ok) {
       console.log(`[ServerManager] ${name} stopped successfully`);
       this.updateServerStatus(name, 'stopped');
-      
+
       this.removeSession(name);
     } else {
       throw new Error(`Failed to stop server ${name}: ${response.statusText}`);
@@ -356,18 +356,18 @@ export class ServerManager {
     try {
       // 로그 출력 제거하여 콘솔 스팸 방지
       // console.log(`[ServerManager] 활성 세션 조회 요청 (서버: ${serverName || '전체'})`);
-      
+
       // Express API 호출 시도 (첫 번째 시도할 때만 호출 - 정적 변수 사용)
       if (!this._expressApiUnavailable) {
         try {
           // Express 서버 API를 통해 활성 세션 정보 가져오기
           const PORT = 4303;
-          const endpoint = serverName 
+          const endpoint = serverName
             ? `http://localhost:${PORT}/mcp/server/${encodeURIComponent(serverName)}/sessions`
             : `http://localhost:${PORT}/mcp/sessions`;
-          
+
           const response = await fetch(endpoint);
-          
+
           if (response.ok) {
             const sessions = await response.json();
             console.log(`[ServerManager] 활성 세션 조회 성공: ${sessions.length}개 세션`);
@@ -384,10 +384,10 @@ export class ServerManager {
           console.log(`[ServerManager] Express API 세션 조회 중 오류, 내부 데이터 사용:`, error);
         }
       }
-      
+
       // 내부 데이터 사용
       const result: any[] = [];
-      
+
       if (serverName) {
         // 특정 서버의 세션만 반환
         const serverSessions = this.sessions.get(serverName) || [];
@@ -410,7 +410,7 @@ export class ServerManager {
           }
         });
       }
-      
+
       // 결과가 있는 경우에만 로그 출력 (주기적인 호출로 인한 로그 제거)
       // if (result.length > 0) {
       //   console.log(`[ServerManager] 내부 세션 데이터 반환: ${result.length}개 서버`);
@@ -443,7 +443,7 @@ export class ServerManager {
   getAllServersWithFullConfig(): any[] {
     const fs = require('fs');
     const path = require('path');
-    
+
     // 앱 데이터 경로 정의
     const appDataPath = path.join(
       process.env.APPDATA ||
@@ -457,7 +457,7 @@ export class ServerManager {
       const serverId = srv.name;
       const serverDir = path.join(appDataPath, 'servers', serverId);
       const configFilePath = path.join(serverDir, `${serverId}_config.json`);
-      
+
       // 기본 서버 정보 객체
       const serverInfo = {
         id: serverId,
@@ -467,42 +467,42 @@ export class ServerManager {
         online: srv.status === 'running',
         config: srv.config, // 기본 설정 정보
       };
-      
+
       // 설정 파일이 존재하면 해당 정보로 업데이트
       try {
         if (fs.existsSync(configFilePath)) {
           console.log(`[ServerManager] 설정 파일을 직접 읽습니다: ${configFilePath}`);
           const configContent = fs.readFileSync(configFilePath, 'utf8');
           const fullConfig = JSON.parse(configContent);
-          
+
           // 설정 파일의 정보를 현재 서버 정보와 병합
           if (!serverInfo.config) {
             serverInfo.config = {};
           }
-          
+
           // 주요 config 속성 복사
-          serverInfo.config = { 
+          serverInfo.config = {
             ...serverInfo.config,
             command: fullConfig.execution?.command || fullConfig.command,
             args: fullConfig.execution?.args || fullConfig.args,
             transportType: fullConfig.transportType || 'stdio',
             env: fullConfig.execution?.env || fullConfig.env || {},
           };
-          
- 
-          
+
+
+
           // 서버 타입 정보도 업데이트
           if (fullConfig.server_type || fullConfig.serverType) {
             serverInfo.serverType = fullConfig.server_type || fullConfig.serverType;
           }
-          
+
           console.log(`[ServerManager] ${serverId} 서버의 전체 설정 정보를 가져왔습니다.`);
 
         }
       } catch (error) {
         console.error(`[ServerManager] ${serverId} 서버의 설정 파일 읽기 오류:`, error);
       }
-      
+
       return serverInfo;
     });
   }
@@ -511,17 +511,17 @@ export class ServerManager {
     if (!this.sessions.has(serverName)) {
       this.sessions.set(serverName, []);
     }
-    
+
     const serverSessions = this.sessions.get(serverName);
     if (serverSessions && !serverSessions.find(s => s.sessionId === sessionId)) {
       serverSessions.push({ serverName, sessionId });
       console.log(`[ServerManager] Session ${sessionId} added for ${serverName}`);
     }
   }
-  
+
   private removeSession(serverName: string, sessionId?: string): void {
     if (!this.sessions.has(serverName)) return;
-    
+
     if (sessionId) {
       // 특정 세션만 제거
       const serverSessions = this.sessions.get(serverName);

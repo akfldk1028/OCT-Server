@@ -22,6 +22,12 @@ const excludePackages = [
   'yaml', // yaml/browser → CJS로 alias 하지 않을 거면 제외
   'swagger-jsdoc', // swagger-jsdoc 의존성 제거
   'elkjs',
+  '@anthropic-ai/sdk',
+  'node-window-manager', // This depends on extract-file-icon
+  '@zubridge/electron',
+  '@nut-tree-fork/libnut-win32',
+  '@nut-tree-fork/libnut',
+  '@nut-tree-fork/nut-js', // 만약 이 패키지도 사용 중이라면
   // 추가적으로 문제가 되는 패키지 여기에 추가
 ];
 

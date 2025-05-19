@@ -3,6 +3,8 @@
 import { globalShortcut, app } from "electron"
 import { IShortcutsHelperDeps } from "./main"
 
+
+
 export class ShortcutsHelper {
   private deps: IShortcutsHelperDeps
 

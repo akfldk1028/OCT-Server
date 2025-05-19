@@ -1,15 +1,5 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../supa-client';
-
-
-
-
-
-
-
-
-
-
 
 export const getJobs = async (
   client: SupabaseClient<Database>,
@@ -23,10 +13,10 @@ export const getJobs = async (
     location?: string;
     type?: string;
     salary?: string;
-  }
+  },
 ) => {
   const baseQuery = client
-    .from("jobs")
+    .from('jobs')
     .select(
       `
     job_id,
@@ -39,17 +29,17 @@ export const getJobs = async (
     location,
     salary_range,
     created_at
-    `
+    `,
     )
     .limit(limit);
-  if (location && location !== "") {
-    baseQuery.eq("location", location);
+  if (location && location !== '') {
+    baseQuery.eq('location', location);
   }
-  if (type && type !== "") {
-    baseQuery.eq("job_type", type);
+  if (type && type !== '') {
+    baseQuery.eq('job_type', type);
   }
-  if (salary && salary !== "") {
-    baseQuery.eq("salary_range", salary);
+  if (salary && salary !== '') {
+    baseQuery.eq('salary_range', salary);
   }
   const { data, error } = await baseQuery;
   if (error) {
@@ -60,12 +50,12 @@ export const getJobs = async (
 
 export const getJobById = async (
   client: SupabaseClient<Database>,
-  { jobId }: { jobId: string }
+  { jobId }: { jobId: string },
 ) => {
   const { data, error } = await client
-    .from("jobs")
-    .select("*")
-    .eq("job_id", jobId)
+    .from('jobs')
+    .select('*')
+    .eq('job_id', jobId)
     .single();
   if (error) throw error;
   return data;
@@ -79,42 +69,40 @@ export const getClients = async (
   }: {
     limit?: number;
     filter?: string;
-  } = {}
+  } = {},
 ) => {
   try {
-    const baseQuery = client
-      .from("clients")
-      .select("*")
-      
+    const baseQuery = client.from('clients').select('*');
+
     if (limit) {
       baseQuery.limit(limit);
     }
-    
-    if (filter && filter !== "") {
-      baseQuery.ilike("name", `%${filter}%`);
+
+    if (filter && filter !== '') {
+      baseQuery.ilike('name', `%${filter}%`);
     }
-    
+
     const { data, error } = await baseQuery;
     if (error) {
-      console.error("Error fetching clients:", error);
+      console.error('Error fetching clients:', error);
       throw error;
     }
     return data;
   } catch (error) {
-    console.error("Failed to execute clients query:", error);
+    console.error('Failed to execute clients query:', error);
     throw error;
   }
 };
 
 export const getClientById = async (
   client: SupabaseClient<Database>,
-  { clientId }: { clientId: number }
+  { clientId }: { clientId: number },
 ) => {
   try {
     const { data, error } = await client
-      .from("clients")
-      .select("*")
-      .eq("client_id", clientId)
+      .from('clients')
+      .select('*')
+      .eq('client_id', clientId)
       .single();
     if (error) throw error;
     return data;

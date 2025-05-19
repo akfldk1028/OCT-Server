@@ -1,7 +1,29 @@
 // ipcHandlers.ts - MCP 핸들러와 인터뷰 코더 핸들러 병합
 
-import { ipcMain } from "electron"
-import { IIpcHandlerDeps } from "./main"
+import { BrowserWindow, ipcMain } from "electron"
+
+
+ipcMain.on('set-guide-window', (event) => {
+  const win = BrowserWindow.getFocusedWindow(); // 또는 mainWindow
+  if (win) {
+    win.setBounds({ width: 600, height: 800 }); // 원하는 크기
+    win.setAlwaysOnTop(true); // 항상 위
+    // win.setPosition(x, y); // 위치도 필요하면
+  }
+});
+
+ipcMain.on('reset-window', (event) => {
+  const win = BrowserWindow.getFocusedWindow();
+  if (win) {
+    win.setBounds({ width: 1200, height: 900 }); // 원래 크기
+    win.setAlwaysOnTop(false);
+  }
+});
+
+// ipcMain.handle('getState', (event, ...args) => {
+//   console.log('getState IPC called!', args);
+//   return {}; // 임시 반환
+// });
 
 export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
   console.log("Initializing IPC handlers (MCP + Interview Coder)")
@@ -315,19 +337,19 @@ export function initializeIpcHandlers(deps: IIpcHandlerDeps): void {
   // ===== 소프트웨어 가이드 관련 핸들러들 =====
 
   // 가이드 처리 요청 (SoftwareGuideProcessingHelper 연동)
-  ipcMain.handle("process-software-guide", async (_, { software, question }) => {
-    try {
-      if (deps.softwareGuideProcessingHelper) {
-        await deps.softwareGuideProcessingHelper.processSoftwareGuide(software, question)
-        return { success: true }
-      } else {
-        return { error: "Software guide processing helper not available" }
-      }
-    } catch (error) {
-      console.error("Error in process-software-guide:", error)
-      return { error: "Failed to process software guide" }
-    }
-  })
+  // ipcMain.handle("process-software-guide", async (_, { software, question }) => {
+  //   try {
+  //     if (deps.softwareGuideProcessingHelper) {
+  //       await deps.softwareGuideProcessingHelper.processSoftwareGuide(software, question)
+  //       return { success: true }
+  //     } else {
+  //       return { error: "Software guide processing helper not available" }
+  //     }
+  //   } catch (error) {
+  //     console.error("Error in process-software-guide:", error)
+  //     return { error: "Failed to process software guide" }
+  //   }
+  // })
 
   // 커스텀 질문 모달 관련 핸들러
   ipcMain.handle("submit-guide-question", async (_, { software, question }) => {

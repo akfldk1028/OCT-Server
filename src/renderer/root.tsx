@@ -5,7 +5,8 @@ import {
   useNavigation,
   isRouteErrorResponse,
   useLoaderData,
-  LoaderFunctionArgs
+  LoaderFunctionArgs,
+  useNavigate
 } from 'react-router';
 import { Settings } from 'luxon';
 import { useEffect } from 'react';
@@ -17,8 +18,31 @@ import { makeSSRClient, supabase } from './supa-client';
 import { getUserById } from './features/users/queries';
 import {  IS_ELECTRON, IS_WEB } from './utils/environment';
 import Navigation from './common/components/navigation';
+import {ensureOverlayApi} from './utils/api'
+import {ShortcutHandlerMap, shortcutManager, SHORTCUTS} from '@/common/shortcut_action/shortcut'; // 경로는 실제 위치에 맞게 조정
+import Mousetrap from 'mousetrap';
 
+function matchShortcut(event, shortcut) {
+  // 예시: 'Control+Shift+G' → ctrlKey, shiftKey, key === 'g'
+  const keys = shortcut.key.toLowerCase().split('+');
+  const key = keys[keys.length - 1];
+  const requiredCtrl = keys.includes('control') || keys.includes('commandorcontrol');
+  const requiredShift = keys.includes('shift');
+  const requiredAlt = keys.includes('alt');
+  const requiredMeta = keys.includes('meta');
 
+  // modifier가 필요하면 true, 필요 없으면 false
+  if (requiredCtrl && !event.ctrlKey && !event.metaKey) return false;
+  if (!requiredCtrl && (event.ctrlKey || event.metaKey)) return false;
+  if (requiredShift && !event.shiftKey) return false;
+  if (!requiredShift && event.shiftKey) return false;
+  if (requiredAlt && !event.altKey) return false;
+  if (!requiredAlt && event.altKey) return false;
+  if (requiredMeta && !event.metaKey) return false;
+  if (!requiredMeta && event.metaKey) return false;
+
+  return event.key.toLowerCase() === key;
+}
 // loader 함수 정의
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const {
@@ -49,11 +73,43 @@ export function Root() {
 
   const { user, profile} = loaderData ?? { user: null, profile: null };  const { pathname } = useLocation();
   const navigation = useNavigation();
+  const navigate = useNavigate(); // 훅은 컴포넌트 최상단에서 호출
+
   const isLoading = navigation.state === 'loading';
   const isLoggedIn = !!user;
 
   Settings.defaultLocale = 'ko';
   Settings.defaultZone = 'utc';
+
+
+  useEffect(() => {
+    if (!IS_ELECTRON) return;
+
+    const overlayApi = ensureOverlayApi();
+
+    // 단축키 핸들러 정의
+    const handlers: ShortcutHandlerMap = {
+      'setGuideWindow': () => {
+        overlayApi.sendMessage('set-guide-window');
+        navigate('/overlay');
+      },
+      'resetWindow': () => {
+        overlayApi.sendMessage('reset-window');
+      }
+
+    };
+
+    // 핸들러 등록 및 초기화
+    shortcutManager.registerHandlers(handlers);
+    shortcutManager.initialize();
+
+    // 컴포넌트 언마운트 시 정리
+    return () => {
+      shortcutManager.cleanup();
+    };
+  }, [navigate]); // navigate가 의존성 배열에 포함되어야 함
+
+
 
 
 
@@ -101,8 +157,8 @@ export function Root() {
           name={profile?.name || ""}
           hasNotifications={false}
           hasMessages={false}
-          collapsed={pathname.includes('/jobs/node')}
-        />
+          collapsed={pathname.includes('/jobs/node') || pathname === '/overlay'} // 추가!
+          />
       )}
       <main
         className={cn(

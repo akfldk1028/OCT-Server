@@ -152,18 +152,22 @@ export class SoftwareGuideProcessingHelper {
   }
 
   // 기존 메서드 - 스크린샷 없이 가이드 처리
-  public async processSoftwareGuide(software: string, question: string): Promise<void> {
+  public async processSoftwareGuide(
+    software: string,
+    question: string,
+    screenshotData?: string // base64 등
+  ): Promise<void> {
     if (!this.appState.guideEnabled) {
       console.warn('Guide mode is disabled');
       return;
     }
-
-    const guideData = await this.requestGuide(software, question);
+  
+    // 스크린샷 데이터가 있으면 함께 전달
+    const guideData = await this.requestGuide(software, question, screenshotData);
     if (guideData && !guideData.error) {
       await this.showGuide(guideData);
     }
   }
-
   // 스크린샷 포함 가이드 생성 (추후 실제 AI 서비스 연동)
   // private async generateGuideWithScreenshot(
   //   software: string, 
@@ -451,21 +455,26 @@ export class SoftwareGuideProcessingHelper {
   }
 
   // 소프트웨어별 가이드 요청
-  private async requestGuide(software: string, question: string): Promise<any> {
+  private async requestGuide(
+    software: string,
+    question: string,
+    screenshotData?: string
+  ): Promise<any> {
     if (!this.appState.guideEnabled) {
       return { error: 'Guide mode is disabled' };
     }
   
     try {
-      // AI 서비스 사용 (스크린샷 없는 버전)
-      console.log(`Requesting guide for ${software} without screenshot...`);
+      // AI 서비스 사용 (스크린샷 포함)
+      console.log(`Requesting guide for ${software} (스크린샷 포함: ${!!screenshotData})`);
       return await aiService.generateGuide({
         software,
-        question
+        question,
+        screenshotData
       });
     } catch (error) {
       console.error('Error requesting software guide:', error);
-      
+  
       // 오류 시 백업용 더미 가이드
       return {
         software,

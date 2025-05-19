@@ -88,6 +88,24 @@
   }
 }
 
+
+.toggle-checkbox:checked {
+  right: 0;
+  border-color: #c79060;
+}
+.toggle-checkbox:checked + .toggle-label {
+  background-color: #c79060;
+}
+.toggle-checkbox {
+  right: 0;
+  z-index: 1;
+  border-color: #fff;
+  transition: all 0.3s;
+}
+.toggle-label {
+  transition: all 0.3s;
+}
+
 .react-flow__controls {
   background: hsl(var(--card)) !important;
   border: 1px solid hsl(var(--border)) !important;
