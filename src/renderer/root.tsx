@@ -185,7 +185,7 @@ export function Root() {
             'overflow-hidden  py-0 md:py-0 px-0 md:px-0': pathname.includes('/jobs/node'),
             'overflow-hidden  py-10 md:py-10 px-5 md:px-10': pathname.includes('/jobs/inspector'),
             'overflow-y-auto py-10 md:py-20 px-5 md:px-20': IS_ELECTRON && pathname === '/',
-            'py-0 px-5 md:py-0 min-h-screen bg-background': pathname.includes('/chat/'),
+            'overflow-y-auto  py-0 px-5 md:py-0 min-h-screen bg-background': pathname.includes('/chat/'),
 
             'transition-opacity animate-pulse': isLoading,
           }

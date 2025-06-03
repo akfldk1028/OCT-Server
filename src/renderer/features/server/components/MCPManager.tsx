@@ -207,7 +207,7 @@ export default function MCPManager({ sessionId }: { sessionId: string }) {
                         )}
                         {server.transportType}
                       </Badge>
-                      <Badge variant={status === 'active' ? 'success' : status === 'error' ? 'destructive' : 'outline'}>
+                      <Badge variant={status === 'active' ? 'default' : status === 'error' ? 'destructive' : 'outline'}>
                         {status}
                       </Badge>
                     </div>
@@ -252,7 +252,7 @@ export default function MCPManager({ sessionId }: { sessionId: string }) {
                   <div className="text-sm text-muted-foreground">
                     Server: {transport.serverId}
                   </div>
-                  <Badge variant={transport.status === 'connected' ? 'success' : 'destructive'}>
+                  <Badge variant={transport.status === 'connected' ? 'default' : 'destructive'}>
                     {transport.status}
                   </Badge>
                 </div>
@@ -274,7 +274,7 @@ export default function MCPManager({ sessionId }: { sessionId: string }) {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-mono text-sm">{proxy.id}</div>
-                    <Badge variant={proxy.status === 'active' ? 'success' : 'outline'}>
+                    <Badge variant={proxy.status === 'active' ? 'default' : 'outline'}>
                       {proxy.status}
                     </Badge>
                   </div>
@@ -311,21 +311,21 @@ export default function MCPManager({ sessionId }: { sessionId: string }) {
                     <div className="flex items-center gap-2 text-sm">
                       <Badge variant="outline">Transport</Badge>
                       <span className="text-muted-foreground">→</span>
-                      <Badge variant={transport?.status === 'connected' ? 'success' : 'destructive'}>
+                      <Badge variant={transport?.status === 'connected' ? 'default' : 'destructive'}>
                         {transport?.status || 'unknown'}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <Badge variant="outline">Client</Badge>
                       <span className="text-muted-foreground">→</span>
-                      <Badge variant={client?.status === 'connected' ? 'success' : 'destructive'}>
+                      <Badge variant={client?.status === 'connected' ? 'default' : 'destructive'}>
                         {client?.status || 'unknown'}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <Badge variant="outline">Tools</Badge>
                       <span className="text-muted-foreground">→</span>
-                      <span>{binding.tools?.length || 0} available</span>
+                      <span>Connected</span>
                     </div>
                   </div>
                 </Card>

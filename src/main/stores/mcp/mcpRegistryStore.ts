@@ -11,8 +11,11 @@ import {
   ListPromptsResultSchema,
   ListToolsResultSchema,
   CallToolRequestSchema,
+  CallToolResultSchema,
   GetPromptRequestSchema,
+  GetPromptResultSchema,
   ReadResourceRequestSchema,
+  ReadResourceResultSchema,
   ReadResourceResult,
   ListToolsResult,
   ListPromptsResult,
@@ -143,6 +146,9 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
 
         // mcpRegistryStore에 도구 등록
         toolsResponse.tools.forEach((tool: Tool) => {
+          console.log(`🔍 원본 Tool 데이터:`, tool); // 디버깅용
+          console.log(`🔍 Tool inputSchema:`, tool.inputSchema); // 스키마 확인
+          
           const registered: RegisteredTool = {
             ...tool,
             serverId,
@@ -150,6 +156,8 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
             category: 'general',
             usage: { count: 0 },
           };
+          
+          console.log(`✅ 등록된 Tool:`, registered); // 등록 후 확인
           
           set((state) => ({
             tools: {
@@ -287,15 +295,42 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
 
   // Execute Tool
   executeTool: async (toolName, args) => {
+    console.log(`🚀 [mcpRegistryStore.executeTool] 호출됨!`);
+    console.log(`🔧 toolName: ${toolName}`);
+    console.log(`📦 args:`, args);
+    
     const tool = get().tools[toolName];
-    if (!tool) throw new Error(`Tool not found: ${toolName}`);
+    if (!tool) {
+      console.error(`❌ Tool not found in registry: ${toolName}`);
+      console.log(`📋 Available tools:`, Object.keys(get().tools));
+      throw new Error(`Tool not found: ${toolName}`);
+    }
 
+    console.log(`✅ Tool found:`, tool);
+    
     const server = get().servers[tool.serverId];
-    if (!server) throw new Error('Server not found');
+    if (!server) {
+      console.error(`❌ Server not found: ${tool.serverId}`);
+      console.log(`📋 Available servers:`, Object.keys(get().servers));
+      throw new Error('Server not found');
+    }
+
+    console.log(`✅ Server found:`, server);
+    console.log(`🔗 Using clientId: ${server.clientId}`);
 
     const startTime = Date.now();
 
     try {
+      console.log(`📤 Sending request to clientStore.sendRequest...`);
+      console.log(`📋 Request details:`, {
+        clientId: server.clientId,
+        method: 'tools/call',
+        params: {
+          name: toolName,
+          arguments: args,
+        }
+      });
+      
       const result = await clientStore.getState().sendRequest({
         clientId: server.clientId,
         request: {
@@ -305,8 +340,10 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
             arguments: args,
           },  
         },
-        schema: CallToolRequestSchema,
+        schema: CallToolResultSchema, // ✅ 응답 스키마 사용
       });
+      
+      console.log(`📨 Raw result from sendRequest:`, result);
 
       // Update usage stats
       const latency = Date.now() - startTime;
@@ -410,7 +447,7 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
     }
   },
 
-  // Get Prompt
+  // Get Prompt - SDK 표준 반환
   getPrompt: async (promptName, args) => {
     const prompt = get().prompts[promptName];
     if (!prompt) throw new Error(`Prompt not found: ${promptName}`);
@@ -419,19 +456,17 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
     if (!server) throw new Error('Server not found');
 
     try {
-      const response = await clientStore.getState().sendRequest<{
-        messages: Array<{ role: string; content: string }>
-      }>({
+      const response = await clientStore.getState().sendRequest({
         clientId: server.clientId,
         request: {
           method: 'prompts/get',
-          params: { name: promptName, args },
+          params: { name: promptName, arguments: args },
         },
-        schema: GetPromptRequestSchema,
+        schema: GetPromptResultSchema, // ✅ 응답 스키마 사용
       });
 
-      // Convert messages to string
-      return response.messages.map((m: { content: string }) => m.content).join('\n');
+      // ✅ SDK 표준: GetPromptResult 객체 그대로 반환
+      return response;
     } catch (error) {
       console.error(`Failed to get prompt ${promptName}:`, error);
       throw error;
@@ -490,7 +525,7 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
     }
   },
 
-  // Read Resource
+  // Read Resource - SDK 표준 반환
   readResource: async (resourceUri) => {
     const resource = get().resources[resourceUri];
     if (!resource) throw new Error(`Resource not found: ${resourceUri}`);
@@ -499,16 +534,17 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
     if (!server) throw new Error('Server not found');
 
     try {
-      const response = await clientStore.getState().sendRequest<ReadResourceResult>({
+      const response = await clientStore.getState().sendRequest({
         clientId: server.clientId,
         request: {
           method: 'resources/read',
           params: { uri: resourceUri },
         },
-        schema: ReadResourceRequestSchema,
+        schema: ReadResourceResultSchema, // ✅ 응답 스키마 사용
       });
 
-      return response.contents;
+      // ✅ SDK 표준: ReadResourceResult 객체 그대로 반환
+      return response;
     } catch (error) {
       console.error(`Failed to read resource ${resourceUri}:`, error);
       throw error;

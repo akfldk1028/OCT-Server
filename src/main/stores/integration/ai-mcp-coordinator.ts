@@ -338,14 +338,27 @@ export const mcpCoordinatorStore = createStore<MCPCoordinatorState>(
     executeToolForSession: async (payload) => {
       const { sessionId, toolName, args } = payload;
       
+      console.log(`🚀 [mcp_coordinator.executeToolForSession] 호출됨!`);
+      console.log(`📋 sessionId: ${sessionId}`);
+      console.log(`🔧 toolName: ${toolName}`);
+      console.log(`📦 args:`, args);
+      
       // 도구가 등록되어 있는지 확인
       const tool = mcpRegistryStore.getState().getTool(toolName);
       if (!tool) {
+        console.error(`❌ Tool not found in registry: ${toolName}`);
         throw new Error(`Tool ${toolName} not found in registry`);
       }
       
+      console.log(`✅ Tool found:`, tool);
+      console.log(`🔗 Tool server: ${tool.serverId} (${tool.serverName})`);
+      
       // mcpRegistryStore의 executeTool 사용
-      return await mcpRegistryStore.getState().executeTool(toolName, args);
+      console.log(`📤 Calling mcpRegistryStore.executeTool...`);
+      const result = await mcpRegistryStore.getState().executeTool(toolName, args);
+      console.log(`📨 Result from mcpRegistryStore.executeTool:`, result);
+      
+      return result;
     },
 
     getSessionTools: async (payload) => {
