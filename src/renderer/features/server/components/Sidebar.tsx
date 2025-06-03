@@ -6,13 +6,14 @@ import ServiceTab from './tab/ServiceTab';
 import ServerTab from './tab/ServerTab';
 import { useOutletContext } from 'react-router';
 import type { AllServersResponse, ServerItem, ClientRow } from '../../../types';
+import ComputerUseTab from "@/renderer/features/server/components/tab/ComputerUseTab";
 
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const { servers, clients } = useOutletContext<{ servers: AllServersResponse, clients: ClientRow[] }>();
 
   const [_, setType] = useDnD();
   const [collapsed, setCollapsed] = useState(false);
-  const [activeTab, setActiveTab] = useState<'Toolbox' | 'Client' | 'Server'>('Toolbox');
+  const [activeTab, setActiveTab] = useState<'Toolbox' | 'Client' | 'Server' | 'ComputerUse'>('Toolbox');
 
   const handleDragStart = (event: React.DragEvent, nodeType: string) => {
     setType(nodeType);
@@ -83,6 +84,13 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
             >
               {collapsed ? <span>❓</span> : 'Server'}
             </button>
+            <button
+              onClick={() => setActiveTab('ComputerUse')}
+              className={`${activeTab === 'ComputerUse' ? 'font-bold' : ''} ${collapsed ? 'w-8 h-8 p-0 flex items-center justify-center text-lg' : ''}`}
+              title="ComputerUse"
+            >
+              {collapsed ? <span>❓</span> : 'ComputerUse'}
+            </button>
           </div>
           <div>
             {activeTab === 'Toolbox' && (
@@ -93,6 +101,9 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
             )}
             {activeTab === 'Server' && (
               <ServerTab collapsed={collapsed} onDragStart={handleDragStart} servers={servers?.allServers ?? []} />
+            )}
+            {activeTab === 'ComputerUse' && (
+              <ComputerUseTab collapsed={collapsed} onDragStart={handleDragStart} servers={servers?.allServers ?? []} />
             )}
           </div>
         </div>

@@ -45,6 +45,7 @@ import PricePage, { loader as priceLoader } from './features/price/pages/price-p
 import OverlayHome from './features/guide/pages/overlayHome-page';
 
 import AntropicComputer from './features/guide/pages/AntropicComputer';
+import ChatWrapper from './features/server/pages/ChatWrapper';
 
 console.log('📍 Loaded renderer entry index.tsx');
 
@@ -64,7 +65,7 @@ const electronRouter = createHashRouter(
         },
         {
           path: 'overlay',
-          element: <OverlayHome />,
+          // element: <OverlayHome />,
         },
         {
           path: 'auth',
@@ -175,6 +176,15 @@ const electronRouter = createHashRouter(
             {
               path: 'node',
               element: <NodePage />,
+            },
+            {
+              path: 'chat',
+              children: [
+                {
+                  path: ':sessionId',
+                  element: <ChatWrapper />, // RealtimeChat 대신 ChatWrapper 사용
+                } 
+              ]
             }
           ]
         }

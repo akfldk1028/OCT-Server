@@ -21,6 +21,7 @@ import Navigation from './common/components/navigation';
 import {ensureOverlayApi} from './utils/api'
 import {ShortcutHandlerMap, shortcutManager, SHORTCUTS} from '@/common/shortcut_action/shortcut'; // 경로는 실제 위치에 맞게 조정
 import Mousetrap from 'mousetrap';
+import { useDispatch, useStore } from '@/hooks/useStore';
 
 function matchShortcut(event, shortcut) {
   // 예시: 'Control+Shift+G' → ctrlKey, shiftKey, key === 'g'
@@ -78,6 +79,9 @@ export function Root() {
   const isLoading = navigation.state === 'loading';
   const isLoggedIn = !!user;
 
+  const dispatch = useDispatch();
+  const store = useStore();
+
   Settings.defaultLocale = 'ko';
   Settings.defaultZone = 'utc';
 
@@ -111,7 +115,20 @@ export function Root() {
 
 
 
+  // App.tsx 또는 MainLayout.tsx
+  useEffect(() => {
+    dispatch({
+      type: 'open_router.initialize',
+      payload: {
+        endpoint: 'http://127.0.0.1:8787',
+      }
+    });
+        // 2. MCP 기본 서버들 등록
+    dispatch({
+          type: 'mcp_registry.initializeDefaultServers',
+    });
 
+  }, []);
 
   console.log(isLoggedIn);
   if (IS_WEB) {
@@ -164,10 +181,11 @@ export function Root() {
         className={cn(
           'flex-1 h-full',
           {
-            'overflow-y-auto py-20 md:py-40 px-5 md:px-20': (!pathname.includes('/auth/') && !pathname.includes('/server/node-page') && !(typeof window !== 'undefined' && (window as any).IS_ELECTRON && pathname === '/')),
+            'overflow-y-auto py-20 md:py-40 px-5 md:px-20': (!pathname.startsWith('/chat') && !pathname.includes('/auth/') && !pathname.includes('/server/node-page') && !(typeof window !== 'undefined' && (window as any).IS_ELECTRON && pathname === '/')),
             'overflow-hidden  py-0 md:py-0 px-0 md:px-0': pathname.includes('/jobs/node'),
             'overflow-hidden  py-10 md:py-10 px-5 md:px-10': pathname.includes('/jobs/inspector'),
             'overflow-y-auto py-10 md:py-20 px-5 md:px-20': IS_ELECTRON && pathname === '/',
+            'py-0 px-5 md:py-0 min-h-screen bg-background': pathname.includes('/chat/'),
 
             'transition-opacity animate-pulse': isLoading,
           }

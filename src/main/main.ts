@@ -35,7 +35,11 @@ import { createZustandBridge } from '@zubridge/electron/main';
 
 // import { store } from './computer/antropic/create';
 import { store } from './computer/overlay/create';
+import {combinedStore} from  './stores/combinedStore'
 
+
+import {setupMCPHandlers} from "@/main/mcp-handler";
+import {setupMCPpreLoad} from "@/main/stores/renderProxy/rendererMCPProxy-preload";
 
 dotenv.config();
 
@@ -116,10 +120,11 @@ const createWindow = async () => {
 
 
   if (mainWindow) {
-    const { unsubscribe } = createZustandBridge(store, [mainWindow]);
+    // const { unsubscribe } = createZustandBridge(store, [mainWindow]);
+    const { unsubscribe } = createZustandBridge(combinedStore, [mainWindow]);
+
     // reducer: rootReducer,
     app.on('window-all-closed', unsubscribe);
-
 
   }
 
@@ -163,7 +168,8 @@ app.whenReady()
     setupMcpHealthCheckHandlers();
 
     // 파이썬 스크립트 예시 생략...
-
+    setupMCPHandlers();
+    setupMCPpreLoad();
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });

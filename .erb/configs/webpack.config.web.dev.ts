@@ -45,6 +45,24 @@ if (
 }
 
 const configuration: webpack.Configuration = {
+
+    resolve: {
+    fallback: {
+      fs: false,                                      // 브라우저에서 fs 무시
+      path: require.resolve('path-browserify'),       // path를 path-browserify로 대체
+      electron: false,                                // electron 모듈 무시
+    },
+    alias: {
+      fs: false,
+      path: false,
+      electron: false,
+    },
+  },
+  externals: {
+    electron: 'require("electron")',                 // 런타임에 require로 처리
+  },
+
+
   devtool: 'inline-source-map',
 
   mode: 'development',

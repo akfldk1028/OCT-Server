@@ -112,7 +112,7 @@ export class ServerManager {
       }
 
       // API 호출 구성
-      const PORT = 4302;
+      const PORT = 4303;
       const command = config.command || config.execution?.command || '';
       const args =
         config.args?.join(' ') || config.execution?.args?.join(' ') || '';

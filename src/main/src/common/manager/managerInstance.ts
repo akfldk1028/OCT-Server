@@ -27,7 +27,7 @@ function createServers() {
     config: {
       command: 'node',
       args: ['server.js'],
-      port: 4302
+      port: 4303
     },
     // Express 서버 시작 메소드
     start: async function() {

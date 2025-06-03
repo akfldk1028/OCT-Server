@@ -1,15 +1,25 @@
-import { Button } from "../../../common/components/ui/button";
-import {Form, Link, redirect, useActionData, useNavigation} from "react-router";
-import InputPair from "../../../common/components/input-pair";
-import AuthButtons from "../components/auth-buttons";
-import { makeSSRClient } from "../../../supa-client";
-import { z } from "zod";
-import { checkUsernameExists } from "../queries";
-import {LoaderCircle, Route} from "lucide-react";
-import { type ActionFunctionArgs, type LoaderFunctionArgs, type MetaFunction } from "react-router";
+import {
+  Form,
+  Link,
+  redirect,
+  useActionData,
+  useNavigation,
+} from 'react-router';
+import { z } from 'zod';
+import { LoaderCircle, Route } from 'lucide-react';
+import {
+  type ActionFunctionArgs,
+  type LoaderFunctionArgs,
+  type MetaFunction,
+} from 'react-router';
+import { Button } from '../../../common/components/ui/button';
+import InputPair from '../../../common/components/input-pair';
+import AuthButtons from '../components/auth-buttons';
+import { makeSSRClient } from '../../../supa-client';
+import { checkUsernameExists } from '../queries';
 
-export const meta  = () => {
-  return [{ title: "Join | wemake" }];
+export const meta = () => {
+  return [{ title: 'Join | wemake' }];
 };
 
 const formSchema = z.object({
@@ -20,13 +30,13 @@ const formSchema = z.object({
 });
 
 export const joinLoader = () => {
-  return { title: "Join | wemake" };
+  return { title: 'Join | wemake' };
 };
 
 export const joinAction = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const { success, error, data } = formSchema.safeParse(
-    Object.fromEntries(formData)
+    Object.fromEntries(formData),
   );
   if (!success) {
     return {
@@ -38,7 +48,7 @@ export const joinAction = async ({ request }: ActionFunctionArgs) => {
   });
   if (usernameExists) {
     return {
-      formErrors: { username: ["Username already exists"] },
+      formErrors: { username: ['Username already exists'] },
     };
   }
   const { client, headers } = makeSSRClient(request);
@@ -57,19 +67,18 @@ export const joinAction = async ({ request }: ActionFunctionArgs) => {
       signUpError: signUpError.message,
     };
   }
-  return redirect("/", { headers });
+  return redirect('/', { headers });
 };
-
 
 export default function JoinPage() {
   const navigation = useNavigation();
   const actionData = useActionData(); // useActionData 훅 추가
   const isSubmitting =
-    navigation.state === "submitting" || navigation.state === "loading";
+    navigation.state === 'submitting' || navigation.state === 'loading';
   return (
     <div className="flex flex-col relative items-center justify-center h-full">
       <Button
-        variant={"ghost"}
+        variant="ghost"
         asChild
         className="md:absolute hidden right-8 top-8 "
       >
@@ -87,7 +96,7 @@ export default function JoinPage() {
             type="text"
             placeholder="Enter your name"
           />
-          {actionData && "formErrors" in actionData && (
+          {actionData && 'formErrors' in actionData && (
             <p className="text-red-500">{actionData?.formErrors?.name}</p>
           )}
           <InputPair
@@ -99,7 +108,7 @@ export default function JoinPage() {
             type="text"
             placeholder="i.e wemake"
           />
-          {actionData && "formErrors" in actionData && (
+          {actionData && 'formErrors' in actionData && (
             <p className="text-red-500">{actionData?.formErrors?.username}</p>
           )}
           <InputPair
@@ -111,7 +120,7 @@ export default function JoinPage() {
             type="email"
             placeholder="i.e wemake@example.com"
           />
-          {actionData && "formErrors" in actionData && (
+          {actionData && 'formErrors' in actionData && (
             <p className="text-red-500">{actionData?.formErrors?.email}</p>
           )}
           <InputPair
@@ -123,17 +132,17 @@ export default function JoinPage() {
             type="password"
             placeholder="Enter your password"
           />
-          {actionData && "formErrors" in actionData && (
+          {actionData && 'formErrors' in actionData && (
             <p className="text-red-500">{actionData?.formErrors?.password}</p>
           )}
           <Button className="w-full" type="submit" disabled={isSubmitting}>
             {isSubmitting ? (
               <LoaderCircle className="animate-spin" />
             ) : (
-              "Create account"
+              'Create account'
             )}
           </Button>
-          {actionData && "signUpError" in actionData && (
+          {actionData && 'signUpError' in actionData && (
             <p className="text-red-500">{actionData.signUpError}</p>
           )}
         </Form>

@@ -11,18 +11,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/renderer/common/components/ui/select';
-import { useStore} from '../../../hooks/useStore';
+import { useDispatch } from '@zubridge/electron';
+import { CombinedState } from '@/common/types/root-types';
+import { useStore } from '../../../hooks/useStore';
 import { RunHistory } from '../components/RunHistory';
 import type { AppState as ActionAppState } from '../../../../common/types/action-types';
 import type { AppState as OverlayAppState } from '../../../../common/types/overlay-types';
-import { useDispatch } from '@zubridge/electron';
-import { RootState } from '@/common/types/root-types';
 import { AntropicRun } from '../components/AntropicRun';
+import { IS_WEB } from '../../../utils/environment';
 
 export default function OverlayHome() {
-  const dispatch = useDispatch<RootState>();
-  const { instructions, running, error, fullyAuto, runHistory, isGuideMode, activeSoftware } = useStore();
-
+  if (IS_WEB) {
+    return null;
+  }
+  const dispatch = useDispatch<CombinedState>();
+  const {
+    instructions,
+    running,
+    error,
+   fullyAuto,
+   runHistory,
+   isGuideMode,
+    activeSoftware,
+  } = useStore();
 
   const [localInstructions, setLocalInstructions] = React.useState(
     instructions ?? '',
@@ -51,12 +62,14 @@ export default function OverlayHome() {
       dispatch({ type: 'SET_INSTRUCTIONS', payload: localInstructions });
       dispatch({ type: 'RUN_AGENT_AUTO', payload: null });
     } else {
-
-      dispatch({ type: 'SET_INSTRUCTIONS_OVERLAY',
-        payload: { software: selectedSoftware, question: localInstructions },
-        });
+      dispatch({
+        type: 'SET_INSTRUCTIONS_OVERLAY',
+        payload: {
+          software: selectedSoftware,
+          question: 'How do I use this software?',
+        },
+      });
       dispatch({ type: 'RUN_AGENT_OVERLAY', payload: null });
-   
     }
   };
 
@@ -70,7 +83,9 @@ export default function OverlayHome() {
   const toggleMode = () => {
     const next = mode === 'guide' ? 'auto' : 'guide';
     setMode(next);
-
+    setLocalInstructions(
+      'find flights from seoul to sf for next tuesday to thursday',
+    );
     // Action store에 자동 모드 플래그 업데이트
     dispatch({ type: 'SET_FULLY_AUTO', payload: next === 'auto' });
     // Overlay store에 가이드 모드 토글
@@ -121,13 +136,13 @@ export default function OverlayHome() {
 
         <Textarea
           placeholder={
-            mode === 'auto'
-              ? 'What can I do for you today?'
-              : 'How do I use this software?'
+            mode === 'auto' ? localInstructions : 'How do I use this software?'
           }
           className="w-full min-h-12 p-4 rounded-2xl border border-gray-300 resize-none"
           style={{ WebkitAppRegion: 'no-drag' }}
-          value={localInstructions}
+          value={
+            mode === 'auto' ? localInstructions : 'How do I use this software?'
+          }
           disabled={isProcessing}
           onChange={(e) => {
             setLocalInstructions(e.target.value);
@@ -203,7 +218,7 @@ export default function OverlayHome() {
           {mode === 'auto' ? (
             <AntropicRun />
           ) : (
-            <div className="text-center p-4 text-gray-500 bg-white rounded-2xl border border-gray-300">
+            <div className="text-center p-4 text-gray-500">
               <p className="text-lg font-semibold mb-2">
                 {isGuideMode ? 'Guide Mode Active' : 'Guide Mode Disabled'}
               </p>

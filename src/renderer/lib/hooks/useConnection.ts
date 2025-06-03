@@ -1,9 +1,9 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import {
   SSEClientTransport,
   SseError,
-} from "@modelcontextprotocol/sdk/client/sse.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+} from '@modelcontextprotocol/sdk/client/sse.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import {
   ClientNotification,
   ClientRequest,
@@ -24,26 +24,27 @@ import {
   ToolListChangedNotificationSchema,
   PromptListChangedNotificationSchema,
   Progress,
-} from "@modelcontextprotocol/sdk/types.js";
-import { RequestOptions } from "@modelcontextprotocol/sdk/shared/protocol.js";
-import { useState } from "react";
-import { useToast } from "@/hooks/use-toast";
-import { z } from "zod";
-import { ConnectionStatus } from "../constants";
-import { Notification, StdErrNotificationSchema } from "../notificationTypes";
-import { auth } from "@modelcontextprotocol/sdk/client/auth.js";
-import { InspectorOAuthClientProvider } from "../auth";
-import packageJson from "../../../../package.json";
+} from '@modelcontextprotocol/sdk/types.js';
+import { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js';
+import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { z } from 'zod';
+import { auth } from '@modelcontextprotocol/sdk/client/auth.js';
 import {
   getMCPProxyAddress,
   getMCPServerRequestMaxTotalTimeout,
   resetRequestTimeoutOnProgress,
-} from "@/utils/configUtils";
-import { getMCPServerRequestTimeout } from "@/utils/configUtils";
-import { InspectorConfig } from "../configurationTypes";
+  getMCPServerRequestTimeout,
+} from '@/utils/configUtils';
+import { ConnectionStatus } from '../constants';
+import { Notification, StdErrNotificationSchema } from '../notificationTypes';
+import { InspectorOAuthClientProvider } from '../auth';
+import packageJson from '../../../../package.json';
+
+import { InspectorConfig } from '../configurationTypes';
 
 interface UseConnectionOptions {
-  transportType: "stdio" | "sse" | "streamable-http";
+  transportType: 'stdio' | 'sse' | 'streamable-http';
   command: string;
   args: string;
   sseUrl: string;
@@ -74,7 +75,7 @@ export function useConnection({
   serverName,
 }: UseConnectionOptions) {
   const [connectionStatus, setConnectionStatus] =
-    useState<ConnectionStatus>("disconnected");
+    useState<ConnectionStatus>('disconnected');
   const { toast } = useToast();
   const [serverCapabilities, setServerCapabilities] =
     useState<ServerCapabilities | null>(null);
@@ -100,7 +101,7 @@ export function useConnection({
     options?: RequestOptions & { suppressToast?: boolean },
   ): Promise<z.output<T>> => {
     if (!mcpClient) {
-      throw new Error("MCP client not connected");
+      throw new Error('MCP client not connected');
     }
     try {
       const abortController = new AbortController();
@@ -124,7 +125,7 @@ export function useConnection({
           // Add progress notification to `Server Notification` window in the UI
           if (onNotification) {
             onNotification({
-              method: "notification/progress",
+              method: 'notification/progress',
               params,
             });
           }
@@ -148,9 +149,9 @@ export function useConnection({
       if (!options?.suppressToast) {
         const errorString = (e as Error).message ?? String(e);
         toast({
-          title: "Error",
+          title: 'Error',
           description: errorString,
-          variant: "destructive",
+          variant: 'destructive',
         });
       }
       throw e;
@@ -168,7 +169,7 @@ export function useConnection({
     }
 
     const request: ClientRequest = {
-      method: "completion/complete",
+      method: 'completion/complete',
       params: {
         argument: {
           name: argName,
@@ -194,9 +195,9 @@ export function useConnection({
 
       // Unexpected errors - show toast and rethrow
       toast({
-        title: "Error",
+        title: 'Error',
         description: e instanceof Error ? e.message : String(e),
-        variant: "destructive",
+        variant: 'destructive',
       });
       throw e;
     }
@@ -204,11 +205,11 @@ export function useConnection({
 
   const sendNotification = async (notification: ClientNotification) => {
     if (!mcpClient) {
-      const error = new Error("MCP client not connected");
+      const error = new Error('MCP client not connected');
       toast({
-        title: "Error",
+        title: 'Error',
         description: error.message,
-        variant: "destructive",
+        variant: 'destructive',
       });
       throw error;
     }
@@ -223,9 +224,9 @@ export function useConnection({
         pushHistory(notification, { error: e.message });
       }
       toast({
-        title: "Error",
+        title: 'Error',
         description: e instanceof Error ? e.message : String(e),
-        variant: "destructive",
+        variant: 'destructive',
       });
       throw e;
     }
@@ -236,8 +237,8 @@ export function useConnection({
       const proxyHealthUrl = new URL(`${getMCPProxyAddress(config)}/health`);
       const proxyHealthResponse = await fetch(proxyHealthUrl);
       const proxyHealth = await proxyHealthResponse.json();
-      if (proxyHealth?.status !== "ok") {
-        throw new Error("MCP Proxy Server is not healthy");
+      if (proxyHealth?.status !== 'ok') {
+        throw new Error('MCP Proxy Server is not healthy');
       }
     } catch (e) {
       console.error("Couldn't connect to MCP Proxy Server", e);
@@ -251,15 +252,16 @@ export function useConnection({
       const serverAuthProvider = new InspectorOAuthClientProvider(sseUrl);
 
       const result = await auth(serverAuthProvider, { serverUrl: sseUrl });
-      return result === "AUTHORIZED";
+      return result === 'AUTHORIZED';
     }
 
     return false;
   };
 
-  const connect = async (customParams?: Partial<UseConnectionOptions>, retryCount: number = 0) => {
-
-    
+  const connect = async (
+    customParams?: Partial<UseConnectionOptions>,
+    retryCount: number = 0,
+  ) => {
     // 커스텀 파라미터 적용 (세션 ID가 포함된 URL 등)
     const effectiveParams = {
       transportType,
@@ -270,13 +272,13 @@ export function useConnection({
       bearerToken,
       headerName,
       config,
-      ...customParams
+      ...customParams,
     };
-    
+
     const client = new Client<Request, Notification, Result>(
       {
-        name: "mcp",
-        version: "0.0.1",
+        name: 'mcp',
+        version: '0.0.1',
       },
       {
         capabilities: {
@@ -291,39 +293,57 @@ export function useConnection({
     try {
       await checkProxyHealth();
     } catch {
-      setConnectionStatus("error-connecting-to-proxy");
+      setConnectionStatus('error-connecting-to-proxy');
       return;
     }
     let mcpProxyServerUrl;
     switch (effectiveParams.transportType) {
-      case "stdio":
-        mcpProxyServerUrl = new URL(`${getMCPProxyAddress(effectiveParams.config)}/stdio`);
-        mcpProxyServerUrl.searchParams.append("command", effectiveParams.command);
-        mcpProxyServerUrl.searchParams.append("args", effectiveParams.args);
-        mcpProxyServerUrl.searchParams.append("env", JSON.stringify(effectiveParams.env));
+      case 'stdio':
+        mcpProxyServerUrl = new URL(
+          `${getMCPProxyAddress(effectiveParams.config)}/stdio`,
+        );
+        mcpProxyServerUrl.searchParams.append(
+          'command',
+          effectiveParams.command,
+        );
+        mcpProxyServerUrl.searchParams.append('args', effectiveParams.args);
+        mcpProxyServerUrl.searchParams.append(
+          'env',
+          JSON.stringify(effectiveParams.env),
+        );
         if (effectiveParams.serverName) {
-          mcpProxyServerUrl.searchParams.append("serverName", effectiveParams.serverName);
-        } 
+          mcpProxyServerUrl.searchParams.append(
+            'serverName',
+            effectiveParams.serverName,
+          );
+        }
         break;
 
-      case "sse":
-        mcpProxyServerUrl = new URL(`${getMCPProxyAddress(effectiveParams.config)}/sse`);
-        mcpProxyServerUrl.searchParams.append("url", effectiveParams.sseUrl);
+      case 'sse':
+        mcpProxyServerUrl = new URL(
+          `${getMCPProxyAddress(effectiveParams.config)}/sse`,
+        );
+        mcpProxyServerUrl.searchParams.append('url', effectiveParams.sseUrl);
         break;
 
-      case "streamable-http":
-        mcpProxyServerUrl = new URL(`${getMCPProxyAddress(effectiveParams.config)}/mcp`);
-        mcpProxyServerUrl.searchParams.append("url", effectiveParams.sseUrl);
+      case 'streamable-http':
+        mcpProxyServerUrl = new URL(
+          `${getMCPProxyAddress(effectiveParams.config)}/mcp`,
+        );
+        mcpProxyServerUrl.searchParams.append('url', effectiveParams.sseUrl);
         break;
     }
     (mcpProxyServerUrl as URL).searchParams.append(
-      "transportType",
+      'transportType',
       effectiveParams.transportType,
     );
 
     // 세션 ID 로그 출력 (디버깅용)
     if (effectiveParams.sseUrl.includes('sessionId=')) {
-      console.log('🔑 연결 URL에 세션 ID가 포함되어 있습니다:', effectiveParams.sseUrl);
+      console.log(
+        '🔑 연결 URL에 세션 ID가 포함되어 있습니다:',
+        effectiveParams.sseUrl,
+      );
     }
 
     try {
@@ -332,13 +352,16 @@ export function useConnection({
       const headers: HeadersInit = {};
 
       // Create an auth provider with the current server URL
-      const serverAuthProvider = new InspectorOAuthClientProvider(effectiveParams.sseUrl);
+      const serverAuthProvider = new InspectorOAuthClientProvider(
+        effectiveParams.sseUrl,
+      );
 
       // Use manually provided bearer token if available, otherwise use OAuth tokens
       const token =
-        effectiveParams.bearerToken || (await serverAuthProvider.tokens())?.access_token;
+        effectiveParams.bearerToken ||
+        (await serverAuthProvider.tokens())?.access_token;
       if (token) {
-        const authHeaderName = effectiveParams.headerName || "Authorization";
+        const authHeaderName = effectiveParams.headerName || 'Authorization';
         headers[authHeaderName] = `Bearer ${token}`;
       }
 
@@ -355,7 +378,7 @@ export function useConnection({
         },
       };
       const clientTransport =
-        effectiveParams.transportType === "streamable-http"
+        effectiveParams.transportType === 'streamable-http'
           ? new StreamableHTTPClientTransport(mcpProxyServerUrl as URL, {
               sessionId: undefined,
             })
@@ -394,7 +417,7 @@ export function useConnection({
 
         capabilities = client.getServerCapabilities();
         const initializeRequest = {
-          method: "initialize",
+          method: 'initialize',
         };
         pushHistory(initializeRequest, {
           capabilities,
@@ -435,10 +458,10 @@ export function useConnection({
       }
 
       setMcpClient(client);
-      setConnectionStatus("connected");
+      setConnectionStatus('connected');
     } catch (e) {
       console.error(e);
-      setConnectionStatus("error");
+      setConnectionStatus('error');
     }
   };
 
@@ -447,7 +470,7 @@ export function useConnection({
     const authProvider = new InspectorOAuthClientProvider(sseUrl);
     authProvider.clear();
     setMcpClient(null);
-    setConnectionStatus("disconnected");
+    setConnectionStatus('disconnected');
     setCompletionsSupported(false);
     setServerCapabilities(null);
   };

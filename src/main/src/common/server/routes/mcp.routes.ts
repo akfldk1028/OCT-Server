@@ -204,12 +204,12 @@ router.post('/mcp', async (req, res) => {
 router.get('/stdio', async (req, res) => {
   try {
     const { transportType, command, args, env } = req.query;
-    
+
     // 필수 파라미터 체크
     if (!command) {
       return res.status(400).json({ error: 'command parameter is required' });
     }
-    
+
     console.log(`🚀 Creating new stdio connection`);
     console.log(`   Command: ${command} ${args || ''}`);
     console.log(`   Env: ${env || '{}'}`);
@@ -232,7 +232,7 @@ router.get('/stdio', async (req, res) => {
 
     // 클라이언트 transport 생성
     const webAppTransport = new SSEServerTransport('/message', res);
-    
+
     // 기본 세션 키 (서버 이름이 없으면 기본값 사용)
     const sessionKey = webAppTransport.sessionId;
     webAppTransports.set(sessionKey, webAppTransport);
@@ -253,7 +253,7 @@ router.get('/stdio', async (req, res) => {
     res.setHeader('mcp-session-id', sessionKey);
 
     await webAppTransport.start();
-    
+
     // stderr 연결
     const transport = getBackingServerTransport() as StdioClientTransport;
     if (transport && transport.stderr) {
@@ -447,19 +447,19 @@ router.get('/config', (req, res) => {
 router.post('/mcp/server/:serverId/stop', async (req, res) => {
   try {
     const { serverId } = req.params;
-    
+
     if (!serverId) {
       return res.status(400).json({ error: 'serverId parameter is required' });
     }
-    
+
     console.log(`🛑 Stopping server ${serverId}...`);
-    
+
     // 해당 서버의 모든 세션 종료
     const sessions = Array.from(webAppTransports.keys())
       .filter(key => key.startsWith(`${serverId}-`));
-    
+
     console.log(`   Closing ${sessions.length} sessions for ${serverId}`);
-    
+
     // 모든 세션 종료
     await Promise.all(sessions.map(async (sessionKey) => {
       const transport = webAppTransports.get(sessionKey);
@@ -472,7 +472,7 @@ router.post('/mcp/server/:serverId/stop', async (req, res) => {
         webAppTransports.delete(sessionKey);
       }
     }));
-    
+
     // 🔥 백킹 transport 종료 (새로운 transport 생성하지 않음)
     const currentTransport = getBackingServerTransport();
     if (currentTransport) {
@@ -483,16 +483,16 @@ router.post('/mcp/server/:serverId/stop', async (req, res) => {
         console.error('Error closing backing transport:', err);
       }
     }
-    
+
     const result = {
       serverName: serverId,
       status: 'stopped',
       sessionsRemoved: sessions.length
     };
-    
+
     console.log(`✅ Server ${serverId} stopped successfully`);
     res.json(result);
-    
+
   } catch (error) {
     console.error(`❌ Error stopping server ${req.params.serverId}:`, error);
     res.status(500).json({
@@ -505,35 +505,35 @@ router.post('/mcp/server/:serverId/stop', async (req, res) => {
 router.post('/mcp/batch-start', async (req, res) => {
   try {
     const { servers } = req.body; // [{serverName, command, args}, ...]
-    
+
     if (!Array.isArray(servers) || servers.length === 0) {
       return res.status(400).json({ error: 'servers array is required' });
     }
-    
+
     console.log(`🚀 Starting ${servers.length} servers concurrently...`);
-    
+
     const results = await Promise.allSettled(
       servers.map(async (server) => {
         const { serverName, command, args, env } = server;
-        
+
         if (!serverName || !command) {
           throw new Error(`serverName and command are required for ${JSON.stringify(server)}`);
         }
-        
+
         // env 객체를 JSON 문자열로 변환
         const envStr = env ? encodeURIComponent(JSON.stringify(env)) : encodeURIComponent('{}');
-        
+
         // 각 서버에 대해 stdio 엔드포인트 호출
         const url = `http://localhost:4303/stdio?transportType=stdio&command=${encodeURIComponent(command)}&args=${encodeURIComponent(args || '')}&env=${envStr}`;
-        
+
         const response = await fetch(url, {
           method: 'GET'
         });
-        
+
         if (!response.ok) {
           throw new Error(`Failed to start ${serverName}: ${response.statusText}`);
         }
-        
+
         return {
           serverName,
           status: 'started',
@@ -541,7 +541,7 @@ router.post('/mcp/batch-start', async (req, res) => {
         };
       })
     );
-    
+
     // 결과 정리
     const summary = {
       total: servers.length,
@@ -561,10 +561,10 @@ router.post('/mcp/batch-start', async (req, res) => {
         }
       })
     };
-    
+
     console.log(`✅ Batch start complete: ${summary.succeeded}/${summary.total} succeeded`);
     res.json(summary);
-    
+
   } catch (error) {
     console.error('❌ Error in /mcp/batch-start:', error);
     res.status(500).json({
@@ -577,21 +577,21 @@ router.post('/mcp/batch-start', async (req, res) => {
 router.post('/mcp/batch-stop', async (req, res) => {
   try {
     const { serverNames } = req.body; // ['server1', 'server2', ...]
-    
+
     if (!Array.isArray(serverNames) || serverNames.length === 0) {
       return res.status(400).json({ error: 'serverNames array is required' });
     }
-    
+
     console.log(`🛑 Stopping ${serverNames.length} servers...`);
-    
+
     const results = await Promise.allSettled(
       serverNames.map(async (serverName) => {
         // 해당 서버의 모든 세션 종료
         const sessions = Array.from(webAppTransports.keys())
           .filter(key => key.startsWith(`${serverName}-`));
-        
+
         console.log(`   Closing ${sessions.length} sessions for ${serverName}`);
-        
+
         // 모든 세션 종료
         await Promise.all(sessions.map(async (sessionKey) => {
           const transport = webAppTransports.get(sessionKey);
@@ -604,7 +604,7 @@ router.post('/mcp/batch-stop', async (req, res) => {
             webAppTransports.delete(sessionKey);
           }
         }));
-        
+
         return {
           serverName,
           status: 'stopped',
@@ -612,7 +612,7 @@ router.post('/mcp/batch-stop', async (req, res) => {
         };
       })
     );
-    
+
     // 결과 정리
     const summary = {
       total: serverNames.length,
@@ -632,10 +632,10 @@ router.post('/mcp/batch-stop', async (req, res) => {
         }
       })
     };
-    
+
     console.log(`✅ Batch stop complete: ${summary.succeeded}/${summary.total} succeeded`);
     res.json(summary);
-    
+
   } catch (error) {
     console.error('❌ Error in /mcp/batch-stop:', error);
     res.status(500).json({
@@ -652,12 +652,12 @@ type ActiveServerInfo = {
 
 // 5. 활성 서버 목록 조회 라우트
 router.get('/mcp/active-servers', (req, res) => {
-  const activeServers: ActiveServerInfo[] = [];  
+  const activeServers: ActiveServerInfo[] = [];
   // 서버별로 활성 세션 정보 수집
   for (const [sessionKey, transport] of webAppTransports.entries()) {
     const serverName = sessionKey.split('-')[0];
     let serverInfo = activeServers.find(s => s.serverName === serverName);
-    
+
     if (!serverInfo) {
       serverInfo = {
         serverName,
@@ -666,14 +666,14 @@ router.get('/mcp/active-servers', (req, res) => {
       };
       activeServers.push(serverInfo);
     }
-    
+
     serverInfo.sessions.push({
       sessionId: sessionKey,
       active: transport !== undefined
     });
     serverInfo.totalSessions++;
   }
-  
+
   res.json({
     total: activeServers.length,
     servers: activeServers
@@ -729,3 +729,49 @@ router.get('/servers/full-config', (req, res) => {
 // });
 
 export default router;
+
+
+
+// main/routes/mcp.routes.ts
+// import express from 'express';
+// import { MCPManager } from '../mcp/MCPManager';
+//
+// const router = express.Router();
+// const mcpManager = new MCPManager();
+//
+// router.get('/stdio', async (req, res) => {
+//   try {
+//     const { command, args, env, serverName } = req.query;
+//
+//     if (!command) {
+//       return res.status(400).json({ error: 'command required' });
+//     }
+//
+//     const connection = await mcpManager.createStdioConnection({
+//       command: command as string,
+//       args: args ? JSON.parse(args as string) : [],
+//       env: env ? JSON.parse(env as string) : {},
+//       serverName: serverName as string,
+//     });
+//
+//     res.setHeader('mcp-session-id', connection.sessionId);
+//     res.json(connection);
+//
+//   } catch (error) {
+//     console.error('Error in /stdio:', error);
+//     res.status(500).json({ error: error.message });
+//   }
+// });
+//
+// router.post('/mcp', async (req, res) => {
+//   try {
+//     const sessionId = req.headers['mcp-session-id'] as string;
+//     const transport = await mcpManager.handleStreamableHTTP(sessionId, req.body);
+//     await transport.handleRequest(req, res);
+//   } catch (error) {
+//     console.error('Error in /mcp:', error);
+//     res.status(500).json({ error: error.message });
+//   }
+// });
+//
+// export default router;

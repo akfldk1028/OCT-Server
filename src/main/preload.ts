@@ -4,14 +4,17 @@
 
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 // import { preloadZustandBridge } from 'zutron/preload';
+import { preloadBridge } from '@zubridge/electron/preload';
 import { workflowAPI } from './preload-workflow';
 import { overlayAPI } from './preload-overlay';
+import { mcpAPI } from './stores/renderProxy/rendererMCPProxy-preload';
 
 import type { AppState as OverlayState } from '../common/types/overlay-types';
 import type { AppState as AnthropicState } from '../common/types/action-types';
 
-import { preloadBridge } from '@zubridge/electron/preload';
-import type { RootState }   from  '../common/types/root-types';
+import type { RootState } from '../common/types/root-types';
+import {CombinedState} from "@/common/types/root-types";
+import { MainMCPService } from './stores/renderProxy/rendererMCPProxy-preload';
 
 export type Channels =
   | 'ipc-example'
@@ -67,8 +70,31 @@ const electronHandler = {
     once(channel: Channels, func: (...args: unknown[]) => void) {
       ipcRenderer.once(channel, (_event, ...args) => func(...args));
     },
-    invoke: (channel: Channels, ...args: unknown[]) =>
-      ipcRenderer.invoke(channel, ...args),
+    // invoke: (channel: Channels, ...args: unknown[]) =>
+    //   ipcRenderer.invoke(channel, ...args),
+    invoke: (channel: string, ...args: any[]) => {
+      const validChannels = [
+        'mcp:connect',
+        'mcp:disconnect',
+        'mcp:sendMessage',
+        'room:create',
+        'session:create',
+        'transport:create',
+        'transport:close',
+        'client:create',
+        'client:connect',
+        'client:sendRequest',
+        'mcpRegistry:registerServer',
+        'mcpRegistry:refreshTools',
+        'mcpRegistry:executeTool',
+        'mcp:connectServer',
+        'mcp:getStatus'
+      ];
+      if (validChannels.includes(channel)) {
+        return ipcRenderer.invoke(channel, ...args);
+      }
+      throw new Error(`Invalid channel: ${channel}`);
+    },
   },
   serverManager: {
     getStatus() {
@@ -612,23 +638,23 @@ const claudeManager = {
     ipcRenderer.invoke('claude:removeServer', serverName),
 };
 
-// import { store, dispatch } from './computer/overlay/create';
-// import { store as anthropicStore, dispatch as anthropicDispatch } from './computer/antropic/create';
 
-// const overlayBridge = preloadZustandBridge<OverlayState>();
-// const { handlers: overlayHandlers } =  preloadBridge<OverlayState>();
-const { handlers } = preloadBridge<RootState>();
+// const { handlers } = preloadBridge<RootState>();
+const { handlers } = preloadBridge<CombinedState>();
+
+// mcpAPI 프록시 객체를 노출
+
 
 // Context Bridge를 통해 API 노출
 contextBridge.exposeInMainWorld('electron', electronHandler);
 contextBridge.exposeInMainWorld('api', api);
 contextBridge.exposeInMainWorld('claudeAPI', claudeManager);
 contextBridge.exposeInMainWorld('zubridge', handlers);
+// contextBridge.exposeInMainWorld('mcpAPI', mcpAPI);
 // contextBridge.exposeInMainWorld('overlayZubridge', overlayHandlers);
 // 서로 다른 이름으로 노출
 // contextBridge.exposeInMainWorld('overlayZutron', overlayBridge.handlers);
 // contextBridge.exposeInMainWorld('anthropicZutron', handlers);
-
 
 contextBridge.exposeInMainWorld('overlayAPI', {
   sendMessage: (channel: string, ...args: any[]) =>
@@ -642,7 +668,6 @@ contextBridge.exposeInMainWorld('overlayAPI', {
 
   // 필요시 추가 메서드...
 });
-
 
 export type ElectronHandler = typeof electronHandler;
 export type Api = typeof api;

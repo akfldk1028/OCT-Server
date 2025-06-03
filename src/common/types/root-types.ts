@@ -1,4 +1,26 @@
-import { AppState as OverlayState } from './overlay-types';
-import { AppState as AnthropicState } from './action-types';
+import type { TransportState } from '@/main/stores/transport/transport-types';
+import type { RoomState } from '@/main/stores/room/room-types';
+import type { SessionState } from '@/main/stores/session/session-types';
+import type { ClientState } from '@/main/stores/client/client-types';
+import type { ProxyState } from '@/main/stores/proxy/proxy-types';
+import type { OpenRouterState } from '@/main/stores/openrouter/openrouter-type';
+import type { MCPRegistryState } from '@/main/stores/mcp/mcpRegistry-type';
+import type { AppState } from './overlay-types';
+import type { ChatState } from '@/main/stores/chat/chat-types';
+import { MCPProxyState } from '@/main/stores/renderProxy/rendererMCPProxy-type';
+import type { MCPCoordinatorState } from '@/main/stores/integration/ai-mcp-coordinator';
 
-export type RootState = OverlayState & AnthropicState
+export interface CombinedState {
+  // root: AppState;
+  transport: TransportState;
+  room: RoomState;
+  session: SessionState;
+  client: ClientState;
+  proxy: ProxyState;
+  open_router: OpenRouterState;
+  mcp_registry: MCPRegistryState;
+  chat: ChatState;  
+  mcp_coordinator: MCPCoordinatorState;
+
+  [key: string]: any; // 이 한 줄 추가!
+}
