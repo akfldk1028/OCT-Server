@@ -20,6 +20,10 @@ export default function MCPManager({ sessionId }: { sessionId: string }) {
   const dispatch = useDispatch();
   const store = useStore();
   const [lastCreatedClientId, setLastCreatedClientId] = useState<string | null>(null);
+  
+  // Ping 상태를 객체로 관리 (Hook 규칙 준수)
+  const [pingResults, setPingResults] = useState<Record<string, {success: boolean; latency?: number; error?: string}>>({});
+  const [pingingStatus, setPingingStatus] = useState<Record<string, boolean>>({});
 
   // 모든 관련 상태 가져오기
   const transports = Object.values(store.transport?.sessions || {});
@@ -336,74 +340,79 @@ export default function MCPManager({ sessionId }: { sessionId: string }) {
   <h3 className="font-medium">Connection Health Check</h3>
   {bindings.filter(b => b.status === 'active').map(binding => {
     const server = servers.find(s => s.id === binding.serverId);
-    const [pingResult, setPingResult] = useState<{success: boolean; latency?: number; error?: string} | null>(null);
-    const [isPinging, setIsPinging] = useState(false);
+    const pingResult = pingResults[binding.id];
+    const isPinging = pingingStatus[binding.id] || false;
     
     const handlePing = async () => {
-      setIsPinging(true);
+      setPingingStatus(prev => ({ ...prev, [binding.id]: true }));
       try {
         const result = await dispatch({
           type: 'mcp_coordinator.pingMCPServer',
           payload: { sessionId, serverId: binding.serverId }
         });
-        setPingResult({ success: true, latency: result.latency });
+        
+        console.log('🏓 Ping result:', result); // 디버깅용
+        
+        setPingResults(prev => ({ 
+          ...prev, 
+          [binding.id]: { 
+            success: true, 
+            latency: result?.latency || 0 // 안전하게 접근
+          } 
+        }));
       } catch (error) {
-        setPingResult({ 
-          success: false, 
-          error: error instanceof Error ? error.message : 'Ping failed' 
-        });
+        console.error('❌ Ping failed:', error); // 디버깅용
+        setPingResults(prev => ({ 
+          ...prev, 
+          [binding.id]: { 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Ping failed' 
+          }
+        }));
       } finally {
-        setIsPinging(false);
+        setPingingStatus(prev => ({ ...prev, [binding.id]: false }));
       }
     };
-    
-    // Auto-ping every 10 seconds
-        useEffect(() => {
-          handlePing();
-          const interval = setInterval(handlePing, 10000);
-          return () => clearInterval(interval);
-        }, [binding.id]);
         
-        return (
-          <Card key={binding.id} className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <div className="font-medium">{server?.name}</div>
-                <div className="flex items-center gap-2 mt-2">
-                  <div className={cn(
-                    "w-2 h-2 rounded-full",
-                    pingResult?.success ? "bg-green-500" : "bg-red-500"
-                  )} />
-                  <span className="text-sm text-muted-foreground">
-                    {isPinging ? 'Pinging...' : 
-                    pingResult?.success ? `Latency: ${pingResult.latency}ms` :
-                    pingResult?.error || 'Not checked'}
-                  </span>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handlePing}
-                disabled={isPinging}
-              >
-                {isPinging ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Zap className="w-4 h-4" />
-                )}
-                Ping
-              </Button>
+    return (
+      <Card key={binding.id} className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <div className="font-medium">{server?.name}</div>
+            <div className="flex items-center gap-2 mt-2">
+              <div className={`w-2 h-2 rounded-full ${
+                pingResult?.success ? "bg-green-500" : "bg-red-500"
+              }`} />
+              <span className="text-sm text-muted-foreground">
+                {isPinging ? 'Pinging...' : 
+                pingResult?.success ? `Latency: ${pingResult.latency}ms` :
+                pingResult?.error || 'Not checked'}
+              </span>
             </div>
-          </Card>
-        );
-      })}
-      
-      {bindings.filter(b => b.status === 'active').length === 0 && (
-        <p className="text-muted-foreground text-center py-4">
-          No active connections to test
-        </p>
-      )}
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handlePing}
+            disabled={isPinging}
+          >
+            {isPinging ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Zap className="w-4 h-4" />
+            )}
+            Ping
+          </Button>
+        </div>
+      </Card>
+    );
+  })}
+  
+  {bindings.filter(b => b.status === 'active').length === 0 && (
+    <p className="text-muted-foreground text-center py-4">
+      No active connections to test
+    </p>
+  )}
 </TabsContent>
 
 

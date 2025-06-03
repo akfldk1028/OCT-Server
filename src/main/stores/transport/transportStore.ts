@@ -10,6 +10,9 @@ import type {
   TransportSession,
 } from './transport-types';
 
+// Transport 인스턴스들을 별도로 관리 (직렬화되지 않음)
+const activeTransports = new Map<string, Transport>();
+
 function findActualExecutable(command: string, args: string[] = []) {
   if (process.platform === 'win32') {
     if (!command.endsWith('.cmd') && !command.endsWith('.exe')) {
@@ -24,8 +27,7 @@ function findActualExecutable(command: string, args: string[] = []) {
 }
 
 export const transportStore = createStore<TransportState>((set, get) => ({
-  sessions: {},
-  activeTransports: {}, // Transport 객체들은 직렬화되지 않음!
+  sessions: {}, // activeTransports 제거
 
   createTransport: async (payload) => {
     const { serverId, config } = payload;
@@ -103,27 +105,10 @@ export const transportStore = createStore<TransportState>((set, get) => ({
 
         default:
           throw new Error(`Unknown transport type: ${config.transportType}`);
-      }
-      set((state) => {
-        console.log('🔍 Setting state for store:', 'clientStore'); // store 이름 명시
-        console.log('📦 State keys:', Object.keys(state));
-        
-        // 직렬화 불가능한 객체 찾기
-        Object.entries(state).forEach(([key, value]) => {
-          if (value && typeof value === 'object') {
-            if (value.constructor && value.constructor.name !== 'Object' && value.constructor.name !== 'Array') {
-              console.error(`❌ Non-serializable object found in ${key}:`, value.constructor.name);
-            }
-          }
-        });
-        
-        return {
-          activeTransports: {
-            ...state.activeTransports,
-            [sessionId]: transport,
-          },
-        };
-      });
+              }
+
+      // Transport 인스턴스를 별도 Map에 저장
+      activeTransports.set(sessionId, transport);
       // Transport 객체를 activeTransports에 저장 (직렬화되지 않는 별도 저장소)
       // set((state) => ({
       //   activeTransports: {
@@ -143,31 +128,12 @@ export const transportStore = createStore<TransportState>((set, get) => ({
         createdAt: new Date().toISOString(),
         lastActivity: new Date().toISOString(),
       };
-      // 각 store의 set 호출 전에 디버깅 추가
-      set((state) => {
-        console.log('🔍 Setting state for store:', 'clientStore'); // store 이름 명시
-        console.log('📦 State keys:', Object.keys(state));
-        
-        // 직렬화 불가능한 객체 찾기
-        Object.entries(state).forEach(([key, value]) => {
-          if (value && typeof value === 'object') {
-            if (value.constructor && value.constructor.name !== 'Object' && value.constructor.name !== 'Array') {
-              console.error(`❌ Non-serializable object found in ${key}:`, value.constructor.name);
-            }
-          }
-        });
-        
-        return {
-          activeTransports: {
-            ...state.activeTransports,
-            [sessionId]: transport,
-          },
+              set((state) => ({
           sessions: {
             ...state.sessions,
             [sessionId]: session,
           },
-        };
-      });
+        }));
       // // Transport 인스턴스는 activeTransports에만 저장
       // set((state) => ({
       //   activeTransports: {
@@ -234,7 +200,7 @@ export const transportStore = createStore<TransportState>((set, get) => ({
 
   closeTransport: async (payload) => {
     const { sessionId } = payload;
-    const transport = get().activeTransports[sessionId];
+    const transport = activeTransports.get(sessionId);
     if (!transport) return;
 
     try {
@@ -244,19 +210,19 @@ export const transportStore = createStore<TransportState>((set, get) => ({
       console.error(`❌ Error closing transport ${sessionId}:`, error);
     }
 
+    // Map에서 제거
+    activeTransports.delete(sessionId);
+
     set((state) => {
       const session = state.sessions[sessionId];
       const updatedSession = session
         ? { ...session, status: 'disconnected' as const }
         : session;
 
-      const { [sessionId]: removedTransport, ...activeTransports } = state.activeTransports;
-
       return {
         sessions: updatedSession
           ? { ...state.sessions, [sessionId]: updatedSession }
           : state.sessions,
-        activeTransports,
       };
     });
   },
@@ -279,7 +245,7 @@ export const transportStore = createStore<TransportState>((set, get) => ({
 
   getTransport: (payload) => {
     const { sessionId } = payload;
-    return get().activeTransports[sessionId];
+    return activeTransports.get(sessionId);
   },
 
   getServerTransports: (payload) => {
@@ -329,7 +295,7 @@ export const transportStore = createStore<TransportState>((set, get) => ({
 
   checkTransportHealth: async (payload) => {
     const { sessionId } = payload;
-    const transport = get().activeTransports[sessionId];
+    const transport = activeTransports.get(sessionId);
     if (!transport) return false;
 
     try {

@@ -23,7 +23,7 @@ export interface TransportConfig {
 
 export interface TransportState {
   sessions: Record<string, TransportSession>;
-  activeTransports: Record<string, Transport>; // 실제 Transport 객체는 여기에만 저장
+  // activeTransports: Record<string, Transport>; // 제거 - 직렬화 불가
 
   // Actions - 모두 payload 방식으로
   createTransport: (payload: { serverId: string; config: TransportConfig }) => Promise<string>;

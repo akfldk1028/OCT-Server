@@ -135,9 +135,9 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
           clientId: server.clientId,
           request: { 
             method: 'tools/list',
-            params: {} // params 추가
+            params: {}
           },
-          schema: ListToolsRequestSchema,
+          schema: ListToolsResultSchema, // 응답 스키마 사용
           options: { timeout: 5000 }
         });
 
@@ -166,8 +166,8 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
       if (server.capabilities.prompts) {
         const promptsResponse = await clientStore.getState().sendRequest({
           clientId: server.clientId,
-          request: { method: 'prompts/list' },
-          schema: ListPromptsRequestSchema,
+          request: { method: 'prompts/list', params: {} },
+          schema: ListPromptsResultSchema, // 응답 스키마 사용
         });
 
         // mcpRegistryStore에 프롬프트 등록
@@ -198,8 +198,8 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
         try {
           const resourcesResponse = await clientStore.getState().sendRequest({
             clientId: server.clientId,
-            request: { method: 'resources/list' },
-            schema: ListResourcesRequestSchema,
+            request: { method: 'resources/list', params: {} },
+            schema: ListResourcesResultSchema, // 응답 스키마 사용
           });
     
           resourcesResponse.resources.forEach((resource: Resource) => {

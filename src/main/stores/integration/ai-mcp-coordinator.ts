@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListToolsResultSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { mcpRegistryStore } from '../mcp/mcpRegistryStore';
@@ -114,7 +115,7 @@ export const mcpCoordinatorStore = createStore<MCPCoordinatorState>(
         });
     
         // 4. Transport 가져오기
-        const transport = transportStore.getState().activeTransports[transportSessionId];
+        const transport = transportStore.getState().getTransport({ sessionId: transportSessionId });
         if (!transport) throw new Error('Transport not found');
     
         // 5. Client 인스턴스 생성 및 연결
@@ -414,8 +415,8 @@ export const mcpCoordinatorStore = createStore<MCPCoordinatorState>(
         // 간단한 도구 목록 요청으로 ping 테스트
         await clientStore.getState().sendRequest({
           clientId: binding.clientId,
-          request: { method: 'tools/list' },
-          schema: ListToolsRequestSchema,
+          request: { method: 'tools/list', params: {} },
+          schema: ListToolsResultSchema, // 응답 스키마 사용
           options: { timeout: 5000 }
         });
 
