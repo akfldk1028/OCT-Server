@@ -17,10 +17,11 @@ const dist = webpackPaths.dllPath;
 // MCP SDK와 관련 패키지를 DLL에서 제외
 const excludePackages = [
   '@modelcontextprotocol/sdk',
+  '@modelcontextprotocol/server-everything',
   '@xyflow/react', // XYFlow React도 렌더러 DLL에 포함할 필요 없으면 제외
   'type-fest', // type-fest 모듈 파싱 오류 방지
   'yaml', // yaml/browser → CJS로 alias 하지 않을 거면 제외
-  'swagger-jsdoc', // swagger-jsdoc 의존성 제거
+  'swagger-jsdoc', // swagger-jsdoc 의의존성 제거
   'elkjs',
   '@anthropic-ai/sdk',
   'node-window-manager', // This depends on extract-file-icon

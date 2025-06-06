@@ -1,196 +1,324 @@
 import React, { useState } from 'react';
-import { StarIcon, GitFork } from "lucide-react";
-import { ChevronUpIcon } from "lucide-react";
+import { StarIcon, GitFork, ExternalLink, Shield, Package, Code2, AlertCircle } from "lucide-react";
 import {
   Link,
   NavLink,
   Outlet,
-  useFetcher,
-  useLoaderData,
   useOutletContext,
-  type LoaderFunctionArgs,
-  type MetaFunction,
+  useNavigate,
 } from "react-router";
 import { Button, buttonVariants } from "../../../common/components/ui/button";
 import { cn } from "../../../lib/utils";
-import { getProductById } from "../queries";
-import { makeSSRClient } from "../../../supa-client";
-import { Tables } from "../../../database.types";
-import { InstallSidebar } from "../components/InstallSidebar";
+import { InstallSidebarNew } from "../components/InstallSidebarNew";
 import { InitialAvatar } from "../../../common/components/ui/initial-avatar";
+import { MCPServerDetailView } from "../types/MCPServerDetailTypes";
+import { Badge } from "../../../common/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../../../common/components/ui/tooltip";
 
-// GitHubPopularityView 타입 정의
-type mcp_servers_full_view = Tables<"mcp_servers_full_view">;
-
-// 로더 데이터 타입 정의
-type ProductOverviewLoaderData = {
-  product: mcp_servers_full_view;
+// name에서 이니셜 추출 함수
+const generateInitials = (name: string | null): string => {
+  if (!name) return '??';
+  
+  const trimmedName = name.trim();
+  
+  // 영어/공백으로 구분된 단어들의 경우
+  if (trimmedName.includes(' ')) {
+    const words = trimmedName.split(' ').filter(word => word.length > 0);
+    if (words.length >= 2) {
+      return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+    } else if (words.length === 1) {
+      return words[0].substring(0, 2).toUpperCase();
+    }
+  }
+  
+  // 하이픈이나 언더스코어로 구분된 경우
+  if (trimmedName.includes('-') || trimmedName.includes('_')) {
+    const separator = trimmedName.includes('-') ? '-' : '_';
+    const parts = trimmedName.split(separator).filter(part => part.length > 0);
+    if (parts.length >= 2) {
+      return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+    }
+  }
+  
+  // 단일 단어이거나 한국어 등의 경우 첫 2글자
+  return trimmedName.substring(0, 2).toUpperCase();
 };
 
-export function meta() {
-  return [
-    { title: "Product Overview " /* Replace with dynamic title if using alternative method */ },
-    { name: "description", content: "View product details and information" /* Replace if needed */ },
+// 랜덤 색깔 생성 함수
+const generateColor = (name: string | null): string => {
+  if (!name) return '#6B7280';
+  
+  const colors = [
+    '#EF4444', '#F97316', '#F59E0B', '#EAB308', '#84CC16', '#22C55E',
+    '#10B981', '#14B8A6', '#06B6D4', '#0EA5E9', '#3B82F6', '#6366F1',
+    '#8B5CF6', '#A855F7', '#D946EF', '#EC4899', '#F43F5E',
   ];
-}
-
-export const loader = async ({
-  request,
-  params,
-}: LoaderFunctionArgs & { params: { id?: number } }): Promise<ProductOverviewLoaderData> => {
-  const id = params?.id;
-  console.log('[ProductOverviewLayout loader] id:', id);
-
-  if (!id) {
-    throw new Response("Product ID not found in URL params", { status: 400 });
+  
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    const char = name.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
   }
-  const { client, headers } = makeSSRClient(request);
-  try {
-    const product = await getProductById(client as any, {
-       id: id, // id를 id로 전달 (일관성 유지)
-    });
-    console.log('[ProductOverviewLayout loader] product data:', product);
-    if (!product) {
-      throw new Response("Product not found", { status: 404 });
-    }
+  
+  const colorIndex = Math.abs(hash) % colors.length;
+  return colors[colorIndex];
+};
 
-    return { product: product as unknown as mcp_servers_full_view };
-  } catch (error) {
-    console.error('[ProductOverviewLayout loader] Error:', error);
-    throw error;
-  }
+// 서버 타입에 따른 아이콘과 색상
+const getServerTypeInfo = (serverType: string | null) => {
+  const type = serverType?.toLowerCase() || '';
+  if (type.includes('tool')) return { icon: Code2, color: 'text-blue-600', bg: 'bg-blue-50' };
+  if (type.includes('resource')) return { icon: Package, color: 'text-green-600', bg: 'bg-green-50' };
+  if (type.includes('integration')) return { icon: Package, color: 'text-purple-600', bg: 'bg-purple-50' };
+  return { icon: Package, color: 'text-gray-600', bg: 'bg-gray-50' };
 };
 
 export default function ProductOverviewLayout() {
-  const { product } = useLoaderData() as ProductOverviewLoaderData;
+  const { product, isLoggedIn } = useOutletContext<{
+    product: MCPServerDetailView;
+    isLoggedIn: boolean;
+  }>();
+  
+  const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  console.log('[ProductOverviewLayout] Rendered with loaderData:',  product);
-  console.log('[ProductOverviewLayout] id:',  product?.id);
+  // 이니셜과 색깔 생성
+  const initials = product.fallback_avatar_initials || generateInitials(product.name);
+  const avatarColor = product.fallback_avatar_color || generateColor(product.name);
+  
+  // 서버 타입 정보
+  const serverTypeInfo = getServerTypeInfo(product.server_type);
+  const ServerIcon = serverTypeInfo.icon;
 
-  // const fetcher = useFetcher();
-  // const { isLoggedIn } = useOutletContext<{ isLoggedIn: boolean }>();
+  // 안전성 검증 상태
+  const isSafetyVerified = product.enhanced_info?.is_safety_verified || false;
+  
+  // 카테고리와 태그를 배열로 안전하게 처리
+  const categories = Array.isArray(product.categories) ? product.categories : [];
+  const tags = Array.isArray(product.tags) ? product.tags : [];
+  
+  // 도구 개수
+  const toolCount = product.tool_count || 0;
+  
+  // detected_tools를 배열로 안전하게 처리
+  const detectedTools = Array.isArray(product.detected_tools) ? product.detected_tools : [];
 
-  // if (!loaderData) {
-  //   return <div>Loading product details...</div>;
-  // }
-  // install 빨간버튼 like 추가
-
+  // 설치하기 버튼 클릭 핸들러
+  const handleInstallClick = () => {
+    if (!isLoggedIn) {
+      navigate('/auth/login');
+      return;
+    }
+    setIsSidebarOpen(true);
+  };
 
   return (
-    <div className="space-y-10">
-      <div className="flex flex-col md:flex-row gap-10 md:gap-0 justify-between">
-        <div className="flex flex-col items-center md:items-start md:flex-row gap-10">
-          <div className="size-40 rounded-xl overflow-hidden shadow-xl bg-primary/50 flex items-center justify-center">
-            {product.local_image_path ? (
-              <img
-                src={product.local_image_path}
-                alt={product.name || ''}
-                className="size-full object-cover"
-              />
-            ) : (
-              <InitialAvatar
-                initials={product.fallback_avatar_initials || '??'}
-                colorString={product.fallback_avatar_color || product.name || 'default'}
-                size={100}
-              />
-            )}
-          </div>
-          <div>
-            <h1 className="text-5xl text-center md:text-left font-bold">
-              {product.name || 'Product Name'}
-            </h1>
-            <div className="mt-5 flex md:justify-start text-lg md:text-base justify-center items-center gap-5">
-              <span className="text-muted-foreground flex items-center gap-2">
-                <StarIcon className="size-4" /> {product.stars || 0} stars
-              </span>
-              <span className="text-muted-foreground flex items-center gap-2">
-                <GitFork className="size-4" /> {product.forks || 0} forks
-              </span>
+    <TooltipProvider>
+      <div className="space-y-8">
+        {/* 헤더 섹션 */}
+        <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
+          {/* 아바타 및 기본 정보 */}
+          <div className="flex flex-col sm:flex-row gap-6 flex-1">
+            <div className="flex justify-center sm:justify-start">
+              <div className="size-32 lg:size-40 rounded-2xl overflow-hidden shadow-xl flex items-center justify-center ring-4 ring-background">
+                <InitialAvatar
+                  initials={initials}
+                  colorString={avatarColor}
+                  size={160}
+                />
+              </div>
+            </div>
+            
+            <div className="flex-1 text-center sm:text-left">
+              <div className="flex items-center gap-3 justify-center sm:justify-start mb-2">
+                <h1 className="text-3xl lg:text-4xl xl:text-5xl font-bold">
+                  {product.name || 'Product Name'}
+                </h1>
+                {isSafetyVerified && (
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <div className="flex items-center gap-1 text-green-600">
+                        <Shield className="size-5" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>안전성 검증 완료</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+              
+              {/* 서버 타입 및 카테고리 */}
+              <div className="flex flex-wrap items-center gap-2 mb-4 justify-center sm:justify-start">
+                <Badge variant="secondary" className={cn(serverTypeInfo.bg, serverTypeInfo.color, "gap-1")}>
+                  <ServerIcon className="size-3" />
+                  {product.server_type || 'Unknown'}
+                </Badge>
+                              {categories.map((category: any, idx: number) => (
+                <Badge key={idx} variant="outline">{String(category)}</Badge>
+              ))}
+              </div>
+
+              {/* 설명 */}
+              {product.description && (
+                <p className="text-muted-foreground mb-4 max-w-2xl">
+                  {product.description}
+                </p>
+              )}
+              
+              {/* 통계 정보 */}
+              <div className="flex flex-wrap gap-4 text-sm justify-center sm:justify-start">
+                <div className="flex items-center gap-1.5">
+                  <StarIcon className="size-4 text-yellow-500 fill-yellow-500" />
+                  <span className="font-medium">{product.stars?.toLocaleString() || 0}</span>
+                  <span className="text-muted-foreground">stars</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <GitFork className="size-4 text-gray-600" />
+                  <span className="font-medium">{product.forks?.toLocaleString() || 0}</span>
+                  <span className="text-muted-foreground">forks</span>
+                </div>
+                {toolCount > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <Code2 className="size-4 text-blue-600" />
+                    <span className="font-medium">{toolCount}</span>
+                    <span className="text-muted-foreground">도구</span>
+                  </div>
+                )}
+                {product.license && (
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="secondary" className="text-xs">
+                      {product.license}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              {/* 태그 */}
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {tags.map((tag: any, idx: number) => (
+                    <Badge key={idx} variant="secondary" className="text-xs">
+                      #{tag}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-        </div>
-        <div className="flex flex-col gap-2.5">
-          <Button
-            variant={"secondary"}
-            size="lg"
-            asChild
-            className="text-lg w-full h-14 px-10"
-          >
-            <Link to={product.github_url || '#'}>
-              Visit Repository
-            </Link>
-          </Button>
 
-          <Button
-            size="lg"
-            className="text-lg w-full h-14 px-10"
-            onClick={() => setIsSidebarOpen(true)}
-          >
-                Install
-          </Button>
-
-          {/* <fetcher.Form
-            method="post"
-            action={`/products/${loaderData.product.product_id}/upvote`}
-          >
+          {/* 액션 버튼 */}
+          <div className="flex flex-col gap-3 w-full sm:w-auto">
             <Button
               size="lg"
-              className={cn({
-                "md:text-lg w-full md:w-auto h-10 md:h-14 px-10 flex items-center gap-2":
-                  true,
-                "border-white bg-white text-primary hover:bg-white/90":
-                  loaderData.product.is_upvoted,
-              })}
+              className="w-full sm:w-52 h-12 font-semibold"
+              onClick={handleInstallClick}
             >
-              <ChevronUpIcon className="size-4" />
-              Upvote ({loaderData.product.upvotes})
+              <Package className="size-4 mr-2" />
+              설치하기
             </Button>
-          </fetcher.Form> */}
+            
+            <Button
+              variant="outline"
+              size="lg"
+              asChild
+              className="w-full sm:w-52 h-12"
+            >
+              <Link to={product.github_url || '#'} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="size-4 mr-2" />
+                GitHub 저장소
+              </Link>
+            </Button>
+
+            {product.primary_url && product.primary_url !== product.github_url && (
+              <Button
+                variant="outline"
+                size="lg"
+                asChild
+                className="w-full sm:w-52 h-12"
+              >
+                <Link to={product.primary_url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="size-4 mr-2" />
+                  공식 웹사이트
+                </Link>
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="flex gap-2.5">
-        <NavLink
-          end
-          className={({ isActive }) =>
-            cn(
-              buttonVariants({ variant: "outline" }),
-              isActive && "bg-accent text-foreground "
-            )
-          }
-          to={`/products/${product.id}/overview`}
-        >
-          Overview
-        </NavLink>
-        <NavLink
-          className={({ isActive }) =>
-            cn(
-              buttonVariants({ variant: "outline" }),
-              isActive && "bg-accent text-foreground "
-            )
-          }
-          to={`/products/${product.id}/reviews`}
-        >
-          Details
-        </NavLink>
-      </div>
-      <div>
-        <Outlet
-          context={{
-            product_id: product.id,
-            description: "Repository description will be displayed here.",
-            how_it_works: "Repository details will be displayed here.",
-            review_count: 0,
-          }}
-        />
-      </div>
-      {isSidebarOpen && (
-          <InstallSidebar
-              product={product}
-              isOpen={isSidebarOpen}
-              onClose={() => setIsSidebarOpen(false)}
+
+        {/* 탭 네비게이션 */}
+        <div className="border-b">
+          <nav className="flex gap-6">
+            <NavLink
+              end
+              className={({ isActive }) =>
+                cn(
+                  "pb-3 px-1 border-b-2 font-medium text-sm transition-colors",
+                  isActive 
+                    ? "border-primary text-foreground" 
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )
+              }
+              to={`/products/${product.id}/overview`}
+            >
+              개요
+            </NavLink>
+            <NavLink
+              className={({ isActive }) =>
+                cn(
+                  "pb-3 px-1 border-b-2 font-medium text-sm transition-colors",
+                  isActive 
+                    ? "border-primary text-foreground" 
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )
+              }
+              to={`/products/${product.id}/overview/details`}
+            >
+              상세 정보
+            </NavLink>
+            {product.detected_tools && detectedTools.length > 0 && (
+              <NavLink
+                className={({ isActive }) =>
+                  cn(
+                    "pb-3 px-1 border-b-2 font-medium text-sm transition-colors",
+                    isActive 
+                      ? "border-primary text-foreground" 
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )
+                }
+                to={`/products/${product.id}/overview/tools`}
+              >
+                도구 ({detectedTools.length})
+              </NavLink>
+            )}
+          </nav>
+        </div>
+
+        {/* 콘텐츠 영역 */}
+        <div>
+          <Outlet
+            context={{
+              product: product,
+              isLoggedIn: isLoggedIn
+            }}
           />
-      )}
-    </div>
+        </div>
+
+        {/* 설치 사이드바 */}
+        {isSidebarOpen && (
+          <InstallSidebarNew
+            product={product as any}
+            isOpen={isSidebarOpen}
+            onClose={() => setIsSidebarOpen(false)}
+          />
+        )}
+      </div>
+    </TooltipProvider>
   );
 }

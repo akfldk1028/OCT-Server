@@ -617,14 +617,7 @@ const api = {
     return ipcRenderer.invoke('server:cleanupSessions');
   },
 
-  // 워크플로우 API 병합
-  // 워크플로우 API 직접 병합
   ...workflowAPI,
-
-  // 오버레이 API 병합
-  // ...overlayAPI,
-
-  // 워크플로우 네임스페이스로도 접근 가능하게
   workflow: workflowAPI,
 
   // 오버레이 API 병합
@@ -642,19 +635,12 @@ const claudeManager = {
 // const { handlers } = preloadBridge<RootState>();
 const { handlers } = preloadBridge<CombinedState>();
 
-// mcpAPI 프록시 객체를 노출
 
 
-// Context Bridge를 통해 API 노출
 contextBridge.exposeInMainWorld('electron', electronHandler);
 contextBridge.exposeInMainWorld('api', api);
 contextBridge.exposeInMainWorld('claudeAPI', claudeManager);
 contextBridge.exposeInMainWorld('zubridge', handlers);
-// contextBridge.exposeInMainWorld('mcpAPI', mcpAPI);
-// contextBridge.exposeInMainWorld('overlayZubridge', overlayHandlers);
-// 서로 다른 이름으로 노출
-// contextBridge.exposeInMainWorld('overlayZutron', overlayBridge.handlers);
-// contextBridge.exposeInMainWorld('anthropicZutron', handlers);
 
 contextBridge.exposeInMainWorld('overlayAPI', {
   sendMessage: (channel: string, ...args: any[]) =>
@@ -662,11 +648,6 @@ contextBridge.exposeInMainWorld('overlayAPI', {
   onMessage: (channel: string, callback: (...args: any[]) => void) => {
     ipcRenderer.on(channel, (_event, ...args) => callback(...args));
   },
-  // ...overlayAPI,
-  // overlay: overlayAPI,
-  // getState: () => ipcRenderer.invoke('getState'),
-
-  // 필요시 추가 메서드...
 });
 
 export type ElectronHandler = typeof electronHandler;

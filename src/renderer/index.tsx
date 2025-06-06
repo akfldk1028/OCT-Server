@@ -21,7 +21,7 @@ import { loader as productsloader } from './features/products/pages/products-pag
 import LeaderboardLayout, { loader as leaderboardLoader } from './features/products/layouts/leaderboard-layout';
 import LeaderboardPage, { loader as LeaderboardPageLoader } from './features/products/pages/leaderboard-page';
 import { loader as productRedirectPageLoader } from './features/products/pages/product-redirect-page';
-import ProductOverviewLayout, { loader as ProductOverviewLayoutLoader } from './features/products/layouts/product-overview-layout';
+import ProductOverviewLayout from './features/products/layouts/product-overview-layout';
 import ProductOverviewPage from './features/products/pages/product-overview-page';
 import DailyLeaderboardPage from "@/renderer/features/products/pages/daily-leaderboard-page";
 import CategoriesPage, { loader as CategoriesPageLoader } from "@/renderer/features/products/pages/categories-page";
@@ -46,6 +46,9 @@ import OverlayHome from './features/guide/pages/overlayHome-page';
 
 import AntropicComputer from './features/guide/pages/AntropicComputer';
 import ChatWrapper from './features/server/pages/ChatWrapper';
+import ProductDetailLayout ,{ loader as ProductDetailLayoutLoader } from './features/products/layouts/product-detail-layout';
+import ProductDetailsPage from './features/products/pages/ProductDetailsPage';
+import ProductToolsPage from './features/products/pages/ProductToolsPage';
 
 console.log('📍 Loaded renderer entry index.tsx');
 
@@ -114,25 +117,32 @@ const electronRouter = createHashRouter(
             { index: true, loader: () => redirect('/products/leaderboards') },
             {
               path: ':id',
+              element: <ProductDetailLayout />,
+              loader: ProductDetailLayoutLoader,
               children: [
                 {
                   index: true,
-                  loader: ({ params }) => {
-                    console.log(`Redirecting from /products/:id to /products/${params.id}/overview`);
-                    return redirect(`/products/${params.id}/overview`);
-                  }
+                  loader: () => redirect('overview')
                 },
                 {
                   path: 'overview',
                   element: <ProductOverviewLayout />,
-                  loader: ProductOverviewLayoutLoader,
                   children: [
                     {
                       index: true,
                       element: <ProductOverviewPage />
-                    }
+                    },
+                    {
+                      path: 'details',
+                      element: <ProductDetailsPage />,
+                    },
+                    {
+                      path: 'tools',
+                      element: <ProductToolsPage />,
+                    },
                   ]
                 },
+          
               ]
             },
             {
@@ -183,7 +193,7 @@ const electronRouter = createHashRouter(
                 {
                   path: ':sessionId',
                   element: <ChatWrapper />, // RealtimeChat 대신 ChatWrapper 사용
-                } 
+                }
               ]
             }
           ]
@@ -256,24 +266,30 @@ const webRouter = createBrowserRouter(
             { index: true, loader: () => redirect('/products/leaderboards') },
             {
               path: ':id',
+              element: <ProductDetailLayout />,
+              loader: ProductDetailLayoutLoader,
               children: [
                 {
                   index: true,
-                  loader: ({ params }) => {
-                    console.log(`Redirecting from /products/:id to /products/${params.id}/overview`);
-                    return redirect(`/products/${params.id}/overview`);
-                  }
+                  loader: () => redirect('overview')
                 },
                 {
                   path: 'overview',
                   element: <ProductOverviewLayout />,
-                  loader: ProductOverviewLayoutLoader,
                   children: [
                     {
                       index: true,
                       element: <ProductOverviewPage />
                     }
                   ]
+                },
+                {
+                  path: 'details',
+                  element: <ProductDetailsPage />,
+                },
+                {
+                  path: 'tools',
+                  element: <ProductToolsPage />,
                 },
               ]
             },
@@ -353,12 +369,12 @@ root.render(
         <FlowProvider>
           <DnDProvider>
             <TooltipProvider>
-            <RouterProvider router={router} />
-            <Toaster />
-          </TooltipProvider>
-        </DnDProvider>
-      </FlowProvider>
-    </ReactFlowProvider>
+              <RouterProvider router={router} />
+              <Toaster />
+            </TooltipProvider>
+          </DnDProvider>
+        </FlowProvider>
+      </ReactFlowProvider>
     </ToastProvider>
   </React.StrictMode>,
 );

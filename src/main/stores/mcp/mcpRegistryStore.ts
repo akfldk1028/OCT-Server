@@ -79,7 +79,7 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
         [server.id]: server,
       },
     }));
-    
+    console.log(`✅ Registered: ${server.name}`);
     // 연결되면 자동으로 도구/프롬프트 발견
     if (server.status === 'connected' && server.clientId) {
       get().discoverServerCapabilities(server.id).catch(console.error);

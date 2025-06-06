@@ -22,6 +22,16 @@ export type Database = MergeDeep<
             SupabaseDatabase['public']['Tables']['clients']['Row']
           >;
         };
+        user_mcp_usage: {
+          Row: SetNonNullable<
+            SupabaseDatabase['public']['Tables']['user_mcp_usage']['Row']
+          >;
+        };
+        mcp_install_methods: {
+          Row: SetNonNullable<
+            SupabaseDatabase['public']['Tables']['mcp_install_methods']['Row']
+          >;
+        };
       };
       Views: {
         mcp_servers_full_view: {
@@ -37,6 +47,11 @@ export type Database = MergeDeep<
         mcp_server_categories_view: {
           Row: SetNonNullable<
             SupabaseDatabase['public']['Views']['mcp_server_categories_view']['Row']
+          >;
+        };
+        mcp_server_detail_view: {
+          Row: SetNonNullable<
+            SupabaseDatabase['public']['Views']['mcp_server_detail_view']['Row']
           >;
         };
       };

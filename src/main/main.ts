@@ -37,7 +37,6 @@ import { createZustandBridge } from '@zubridge/electron/main';
 import { store } from './computer/overlay/create';
 import {combinedStore} from  './stores/combinedStore'
 
-
 import {setupMCPHandlers} from "@/main/mcp-handler";
 import {setupMCPpreLoad} from "@/main/stores/renderProxy/rendererMCPProxy-preload";
 
@@ -57,6 +56,45 @@ function getPythonPath() {
 }
 
 const installer = new ServerInstaller();
+// 기존 코드 제거
+// const installer = new ServerInstaller();
+
+// installServer 핸들러 수정
+// ipcMain.handle('installServer', async (event, serverName: string, command: string, envVars?: Record<string, string>) => {
+//   console.log('⬇️ main: installServer handler received for', serverName, command);
+  
+//   const config = await getBaseMCPServerConfig(serverName, command as MCPServerExtended['type'], envVars);
+  
+//   if (!config) {
+//     console.error(`[Main] Base config not found for ${serverName}.`);
+//     event.sender.send('installResult', {
+//       success: false,
+//       serverName,
+//       message: `기본 설정 파일(${serverName}.json)을 찾을 수 없습니다.`,
+//     });
+//     return { success: false, error: 'Config not found' };
+//   }
+
+//   try {
+//     // 새로운 installer store 사용
+//     const installResult = await installerThunks.installServer(serverName, config, command);
+    
+//     event.sender.send('installResult', {
+//       success: installResult.success,
+//       serverName,
+//       message: installResult.success 
+//         ? `${serverName} 설치 완료` 
+//         : installResult.error,
+//     });
+    
+//     return installResult;
+//   } catch (error) {
+//     console.error(`[Main] Error during install process for ${serverName}:`, error);
+//     return { success: false, error: error instanceof Error ? error.message : 'Install failed' };
+//   }
+// });
+
+
 
 class AppUpdater {
   constructor() {
@@ -79,7 +117,6 @@ const installExtensions = async () => {
     const name = await installExtension(REACT_DEVELOPER_TOOLS, {
       loadExtensionOptions: { allowFileAccess: true },
     });
-    console.log(`✅ Lo해ㅐ힏.채ㅡ/리ㅑ홋ㄴaded Extension: ${name}`);
   } catch (err) {
     console.error('❌ Failed to install React DevTools:', err);
   }

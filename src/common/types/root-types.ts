@@ -9,6 +9,8 @@ import type { AppState } from './overlay-types';
 import type { ChatState } from '@/main/stores/chat/chat-types';
 import { MCPProxyState } from '@/main/stores/renderProxy/rendererMCPProxy-type';
 import type { MCPCoordinatorState } from '@/main/stores/integration/ai-mcp-coordinator';
+import { InstallerState } from '@/main/stores/install/installer-types';
+import { AgentState } from '@/main/stores/orchestrator/agent-types';
 
 export interface CombinedState {
   // root: AppState;
@@ -19,8 +21,10 @@ export interface CombinedState {
   proxy: ProxyState;
   open_router: OpenRouterState;
   mcp_registry: MCPRegistryState;
-  chat: ChatState;  
+  chat: ChatState;
   mcp_coordinator: MCPCoordinatorState;
+  installer: Omit<InstallerState, 'dispatch'>; // dispatch 제외
+  // agentOrchestrator: AgentState;
 
   [key: string]: any; // 이 한 줄 추가!
 }

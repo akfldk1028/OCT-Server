@@ -12,6 +12,9 @@ import { mcpRegistryStore } from './mcp/mcpRegistryStore';
 import { chatStore } from './chat/chatStore';
 import { rendererMCPProxy } from './renderProxy/rendererMCPProxy';
 import { mcpCoordinatorStore } from './integration/ai-mcp-coordinator';
+import { installerStore } from './install/installerStore';
+import { agentOrchestratorStore } from './orchestrator/agentOrchestratorStore';
+
 export const combinedStore = createStore<CombinedState>((set, get) => ({
   // root: rootStore.getState(),
   transport: transportStore.getState(),
@@ -23,7 +26,8 @@ export const combinedStore = createStore<CombinedState>((set, get) => ({
   mcp_registry: mcpRegistryStore.getState(),
   chat: chatStore.getState(),
   mcp_coordinator: mcpCoordinatorStore.getState(),
-
+  installer: installerStore.getState(),
+  // agentOrchestrator: agentOrchestratorStore.getState(),
 }));
 
 // 각 store 구독해서 combined store 업데이트
@@ -66,3 +70,11 @@ chatStore.subscribe((state) => {
 mcpCoordinatorStore.subscribe((state) => {
   combinedStore.setState((prev) => ({ ...prev, mcp_coordinator: state }));
 });
+
+installerStore.subscribe((state) => {
+  combinedStore.setState((prev) => ({ ...prev, installer: state }));
+});
+
+// agentOrchestratorStore.subscribe((state) => {
+//   combinedStore.setState((prev) => ({ ...prev, agentOrchestrator: state }));
+// });
