@@ -31,8 +31,17 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
     const nodes = getNodes();
     const edges = getEdges();
 
-    console.log('nodes:', nodes);
-    console.log('edges:', edges);
+    console.log('🔍 [TriggerNode] 전체 노드 데이터:', nodes);
+    console.log('🔍 [TriggerNode] 각 노드별 데이터 확인:');
+    nodes.forEach((node, idx) => {
+      console.log(`  노드 ${idx + 1} (${node.id}):`, {
+        type: node.type,
+        hasData: !!node.data,
+        dataKeys: node.data ? Object.keys(node.data) : [],
+        data: node.data
+      });
+    });
+    console.log('🔍 [TriggerNode] 엣지:', edges);
     const triggerNode = (Array.isArray(nodes) ? nodes : []).find(
       (n) => n.id === id,
     );

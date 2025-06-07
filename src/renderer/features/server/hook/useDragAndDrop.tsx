@@ -3,14 +3,16 @@ import { useReactFlow } from '@xyflow/react';
 import { useDnD } from './DnDContext';
 import { useOutletContext } from 'react-router';
 import type { ServerItem, ClientRow } from '../../../types';
+import type { Database } from '../../../database.types';
 
-// 전역 변수 타입 선언 (TypeScript에서 필요)
-declare global {
-  interface Window {
-    __lastDraggedServerId?: string;
-    __lastDraggedServer?: ServerItem;
-  }
-}
+// 🔥 실제 DB 데이터 타입
+type InstalledServer = Database['public']['Tables']['user_mcp_usage']['Row'] & {
+  mcp_install_methods: Database['public']['Tables']['mcp_install_methods']['Row'] | null;
+  mcp_servers: Database['public']['Tables']['mcp_servers']['Row'] | null;
+  mcp_configs?: Database['public']['Tables']['mcp_configs']['Row'][];
+};
+
+// 전역 변수는 다른 파일에서 선언되어 있음 - 중복 선언 제거
 
 // 노드 생성을 위한 ID 생성기
 let id = 0;
@@ -42,7 +44,11 @@ function getNodeDefaultData(type: string, customData?: any) {
       };
     case 'service':
       // customData가 있으면 사용, 없으면 기본 값
-      return customData || { };
+      return customData || { 
+        config: {
+          name: 'Default Service',
+        }
+      };
     case 'default':
       return { label: 'default node' };
     default:
@@ -57,7 +63,10 @@ const DEFAULT_NODE_TYPES = ['text', 'result', 'color', 'image', 'counter', 'inpu
 export function useDragAndDrop() {
   const { screenToFlowPosition } = useReactFlow();
   const [type] = useDnD();
-  const { clients } = useOutletContext<{ clients: ClientRow[] }>();
+  const { clients, servers } = useOutletContext<{ 
+    clients: ClientRow[]; 
+    servers: InstalledServer[];
+  }>();
 
   // 드래그 오버 핸들러
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -88,8 +97,13 @@ export function useDragAndDrop() {
           // 전역 변수에서 서버 데이터 가져오기
           const serverData = window.__lastDraggedServer;
 
-          if (serverData && serverData.id === serverId) {
-            console.log('[onDrop] 서버 노드 생성 시작:', serverData.name || serverData.id);
+          if (serverData && String(serverData.id) === serverId) {
+            // 🔥 InstalledServer와 ServerItem 구분 처리
+            const serverName = (serverData as any).mcp_servers?.name || 
+                              (serverData as any).name || 
+                              (serverData as any).config?.name || 
+                              `서버 ${serverData.id}`;
+            console.log('[onDrop] 서버 노드 생성 시작:', serverName);
 
             // 위치 계산
             const position = screenToFlowPosition({
@@ -99,12 +113,23 @@ export function useDragAndDrop() {
 
             console.log('[onDrop] 서버 노드 위치 계산됨:', position);
 
-            // ServerNode 생성
+            // 🔥 실제 DB에서 완전한 서버 데이터 찾기
+            const fullServerData = servers.find(server => 
+              server.original_server_id.toString() === serverId ||
+              server.mcp_servers?.name === (serverData as any).mcp_servers?.name
+            );
+
+            // 🔥 실제 DB 데이터를 있는 그대로 사용!
+            const nodeData = fullServerData || serverData;
+
+            console.log('🔥 실제 DB 서버 데이터로 노드 생성:', nodeData);
+
+            // ServerNode 생성 (type을 'server'로 변경 - MCP 서버이므로)
             const newNode = {
               id: getId('server'),
-              type: 'server', // 반드시 'server' 타입으로 설정
+              type: 'server', // 🔥 MCP 서버이므로 'server' 타입
               position,
-              data: serverData, // 서버 데이터 그대로 전달
+              data: nodeData, // 🔥 있는 그대로!
             };
 
             console.log('[onDrop] 생성할 서버 노드:', newNode);
@@ -190,9 +215,11 @@ export function useDragAndDrop() {
             config: service,
           };
         } else {
-          console.log('Service not found, using fallback');
+          console.log('Service not found, using minimal data');
           customData = {
-          
+            config: {
+              name: draggedData || 'Unknown Service',
+            }
           };
         }
       }

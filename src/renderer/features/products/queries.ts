@@ -718,22 +718,9 @@ export const getUserInstalledServers = async (
   const { data, error } = await client
     .from('user_mcp_usage')
     .select(`
-      id,
-      original_server_id,
-      install_method_id,
-      install_status,
-      install_completed_at,
-      execution_status,
-      mcp_install_methods!install_method_id (
-        id,
-        command,
-        is_zero_install
-      ),
-      mcp_servers!original_server_id (
-        id,
-        name,
-        description
-      )
+      *,
+      mcp_install_methods!install_method_id (*),
+      mcp_servers!original_server_id (*)
     `)
     .eq('profile_id', profile_id)
     .eq('install_status', 'success') // 성공한 설치만
@@ -745,6 +732,32 @@ export const getUserInstalledServers = async (
   }
   
   console.log('📋 [getUserInstalledServers] 설치된 서버 목록:', data?.length || 0, '개');
+  return data || [];
+};
+
+// 🔥 특정 서버 ID의 MCP 설정들 가져오기
+export const getMcpConfigsByServerId = async (
+  client: SupabaseClient<Database>,
+  {
+    original_server_id,
+  }: {
+    original_server_id: number;
+  },
+) => {
+  console.log('🔧 [getMcpConfigsByServerId] 서버 설정 조회:', { original_server_id });
+
+  const { data, error } = await client
+    .from('mcp_configs')
+    .select('*')
+    .eq('original_server_id', original_server_id)
+    .order('created_at', { ascending: false });
+    
+  if (error) {
+    console.error('❌ [getMcpConfigsByServerId] 서버 설정 조회 실패:', error);
+    throw error;
+  }
+  
+  console.log('🔧 [getMcpConfigsByServerId] 서버 설정 목록:', data?.length || 0, '개');
   return data || [];
 };
 

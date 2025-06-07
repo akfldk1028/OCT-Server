@@ -8,15 +8,21 @@ export class ClaudeDesktopIntegration {
   private configPath: string;
 
   constructor() {
-    // Claude Desktop 설정 파일 경로
-    const appDataPath =
-      process.env.APPDATA ||
-      (process.platform === 'darwin'
-        ? path.join(os.homedir(), 'Library', 'Application Support')
-        : path.join(os.homedir(), '.config'));
+    // Claude Desktop 설정 파일 경로 (Windows 우선 처리)
+    let appDataPath: string;
+    
+    if (process.platform === 'win32') {
+      // Windows: APPDATA 환경변수 사용
+      appDataPath = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+    } else if (process.platform === 'darwin') {
+      // macOS
+      appDataPath = path.join(os.homedir(), 'Library', 'Application Support');
+    } else {
+      // Linux
+      appDataPath = path.join(os.homedir(), '.config');
+    }
 
     const claudeFolder = path.join(appDataPath, 'Claude');
-
     this.configPath = path.join(claudeFolder, 'claude_desktop_config.json');
 
     console.log(`[Claude Desktop] APPDATA 환경 변수: ${process.env.APPDATA}`);
@@ -54,8 +60,8 @@ export class ClaudeDesktopIntegration {
   // MCP 서버를 Claude Desktop에 연결
   connectServer(serverName: string, serverConfig: any): boolean {
     try {
-      if (!serverConfig.execution || !serverConfig.execution.command) {
-        console.error(`서버 ${serverName}에 필요한 실행 정보가 없습니다.`);
+      if (!serverConfig.command) {
+        console.error(`서버 ${serverName}에 필요한 command 정보가 없습니다.`);
         return false;
       }
       // 파일 존재 여부 확인
@@ -82,13 +88,13 @@ export class ClaudeDesktopIntegration {
 
       // 서버 추가/업데이트
       config.mcpServers[serverName] = {
-        command: serverConfig.execution.command,
-        args: serverConfig.execution.args || [],
+        command: serverConfig.command,
+        args: serverConfig.args || [],
       };
 
       // 환경 변수가 있으면 추가
-      if (serverConfig.execution.env && Object.keys(serverConfig.execution.env).length > 0) {
-        config.mcpServers[serverName].env = serverConfig.execution.env;
+      if (serverConfig.env && Object.keys(serverConfig.env).length > 0) {
+        config.mcpServers[serverName].env = serverConfig.env;
       }
 
       // 설정 저장

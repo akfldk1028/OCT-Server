@@ -8,6 +8,14 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { ServerItem } from '../../../../types';
+import type { Database } from '../../../../database.types';
+
+// 🔥 server-layout.tsx에서 정의한 정확한 타입 사용
+type InstalledServer = Database['public']['Tables']['user_mcp_usage']['Row'] & {
+  mcp_install_methods: Database['public']['Tables']['mcp_install_methods']['Row'] | null;
+  mcp_servers: Database['public']['Tables']['mcp_servers']['Row'] | null;
+  mcp_configs?: Database['public']['Tables']['mcp_configs']['Row'][];
+};
 
 // 전역 변수 타입 선언 (TypeScript에서 필요)
 declare global {
@@ -53,7 +61,7 @@ function createCustomDragImage(event: React.DragEvent, imageUrl: string) {
 interface HelpTabProps {
   collapsed: boolean;
   onDragStart: (event: React.DragEvent, nodeType: string) => void;
-  servers: ServerItem[];
+  servers: InstalledServer[];
 }
 
 export default function ServerTab({
@@ -61,17 +69,16 @@ export default function ServerTab({
   onDragStart,
   servers = [],
 }: HelpTabProps) {
-  // allServers가 있으면 그걸 쓰고, 아니면 빈 배열
-  const serverList = (servers as any).allServers ?? servers ?? [];
+  console.log('🔍 [ServerTab] 받은 설치된 서버들:', servers);
   if (collapsed) {
     // 접힘: 로고만 카드 (드래그 지원)
     return (
       <div className="grid grid-cols-2 sm:grid-cols-1 gap-4 p-2 justify-items-center">
-        {serverList.map((server: ServerItem, idx: number) => (
+        {servers.map((server: InstalledServer) => (
           <div
             key={server.id}
             className="w-15 h-15 sm:w-32 bg-card rounded-xl shadow-md flex items-center justify-center hover:bg-card/80 transition-all duration-200 cursor-grab active:cursor-grabbing"
-            title={server.config.name || server.name}
+            title={server.mcp_servers?.name || `서버 ${server.original_server_id}`}
             draggable="true"
             onDragStart={(event) => {
               // 드래그 시작 전에 모든 데이터 초기화
@@ -84,38 +91,14 @@ export default function ServerTab({
               );
 
               // 전역 변수에 서버 데이터 저장
-              window.__lastDraggedServerId = server.id;
-              window.__lastDraggedServer = server;
-
-              // 작은 드래그 이미지 설정
-              if (server.config.github_info?.ownerAvatarUrl) {
-                createCustomDragImage(
-                  event,
-                  server.config.github_info.ownerAvatarUrl,
-                );
-              }
+              window.__lastDraggedServerId = String(server.id);
+              window.__lastDraggedServer = server as any;
 
               // 디버깅
               console.log('서버 드래그 설정 완료:', server.id);
             }}
           >
-            {server.config.github_info?.ownerAvatarUrl ? (
-              <img
-                src={server.config.github_info.ownerAvatarUrl}
-                alt={server.config.name || server.name}
-                className="w-6 h-6 sm:w-6 sm:h-6 object-contain"
-                // 중요: 이미지 자체의 드래그는 방지
-                onDragStart={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  return false;
-                }}
-                draggable="false"
-                style={{ pointerEvents: 'none', userSelect: 'none' }}
-              />
-            ) : (
-              <span className="text-2xl">🧩</span>
-            )}
+            <span className="text-2xl">🧩</span>
           </div>
         ))}
       </div>
@@ -125,7 +108,7 @@ export default function ServerTab({
   // 펼침: Card로 전체 정보
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 p-2 overflow-y-auto items-stretch">
-      {serverList.map((server: ServerItem) => (
+      {servers.map((server: InstalledServer) => (
         <Card
           key={server.id}
           className="flex flex-col items-center justify-between bg-transparent w-full h-full transition-colors hover:bg-card/50"
@@ -134,7 +117,7 @@ export default function ServerTab({
             // 드래그 시작 시 로깅 추가
             console.log(
               '펼침 상태 서버 드래그 시작:',
-              server.name || server.id,
+              server.mcp_servers?.name || server.id,
             );
 
             // 중요: 모든 기본 동작 방지
@@ -147,16 +130,8 @@ export default function ServerTab({
             event.dataTransfer.setData('text/plain', `SERVER_ID:${server.id}`);
 
             // 전역 변수에 서버 데이터 저장
-            window.__lastDraggedServerId = server.id;
-            window.__lastDraggedServer = server;
-
-            // 작은 드래그 이미지 설정
-            if (server.config.github_info?.ownerAvatarUrl) {
-              createCustomDragImage(
-                event,
-                server.config.github_info.ownerAvatarUrl,
-              );
-            }
+            window.__lastDraggedServerId = String(server.id);
+            window.__lastDraggedServer = server as any;
 
             // 기본 드래그 효과 설정
             event.dataTransfer.effectAllowed = 'copyMove';
@@ -165,31 +140,20 @@ export default function ServerTab({
           }}
         >
           <CardHeader className="flex flex-col items-center pb-0">
-            {server.config.github_info?.ownerAvatarUrl ? (
-              <img
-                src={server.config.github_info.ownerAvatarUrl}
-                alt={server.config.name || server.name}
-                className="w-12 h-12 rounded-full mb-2 object-contain"
-                // 중요: 이미지 자체의 드래그는 방지
-                onDragStart={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  return false;
-                }}
-                draggable="false"
-                style={{ pointerEvents: 'none', userSelect: 'none' }}
-              />
-            ) : (
-              <span className="text-4xl mb-2">🧩</span>
-            )}
+            <span className="text-4xl mb-2">🧩</span>
             <span className="text-accent-foreground font-bold text-center text-base break-words w-full">
-              {server.config.name || server.name}
+              {server.mcp_servers?.name || `서버 ${server.original_server_id}`}
             </span>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-2 w-full px-2 py-2">
             <Badge variant="outline" className="capitalize mb-2">
-              {server.status}
+              {server.install_status === 'success' ? '설치됨' : server.install_status || 'Unknown'}
             </Badge>
+            {server.mcp_install_methods?.command && (
+              <Badge variant="outline" className="text-xs">
+                {server.mcp_install_methods.command}
+              </Badge>
+            )}
     
           </CardContent>
          

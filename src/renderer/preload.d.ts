@@ -13,6 +13,7 @@ declare global {
     /** Anthropic 액션 상태용 Zutron 브릿지 */
     anthropicZutron: any;
     overlay: any;
+    workflow: any;
   }
 }
 

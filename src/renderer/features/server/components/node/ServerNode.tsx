@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import type { ServerItem } from '../../../../types';
+import type { InstalledServer } from '../../types/server-types';
 
 interface ServerNodeProps {
-  data: ServerItem;
+  data: InstalledServer;
   id: string;
   selected?: boolean;
 }
@@ -20,16 +20,13 @@ export default function ServerNode({ data, id, selected }: ServerNodeProps) {
     // 데이터 구조 검증
     if (!data) {
       console.error('ServerNode: 데이터가 없습니다!');
-    } else if (!data.config) {
-      console.error('ServerNode: config 객체가 없습니다!', data);
-    } else {
-      console.log('ServerNode: 유효한 데이터를 받았습니다.', {
-        id: data.id,
-        name: data.name,
-        configName: data.config?.name,
-        hasGithubInfo: !!data.config?.github_info,
-      });
-    }
+          } else {
+        console.log('ServerNode: 데이터를 받았습니다.', {
+          id: data.id || data.original_server_id,
+          serverName: data.mcp_servers?.name,
+          hasInstallMethod: !!data.mcp_install_methods,
+        });
+      }
   }, [data]);
 
   // 데이터가 없는 경우 기본 노드 표시
@@ -51,12 +48,27 @@ export default function ServerNode({ data, id, selected }: ServerNodeProps) {
     );
   }
 
-  // config가 없는 경우 안전하게 처리
-  const config = data?.config || {};
-  const name = config?.name || data?.name || 'Unknown Server';
-  const description = config?.description || 'No description available';
+  // InstalledServer 구조에 맞춰 데이터 추출
+  const serverInfo = data?.mcp_servers;
+  const installMethod = data?.mcp_install_methods;
+  
+  // 가능한 모든 경로에서 name 추출
+  const name = 
+    serverInfo?.name || 
+    (installMethod?.command || 'Unknown Command') ||
+    String(data?.original_server_id) ||
+    'Unknown Server';
+    
+  const description = 
+    serverInfo?.description || 
+    installMethod?.description ||
+    'No description available';
+    
   const avatarUrl =
-    config?.github_info?.ownerAvatarUrl || 'https://github.com/github.png';
+    (serverInfo?.github_info && typeof serverInfo.github_info === 'object' 
+      ? (serverInfo.github_info as any)?.ownerAvatarUrl 
+      : null) || 
+    'https://github.com/github.png';
 
   return (
     <div
@@ -94,13 +106,9 @@ export default function ServerNode({ data, id, selected }: ServerNodeProps) {
           {description}
         </div>
       )}
-      {data?.status && (
-        <div className="mt-1 text-xs text-muted-foreground">
-          상태: {data.status}
-        </div>
-      )}
+
       <div className="mt-2 text-xs text-muted-foreground">
-        ID: {data?.id ? `${data.id.substring(0, 8)}...` : 'New Server'}
+        ID: {data?.id ? `${String(data.id).substring(0, 8)}...` : 'New Server'}
       </div>
       <Handle
         type="source"

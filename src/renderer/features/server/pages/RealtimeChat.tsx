@@ -27,8 +27,8 @@ import {
 import { cn } from '@/lib/utils';
 import ChatInput from './ChatInput';
 import MCPManager from '../components/MCPManager';
-import ChatSidebar from '../components/ChatSidebar';
-import type { Tag } from '../components/TagInput';
+import ChatSidebar from '../components/Chat/ChatSidebar';
+import type { Tag } from '../components/Chat/TagInput';
 import { useChatScroll } from '@/hooks/use-chat-scroll';
 
 // 메시지 아이템을 memoized 컴포넌트로 분리

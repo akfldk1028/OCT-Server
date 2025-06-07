@@ -11,6 +11,7 @@ import { MCPProxyState } from '@/main/stores/renderProxy/rendererMCPProxy-type';
 import type { MCPCoordinatorState } from '@/main/stores/integration/ai-mcp-coordinator';
 import { InstallerState } from '@/main/stores/install/installer-types';
 import { AgentState } from '@/main/stores/orchestrator/agent-types';
+import { WorkflowState } from '@/renderer/features/server/types/server-types';
 
 export interface CombinedState {
   // root: AppState;
@@ -25,6 +26,7 @@ export interface CombinedState {
   mcp_coordinator: MCPCoordinatorState;
   installer: Omit<InstallerState, 'dispatch'>; // dispatch 제외
   // agentOrchestrator: AgentState;
+  workflow: WorkflowState; // 추가
 
   [key: string]: any; // 이 한 줄 추가!
 }

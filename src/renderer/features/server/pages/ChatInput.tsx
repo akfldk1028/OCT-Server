@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Send, MessageSquare, Zap } from 'lucide-react';
-import TagInput, { type Tag } from '../components/TagInput';
+import TagInput, { type Tag } from '../components/Chat/TagInput';
 
 interface ChatInputProps {
   onSend: (message: string, tags?: Tag[]) => void;

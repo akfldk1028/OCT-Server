@@ -14,6 +14,7 @@ import { rendererMCPProxy } from './renderProxy/rendererMCPProxy';
 import { mcpCoordinatorStore } from './integration/ai-mcp-coordinator';
 import { installerStore } from './install/installerStore';
 import { agentOrchestratorStore } from './orchestrator/agentOrchestratorStore';
+import { workflowStore } from './workflow/workflowStore';
 
 export const combinedStore = createStore<CombinedState>((set, get) => ({
   // root: rootStore.getState(),
@@ -27,6 +28,8 @@ export const combinedStore = createStore<CombinedState>((set, get) => ({
   chat: chatStore.getState(),
   mcp_coordinator: mcpCoordinatorStore.getState(),
   installer: installerStore.getState(),
+  workflow: workflowStore.getState(),
+
   // agentOrchestrator: agentOrchestratorStore.getState(),
 }));
 
@@ -74,7 +77,9 @@ mcpCoordinatorStore.subscribe((state) => {
 installerStore.subscribe((state) => {
   combinedStore.setState((prev) => ({ ...prev, installer: state }));
 });
-
+workflowStore.subscribe((state) => {
+  combinedStore.setState((prev) => ({ ...prev, workflow: state }));
+});
 // agentOrchestratorStore.subscribe((state) => {
 //   combinedStore.setState((prev) => ({ ...prev, agentOrchestrator: state }));
 // });

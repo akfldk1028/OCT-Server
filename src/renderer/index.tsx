@@ -37,8 +37,8 @@ import {
   ReactFlowProvider,
 } from '@xyflow/react'
 
-import { DnDProvider } from './features/server/components/DnDContext';
-import { FlowProvider, useFlow } from './features/server/components/useFlowEvents';
+import { DnDProvider } from './features/server/hook/DnDContext';
+import { FlowProvider, useFlow } from './features/server/hook/useFlowEvents';
 import ServerLayout, { loader as serverLayoutLoader } from './features/server/layout/server-layout';
 import { isElectron } from './utils/environment';
 import PricePage, { loader as priceLoader } from './features/price/pages/price-page';

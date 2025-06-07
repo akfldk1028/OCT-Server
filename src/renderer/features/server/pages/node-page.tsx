@@ -40,12 +40,12 @@ import ServerNode from '../components/node/ServerNode';
 import TriggerNode from '../components/node/TriggerNode';
 import Sidebar from '../components/Sidebar';
 import ContextMenu from '../components/node/ContextMenu';
-import { useFlow } from '../components/useFlowEvents';
-import { useDragAndDrop } from '../components/useDragAndDrop';
-import { useKeyboardShortcuts } from '../components/useKeyboardShortcuts'; // 새로 추가
+import { useFlow } from '../hook/useFlowEvents';
+import { useDragAndDrop } from '../hook/useDragAndDrop';
+import { useKeyboardShortcuts } from '../hook/useKeyboardShortcuts'; // 새로 추가
 import { type MyNode } from '../components/initialElements';
 import { useOutletContext } from 'react-router';
-import type { AllServersResponse, ClientRow } from '../../../types';
+import type { ServerLayoutContext } from '../types/server-types';
 import { config } from 'process';
 
 // ResizeObserver 에러 무시 (ReactFlow의 알려진 무해한 에러)
@@ -165,7 +165,7 @@ const getLayoutedElements = async (
 
 export default function NodePage() {
   // 실제 데이터 context에서 받아오기
-  const { servers, clients } = useOutletContext<{ servers: AllServersResponse, clients: ClientRow[] }>();
+  const { servers, clients } = useOutletContext<ServerLayoutContext>();
 
   
     // console.log("[node-page] ✅✅")
@@ -368,24 +368,6 @@ export default function NodePage() {
           {menu && <ContextMenu onClick={onPaneClick} {...menu} />}
         </ReactFlow>
 
-        {/* 연결 이벤트 표시 */}
-        <div className="absolute top-20 left-2.5 bg-card text-card-foreground border border-border p-2.5 rounded-lg shadow-md min-w-[200px] z-10">
-          <h3 className="m-0 mb-2.5 text-base font-medium">
-            Connection Events
-          </h3>
-          {Object.entries(events).map(([name, active]) => (
-            <div
-              key={name}
-              className={`p-1.5 rounded m-0.5 text-sm transition-opacity duration-200 ${
-                active
-                  ? 'opacity-100 bg-accent text-accent-foreground'
-                  : 'opacity-30 bg-transparent'
-              }`}
-            >
-              {name}
-            </div>
-          ))}
-        </div>
 
         {/* 키보드 단축키 안내 */}
         <div className="absolute bottom-2.5 left-12 bg-card text-card-foreground border border-border p-2.5 rounded-lg shadow-md text-xs opacity-80 z-10">

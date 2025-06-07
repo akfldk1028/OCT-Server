@@ -9,19 +9,19 @@ import './mcp/serverHandlers';
 // 환경 변수 로드
 import dotenv from 'dotenv';
 import {
-  getBaseMCPServerConfig,
-  getMergedMCPServerConfig,
-  updateServerInstallStatus,
+  // getBaseMCPServerConfig,  // ✅ 제거됨 - installerStore에서 처리
+  // getMergedMCPServerConfig,  // ✅ 제거됨
+  // updateServerInstallStatus,  // ✅ 제거됨
   getServerSessionInfo,
   userConfig
 } from './src/common/configLoader';
-import type { MCPServerExtended } from './src/common/types/server-config';
-import { ServerInstaller } from './src/common/installer/ServerInstaller';
+// import type { MCPServerExtended } from './src/common/types/server-config';  // ✅ 제거됨
 import { manager } from './src/common/manager/managerInstance';
 import { setupMcpHealthCheckHandlers } from './src/common/server/services/mcpHealthCheck';
 import { ServerInstanceFactory } from './src/common/manager/ServerInstanceFactory';
-import { createNodeExecutor } from './src/common/server/node/NodeExecutorFactory';
-import { ClaudeDesktopIntegration } from './src/common/server/node/service/claude';
+import { NodeExecutorFactory } from './src/workflow/executors/NodeExecutorFactory';
+import { ExecutionContext } from './src/workflow/executors/node-executor-types';
+import { ClaudeDesktopIntegration } from './src/workflow/clients/claude';
 
 // 소프트웨어 가이드 기능 관련 임포트
 // import { GuideManager } from './GuideManager';
@@ -47,54 +47,15 @@ console.log('[Main Process] dotenv loaded.');
 console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
 console.log('SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY);
 
-function getPythonPath() {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'python', 'python.exe');
-  } else {
-    return path.join(process.cwd(), 'python', 'python.exe');
-  }
-}
-
-const installer = new ServerInstaller();
-// 기존 코드 제거
-// const installer = new ServerInstaller();
-
-// installServer 핸들러 수정
-// ipcMain.handle('installServer', async (event, serverName: string, command: string, envVars?: Record<string, string>) => {
-//   console.log('⬇️ main: installServer handler received for', serverName, command);
-  
-//   const config = await getBaseMCPServerConfig(serverName, command as MCPServerExtended['type'], envVars);
-  
-//   if (!config) {
-//     console.error(`[Main] Base config not found for ${serverName}.`);
-//     event.sender.send('installResult', {
-//       success: false,
-//       serverName,
-//       message: `기본 설정 파일(${serverName}.json)을 찾을 수 없습니다.`,
-//     });
-//     return { success: false, error: 'Config not found' };
+// function getPythonPath() {  // ✅ 제거됨 - installer-helpers.ts에서 처리
+//   if (app.isPackaged) {
+//     return path.join(process.resourcesPath, 'python', 'python.exe');
+//   } else {
+//     return path.join(process.cwd(), 'python', 'python.exe');
 //   }
+// }
 
-//   try {
-//     // 새로운 installer store 사용
-//     const installResult = await installerThunks.installServer(serverName, config, command);
-    
-//     event.sender.send('installResult', {
-//       success: installResult.success,
-//       serverName,
-//       message: installResult.success 
-//         ? `${serverName} 설치 완료` 
-//         : installResult.error,
-//     });
-    
-//     return installResult;
-//   } catch (error) {
-//     console.error(`[Main] Error during install process for ${serverName}:`, error);
-//     return { success: false, error: error instanceof Error ? error.message : 'Install failed' };
-//   }
-// });
-
-
+// const installer = new ServerInstaller(); // ✅ 제거됨 - 새로운 installerStore 사용
 
 class AppUpdater {
   constructor() {
@@ -221,32 +182,9 @@ app.on('will-quit', () => {
 
 // ===== MCP 서버 관련 IPC 핸들러 =====
 
-// 서버 설치
-ipcMain.handle('installServer', async (event, serverName: string, command: string, envVars?: Record<string, string>) => {
-  console.log('⬇️ main: installServer handler received for', serverName, command);
-  console.log('⬇️ main: with environment variables:', envVars || 'none');
-
-  const config = await getBaseMCPServerConfig(serverName, command as MCPServerExtended['type'], envVars);
-
-  if (!config) {
-    console.error(`[Main] Base config not found for ${serverName}. Replying error.`);
-    event.sender.send('installResult', {
-      success: false,
-      serverName,
-      message: `기본 설정 파일(${serverName}.json)을 찾을 수 없습니다.`,
-    });
-    return { success: false, error: 'Config not found' };
-  }
-
-  try {
-    console.log(`[Main] Starting installation process for ${serverName} using BASE config...`);
-    const installResult = await installer.installServer(serverName, config);
-  } catch (error) {
-    console.error(`[Main] Error during install process for ${serverName}:`, error);
-  }
-
-  return { success: true };
-});
+// 🔥 서버 설치 - 새로운 installerStore로 이관됨
+// 이제 renderer에서 직접 installerStore를 사용하므로 이 핸들러는 필요 없음
+// ipcMain.handle('installServer', ...)  // ✅ 제거됨
 
 // 활성 세션 조회
 ipcMain.handle('mcp:getActiveSessions', async (event, serverName?: string) => {
@@ -273,17 +211,59 @@ ipcMain.handle('mcp:getSessionId', async (event, config) => {
 
 // 워크플로우 실행
 ipcMain.handle('workflow:execute', async (event, payload) => {
+  console.log('🔥 [main] workflow:execute 핸들러 시작');
+  console.log('📨 [main] 받은 payload:', JSON.stringify(payload, null, 2));
+  
   const { workflowId, nodes, edges, triggerId, context } = payload;
   const results: Record<string, any> = {};
   let currentContext = context || {};
 
+  console.log(`🎯 [main] 처리할 노드 개수: ${nodes.length}`);
+
+  // 🔥 새로운 workflow 시스템 사용
+  const claudeIntegration = new ClaudeDesktopIntegration();
+  const executorFactory = new NodeExecutorFactory(claudeIntegration);
+  const executionContext = new ExecutionContext();
+
+  // 기존 context 데이터가 있으면 ExecutionContext에 복사
+  if (currentContext) {
+    Object.entries(currentContext).forEach(([key, value]) => {
+      executionContext.set(key, value);
+    });
+  }
+
   for (const node of nodes) {
+    console.log(`🔄 [main] 노드 ${node.id} (${node.type}) 처리 시작`);
+    console.log(`📊 [main] 노드 데이터:`, {
+      id: node.id,
+      type: node.type,
+      'data': node.data,
+      'data.config': node.data?.config,
+      'data.name': node.data?.name
+    });
+    
     try {
-      const executor = createNodeExecutor(node, nodes, edges, triggerId);
-      const result = await executor.execute(currentContext, nodes, edges, triggerId);
-      results[node.id] = result;
-      currentContext[node.id] = result;
-      Object.assign(currentContext, result);
+      const executor = executorFactory.create(node);
+      console.log(`⚡ [main] NodeExecutor 생성됨: ${executor ? '성공' : '실패'}`);
+      
+      if (executor && executor.execute) {
+        const executePayload = {
+          nodeId: String(node.id),
+          context: executionContext,
+          nodes,
+          edges,
+          triggerId
+        };
+        
+        const result = await executor.execute(executePayload);
+        console.log(`✅ [main] 노드 ${node.id} 실행 완료:`, result);
+        
+        results[node.id] = result;
+        executionContext.set(String(node.id), result);
+        Object.assign(currentContext, result);
+      } else {
+        console.log(`⚠️ [main] 노드 ${node.id} executor가 없거나 execute 메서드가 없음`);
+      }
     } catch (error: unknown) {
       let message = 'Unknown error';
       if (error && typeof error === 'object' && 'message' in error) {
@@ -291,11 +271,14 @@ ipcMain.handle('workflow:execute', async (event, payload) => {
       } else if (typeof error === 'string') {
         message = error;
       }
+      console.error(`❌ [main] 노드 ${node.id} 실행 실패:`, message);
       results[node.id] = { error: true, message };
       break;
     }
   }
 
+  console.log('🏁 [main] workflow:execute 완료, 최종 결과:', currentContext);
+  
   return {
     success: true,
     finalData: currentContext,
@@ -311,5 +294,22 @@ ipcMain.handle('claude:getAllServers', () => {
 ipcMain.handle('claude:removeServer', (event, serverName) => {
   const claude = new ClaudeDesktopIntegration();
   return claude.disconnectServer(serverName);
+});
+
+// === Claude Desktop 연결 핸들러 ===
+ipcMain.handle('connect-to-claude-desktop', async (event, serverName: string, serverConfig: any) => {
+  console.log(`🚀 [main] Claude Desktop 연결 요청: ${serverName}`);
+  
+  try {
+    const claude = new ClaudeDesktopIntegration();
+    const connected = claude.connectServer(serverName, serverConfig);
+    
+    console.log(`${connected ? '✅' : '❌'} [main] Claude Desktop 연결 결과: ${serverName} - ${connected ? '성공' : '실패'}`);
+    return connected;
+    
+  } catch (error) {
+    console.error(`❌ [main] Claude Desktop 연결 오류: ${serverName}`, error);
+    return false;
+  }
 });
 

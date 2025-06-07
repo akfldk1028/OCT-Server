@@ -1,9 +1,6 @@
 import { Edge } from "@xyflow/react";
 import { ServerStatus } from './server';
-import type { Database } from '@/renderer/database.types';
-
-export type McpServerFullView = Database['public']['Views']['mcp_servers_full_view']['Row'];
-export type Clients = Database['public']['Tables']['clients']['Row'];
+import type { InstalledServer, ClientType } from '@/renderer/features/server/types/server-types';
 
 export interface NodeMetadata {
     typeVersion: string | number;
@@ -48,7 +45,7 @@ export interface ServiceNodeData extends NodeMetadata
     id: string | number; // 서버 고유 ID (ServerStatus의 name과 별개로 필요)
     type: string;
     position?: { x: number; y: number };
-    config: Clients;
+    config: ClientType;
 }
 
 export interface ServerNodeData extends NodeMetadata 
@@ -56,7 +53,8 @@ export interface ServerNodeData extends NodeMetadata
     id: string | number; // 서버 고유 ID (ServerStatus의 name과 별개로 필요)
     type: string;
     position?: { x: number; y: number };
-    config: McpServerFullView;
+    config?: InstalledServer; // InstalledServer 타입으로 변경
+
 }
 
 // 타입별 유니언 (확장 가능)

@@ -1,15 +1,23 @@
 import React, { useState } from 'react';
-import { useDnD } from './DnDContext';
+import { useDnD } from '../hook/DnDContext';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import NodesTab from './tab/NodesTab';
 import ServiceTab from './tab/ServiceTab';
 import ServerTab from './tab/ServerTab';
 import { useOutletContext } from 'react-router';
 import type { AllServersResponse, ServerItem, ClientRow } from '../../../types';
+import type { Database } from '../../../database.types';
+
+// 🔥 server-layout.tsx에서 정의한 정확한 타입 사용
+type InstalledServer = Database['public']['Tables']['user_mcp_usage']['Row'] & {
+  mcp_install_methods: Database['public']['Tables']['mcp_install_methods']['Row'] | null;
+  mcp_servers: Database['public']['Tables']['mcp_servers']['Row'] | null;
+  mcp_configs?: Database['public']['Tables']['mcp_configs']['Row'][];
+};
 import ComputerUseTab from "@/renderer/features/server/components/tab/ComputerUseTab";
 
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
-  const { servers, clients } = useOutletContext<{ servers: AllServersResponse, clients: ClientRow[] }>();
+  const { servers, clients } = useOutletContext<{ servers: InstalledServer[], clients: ClientRow[] }>();
 
   const [_, setType] = useDnD();
   const [collapsed, setCollapsed] = useState(false);
@@ -84,13 +92,13 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
             >
               {collapsed ? <span>❓</span> : 'Server'}
             </button>
-            <button
+            {/* <button
               onClick={() => setActiveTab('ComputerUse')}
               className={`${activeTab === 'ComputerUse' ? 'font-bold' : ''} ${collapsed ? 'w-8 h-8 p-0 flex items-center justify-center text-lg' : ''}`}
               title="ComputerUse"
             >
               {collapsed ? <span>❓</span> : 'ComputerUse'}
-            </button>
+            </button> */}
           </div>
           <div>
             {activeTab === 'Toolbox' && (
@@ -100,11 +108,11 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
               <ServiceTab collapsed={collapsed} onDragStart={handleDragStart} clients={clients} />
             )}
             {activeTab === 'Server' && (
-              <ServerTab collapsed={collapsed} onDragStart={handleDragStart} servers={servers?.allServers ?? []} />
+              <ServerTab collapsed={collapsed} onDragStart={handleDragStart} servers={servers ?? []} />
             )}
-            {activeTab === 'ComputerUse' && (
-              <ComputerUseTab collapsed={collapsed} onDragStart={handleDragStart} servers={servers?.allServers ?? []} />
-            )}
+            {/* {activeTab === 'ComputerUse' && (
+              <ComputerUseTab collapsed={collapsed} onDragStart={handleDragStart} clients={clients ?? []} />
+            )} */}
           </div>
         </div>
       </aside>

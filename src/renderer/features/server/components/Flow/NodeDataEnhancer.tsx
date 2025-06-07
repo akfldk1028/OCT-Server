@@ -88,14 +88,15 @@ export function enhanceNodeData(node: any): any {
   const nodeType = node.type || 'unknown';
   const metadata = getNodeMetadata(nodeType);
   
-  // 노드 데이터와 메타데이터 병합
+  // 🔥 원래 노드 데이터를 보존하면서 메타데이터만 추가
   return {
-    ...(node.data || {}),
+    ...(node.data || {}),  // 원래 데이터 전체 보존 (config, label 등)
     id: node.id,
     type: nodeType,
-    typeVersion: metadata.typeVersion,
-    category: metadata.category,
-    description: (node.data?.description || metadata.description),
+    // 메타데이터는 기존 값이 없을 때만 추가
+    typeVersion: node.data?.typeVersion || metadata.typeVersion,
+    category: node.data?.category || metadata.category,
+    description: node.data?.description || metadata.description,
   };
 }
 
