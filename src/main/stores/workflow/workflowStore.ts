@@ -16,13 +16,15 @@ interface SimpleWorkflowState {
   activeExecutionIds: string[];
   loading: boolean;
   error?: string;
+  workflows: Record<string, any>; // CombinedState의 WorkflowState와 호환성을 위해 추가
 }
 
 const initialState: SimpleWorkflowState = {
   executions: {},
   activeExecutionIds: [],
   loading: false,
-  error: undefined
+  error: undefined,
+  workflows: {} // 추가된 workflows 필드 초기화
 };
 
 export const workflowStore = createStore<SimpleWorkflowState & {

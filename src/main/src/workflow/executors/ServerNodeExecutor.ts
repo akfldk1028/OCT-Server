@@ -250,8 +250,8 @@ export class ServerNodeExecutor extends BaseNodeExecutor<ServerNodeData> {
   }
   
   private selectBestConfigForWindows(configs: any[]): any {
-    // Windows 우선순위: recommended > python > uvx > uv > docker
-    const priorities = ['python', 'uvx', 'uv', 'docker'];
+    // Windows 우선순위 (비개발자 친화적): recommended > npx > npm > pip > uvx > uv > python > docker
+    const priorities = ['npx', 'npm', 'pip', 'uvx', 'uv', 'python', 'docker'];
     
     const recommended = configs.find(c => c.is_recommended);
     if (recommended) return recommended;
@@ -265,8 +265,8 @@ export class ServerNodeExecutor extends BaseNodeExecutor<ServerNodeData> {
   }
 
   private selectBestConfigForMacOS(configs: any[]): any {
-    // macOS 우선순위: recommended > uvx > uv > python > docker
-    const priorities = ['uvx', 'uv', 'python', 'docker'];
+    // macOS 우선순위 (비개발자 친화적): recommended > npx > npm > pip > uvx > uv > python > docker
+    const priorities = ['npx', 'npm', 'pip', 'uvx', 'uv', 'python', 'docker'];
     
     const recommended = configs.find(c => c.is_recommended);
     if (recommended) return recommended;
@@ -280,8 +280,8 @@ export class ServerNodeExecutor extends BaseNodeExecutor<ServerNodeData> {
   }
 
   private selectBestConfigForLinux(configs: any[]): any {
-    // Linux 우선순위: recommended > python > uvx > uv > docker
-    const priorities = ['python', 'uvx', 'uv', 'docker'];
+    // Linux 우선순위 (비개발자 친화적): recommended > npx > npm > pip > uvx > uv > python > docker
+    const priorities = ['npx', 'npm', 'pip', 'uvx', 'uv', 'python', 'docker'];
     
     const recommended = configs.find(c => c.is_recommended);
     if (recommended) return recommended;

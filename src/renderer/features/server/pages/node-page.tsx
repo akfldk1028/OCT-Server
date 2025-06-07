@@ -47,6 +47,7 @@ import { type MyNode } from '../components/initialElements';
 import { useOutletContext } from 'react-router';
 import type { ServerLayoutContext } from '../types/server-types';
 import { config } from 'process';
+import FlowToolbar from '../components/Flow/FlowToolbar';
 
 // ResizeObserver 에러 무시 (ReactFlow의 알려진 무해한 에러)
 const suppressResizeObserverError = () => {
@@ -312,10 +313,14 @@ export default function NodePage() {
   }, []);
 
   return (
-    <div className="flex flex-row h-screen w-screen overflow-hidden" ref={reactFlowWrapper}>
+    <div className="flex flex-col h-screen w-screen overflow-hidden" ref={reactFlowWrapper}>
+      {/* Toolbar 추가 */}
+      <FlowToolbar />
+      
       {/* 메인 Flow 영역 */}
-      <div className="flex-1 h-full bg-background text-foreground relative transition-all duration-300">
-        <ReactFlow
+      <div className="flex-1 h-full bg-background text-foreground relative transition-all duration-300 flex flex-row">
+        <div className="flex-1 h-full bg-background text-foreground relative transition-all duration-300">
+          <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
@@ -397,6 +402,7 @@ export default function NodePage() {
             </aside>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

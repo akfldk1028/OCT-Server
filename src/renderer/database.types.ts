@@ -159,40 +159,58 @@ export type Database = {
       }
       mcp_configs: {
         Row: {
+          allowed_values: Json | null
           args: Json | null
           command: string | null
           config_name: string | null
+          config_type: string | null
           created_at: string
+          description: string | null
           env: Json | null
           id: number
           is_recommended: boolean | null
+          is_user_customizable: boolean | null
           original_server_id: number | null
           platform: string | null
           updated_at: string
+          value_placeholder: string | null
+          value_type: string | null
         }
         Insert: {
+          allowed_values?: Json | null
           args?: Json | null
           command?: string | null
           config_name?: string | null
+          config_type?: string | null
           created_at?: string
+          description?: string | null
           env?: Json | null
           id?: number
           is_recommended?: boolean | null
+          is_user_customizable?: boolean | null
           original_server_id?: number | null
           platform?: string | null
           updated_at?: string
+          value_placeholder?: string | null
+          value_type?: string | null
         }
         Update: {
+          allowed_values?: Json | null
           args?: Json | null
           command?: string | null
           config_name?: string | null
+          config_type?: string | null
           created_at?: string
+          description?: string | null
           env?: Json | null
           id?: number
           is_recommended?: boolean | null
+          is_user_customizable?: boolean | null
           original_server_id?: number | null
           platform?: string | null
           updated_at?: string
+          value_placeholder?: string | null
+          value_type?: string | null
         }
         Relationships: [
           {
@@ -996,6 +1014,337 @@ export type Database = {
           },
           {
             foreignKeyName: "user_subscriptions_profile_id_profiles_profile_id_fk"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_view"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
+      workflow_edges: {
+        Row: {
+          created_at: string
+          edge_config: Json | null
+          edge_id: string
+          id: number
+          source_handle: string | null
+          source_node_id: string
+          target_handle: string | null
+          target_node_id: string
+          workflow_id: number
+        }
+        Insert: {
+          created_at?: string
+          edge_config?: Json | null
+          edge_id: string
+          id?: number
+          source_handle?: string | null
+          source_node_id: string
+          target_handle?: string | null
+          target_node_id: string
+          workflow_id: number
+        }
+        Update: {
+          created_at?: string
+          edge_config?: Json | null
+          edge_id?: string
+          id?: number
+          source_handle?: string | null
+          source_node_id?: string
+          target_handle?: string | null
+          target_node_id?: string
+          workflow_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_edges_workflow_id_workflows_id_fk"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_executions: {
+        Row: {
+          completed_at: string | null
+          duration_ms: number | null
+          error_message: string | null
+          execution_id: string
+          id: number
+          nodes_executed: number | null
+          nodes_failed: number | null
+          result_data: Json | null
+          started_at: string
+          status: string | null
+          user_id: string
+          workflow_id: number
+        }
+        Insert: {
+          completed_at?: string | null
+          duration_ms?: number | null
+          error_message?: string | null
+          execution_id: string
+          id?: number
+          nodes_executed?: number | null
+          nodes_failed?: number | null
+          result_data?: Json | null
+          started_at?: string
+          status?: string | null
+          user_id: string
+          workflow_id: number
+        }
+        Update: {
+          completed_at?: string | null
+          duration_ms?: number | null
+          error_message?: string | null
+          execution_id?: string
+          id?: number
+          nodes_executed?: number | null
+          nodes_failed?: number | null
+          result_data?: Json | null
+          started_at?: string
+          status?: string | null
+          user_id?: string
+          workflow_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_executions_workflow_id_workflows_id_fk"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_nodes: {
+        Row: {
+          client_id: number | null
+          created_at: string
+          id: number
+          node_config: Json | null
+          node_id: string
+          node_type: string
+          original_server_id: number | null
+          position_x: number
+          position_y: number
+          user_mcp_usage_id: number | null
+          workflow_id: number
+        }
+        Insert: {
+          client_id?: number | null
+          created_at?: string
+          id?: number
+          node_config?: Json | null
+          node_id: string
+          node_type: string
+          original_server_id?: number | null
+          position_x: number
+          position_y: number
+          user_mcp_usage_id?: number | null
+          workflow_id: number
+        }
+        Update: {
+          client_id?: number | null
+          created_at?: string
+          id?: number
+          node_config?: Json | null
+          node_id?: string
+          node_type?: string
+          original_server_id?: number | null
+          position_x?: number
+          position_y?: number
+          user_mcp_usage_id?: number | null
+          workflow_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_nodes_client_id_clients_client_id_fk"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "workflow_nodes_original_server_id_mcp_servers_id_fk"
+            columns: ["original_server_id"]
+            isOneToOne: false
+            referencedRelation: "empty_mcpconfig_servers_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_nodes_original_server_id_mcp_servers_id_fk"
+            columns: ["original_server_id"]
+            isOneToOne: false
+            referencedRelation: "github_popularity_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_nodes_original_server_id_mcp_servers_id_fk"
+            columns: ["original_server_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_server_categories_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_nodes_original_server_id_mcp_servers_id_fk"
+            columns: ["original_server_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_server_detail_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_nodes_original_server_id_mcp_servers_id_fk"
+            columns: ["original_server_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_servers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_nodes_original_server_id_mcp_servers_id_fk"
+            columns: ["original_server_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_servers_full_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_nodes_user_mcp_usage_id_user_mcp_usage_id_fk"
+            columns: ["user_mcp_usage_id"]
+            isOneToOne: false
+            referencedRelation: "user_mcp_usage"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_nodes_workflow_id_workflows_id_fk"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_shares: {
+        Row: {
+          can_copy: boolean | null
+          can_edit: boolean | null
+          can_view: boolean | null
+          created_at: string
+          download_count: number | null
+          expires_at: string | null
+          id: number
+          is_active: boolean | null
+          share_description: string | null
+          share_title: string | null
+          share_token: string | null
+          share_type: string | null
+          shared_by_user_id: string
+          updated_at: string
+          workflow_id: number
+        }
+        Insert: {
+          can_copy?: boolean | null
+          can_edit?: boolean | null
+          can_view?: boolean | null
+          created_at?: string
+          download_count?: number | null
+          expires_at?: string | null
+          id?: number
+          is_active?: boolean | null
+          share_description?: string | null
+          share_title?: string | null
+          share_token?: string | null
+          share_type?: string | null
+          shared_by_user_id: string
+          updated_at?: string
+          workflow_id: number
+        }
+        Update: {
+          can_copy?: boolean | null
+          can_edit?: boolean | null
+          can_view?: boolean | null
+          created_at?: string
+          download_count?: number | null
+          expires_at?: string | null
+          id?: number
+          is_active?: boolean | null
+          share_description?: string | null
+          share_title?: string | null
+          share_token?: string | null
+          share_type?: string | null
+          shared_by_user_id?: string
+          updated_at?: string
+          workflow_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_shares_workflow_id_workflows_id_fk"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflows: {
+        Row: {
+          created_at: string
+          description: string | null
+          execution_count: number | null
+          flow_structure: Json
+          id: number
+          is_public: boolean | null
+          is_template: boolean | null
+          last_executed_at: string | null
+          name: string
+          profile_id: string
+          status: string | null
+          tags: Json | null
+          updated_at: string
+          version: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          execution_count?: number | null
+          flow_structure: Json
+          id?: number
+          is_public?: boolean | null
+          is_template?: boolean | null
+          last_executed_at?: string | null
+          name: string
+          profile_id: string
+          status?: string | null
+          tags?: Json | null
+          updated_at?: string
+          version?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          execution_count?: number | null
+          flow_structure?: Json
+          id?: number
+          is_public?: boolean | null
+          is_template?: boolean | null
+          last_executed_at?: string | null
+          name?: string
+          profile_id?: string
+          status?: string | null
+          tags?: Json | null
+          updated_at?: string
+          version?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflows_profile_id_profiles_profile_id_fk"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "workflows_profile_id_profiles_profile_id_fk"
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles_view"
