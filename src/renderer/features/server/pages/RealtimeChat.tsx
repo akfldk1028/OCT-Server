@@ -18,6 +18,16 @@ import type { Tag } from '../components/Chat/TagInput';
 import type { ServerLayoutContext } from '../types/server-types';
 import { useChatScroll } from '@/hooks/use-chat-scroll';
 
+// 🔥 새로 분리된 훅들 import
+import {
+  useCooperativeClients,
+  useOverlayGuide,
+  useChatData,
+  useMCPServer,
+  useTagManager,
+  useChatMessage
+} from '../components/Chat/hooks';
+
 export default function ChatRoom() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
@@ -30,82 +40,45 @@ export default function ChatRoom() {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
   const [showWorkflowModal, setShowWorkflowModal] = useState(false);
   
   // 🔥 Overlay 모드 상태 관리
   const [overlayMode, setOverlayMode] = useState<'chat' | 'overlay'>('chat');
-  
-  // 🔥 협업 클라이언트 상태 관리
-  const [aiClientId, setAiClientId] = useState<string | null>(null);
-  const [overlayClientId, setOverlayClientId] = useState<string | null>(null);
-  const [clientsStatus, setClientsStatus] = useState({
-    ai: 'idle' as 'idle' | 'thinking' | 'responding',
-    overlay: 'idle' as 'idle' | 'analyzing' | 'generating'
-  });
 
-  // 🤖👁️ 협업 클라이언트 초기화 (조용하게, 토글만 준비)
-  useEffect(() => {
-    if (!sessionId) return;
-    
-    // 🔥 토글 상태만 준비하고 실제 실행은 채팅 시에만
-    let mounted = true;
-    
-    const prepareCooperativeMode = () => {
-      if (!mounted) return;
-      
-      try {
-        // 🔥 가상 ID만 생성 (실제 동작은 메시지 전송 시)
-        const tempAiId = `ai-${sessionId}-${Date.now()}`;
-        const tempOverlayId = `overlay-${sessionId}-${Date.now()}`;
-        
-        setAiClientId(tempAiId);
-        setOverlayClientId(tempOverlayId);
-        
-        console.log('🤝 [RealtimeChat] 협업 모드 준비 완료 (아직 비활성)');
-        
-      } catch (error) {
-        console.error('❌ [RealtimeChat] 협업 모드 준비 실패:', error);
-      }
-    };
+  // 🔥 새로 분리된 훅들 사용
+  const { 
+    aiClientId, 
+    overlayClientId, 
+    clientsStatus, 
+    setClientsStatus 
+  } = useCooperativeClients(sessionId);
 
-    // 조용하게 준비만
-    const timeoutId = setTimeout(prepareCooperativeMode, 100);
+  const { triggerOverlayGuide } = useOverlayGuide(sessionId);
 
-    return () => {
-      mounted = false;
-      clearTimeout(timeoutId);
-    };
-  }, [sessionId]);
+  const {
+    session,
+    room,
+    messages,
+    chatConfig,
+    mcpBindings,
+    activeWorkflowExecutions,
+    availableModels,
+    availableServers,
+    activeTools,
+    availableTools,
+    availablePrompts,
+    availableResources
+  } = useChatData(sessionId);
 
-  // 🔥 Overlay 가이드 트리거 (chatStore.sendOverlayMessage 직접 호출)
-  const triggerOverlayGuide = useCallback(async (question?: string) => {
-    const finalQuestion = question || '이 화면에서 할 수 있는 작업들을 알려주세요';
-    console.log('👁️ [RealtimeChat] Overlay 가이드 트리거:', finalQuestion);
-    
-    if (!sessionId) {
-      console.error('❌ [triggerOverlayGuide] sessionId 없음');
-      return;
-    }
-    
-    try {
-      // 🎯 chatStore.sendOverlayMessage 직접 호출하여 오버레이 실행
-      await dispatch({
-        type: 'chat.sendOverlayMessage',
-        payload: {
-          sessionId,
-          content: finalQuestion,
-          selectedTags: [],
-          triggerOverlay: true // 🔥 오버레이 트리거 활성화!
-        }
-      });
-      console.log('✅ [RealtimeChat] Overlay 가이드 트리거 완료');
-    } catch (error) {
-      console.error('❌ [RealtimeChat] Overlay 가이드 실패:', error);
-    }
-  }, [sessionId, dispatch]);
+  const { toggleMCPServer, handleDisconnectMCP } = useMCPServer(sessionId);
 
-  // 📝 sendMessage 함수 참조 (나중에 정의됨)
+  const {
+    selectedTags,
+    addTag,
+    removeTag,
+    clearTags,
+    executeMCPAction
+  } = useTagManager();
 
   // 🔥 워크플로우 실행 훅 사용
   const { 
@@ -115,17 +88,24 @@ export default function ChatRoom() {
     resetExecution 
   } = useWorkflowExecution();
 
-  // console.log('🎬 ChatRoom rendered with sessionId:', sessionId);
-
-  // 세션 정보 가져오기
-  const session = sessionId ? store.session.sessions[sessionId] : null;
-  const room = session ? store.room.rooms[session.roomId] : null;
-  const messages = sessionId ? store.chat.messages[sessionId] || [] : [];
-  const chatConfig = sessionId ? store.chat.configs[sessionId] : null;
-  const mcpBindings = store.mcp_coordinator?.sessionBindings[sessionId!] || [];
-
   // 📜 자동 스크롤 - 간단한 훅 사용
   const { containerRef, scrollToBottom } = useChatScroll();
+
+  // 🔥 메시지 전송 훅 사용 (scrollToBottom 이후에 정의)
+  const { 
+    sendMessage, 
+    changeModel 
+  } = useChatMessage({
+    sessionId,
+    overlayMode,
+    selectedTags,
+    isStreaming,
+    setIsStreaming,
+    setSelectedTags: clearTags, // useTagManager의 clearTags 사용
+    setInput,
+    scrollToBottom,
+    setClientsStatus
+  });
 
   // 🔄 메시지 변경시 자동 스크롤 (강화된 버전)
   useEffect(() => {
@@ -158,38 +138,6 @@ export default function ChatRoom() {
       };
     }
   }, [messages, isStreaming, scrollToBottom]); // 🔥 messages 전체를 의존성으로!
-
-  // 🔥 이제 useOutletContext에서 userId를 직접 받으므로 별도 조회 불필요
-  // console.log('👤 [ChatRoom] 현재 사용자 ID (context):', userId);
-
-  // 🚀 워크플로우 실행 상태 추적
-  const activeWorkflowExecutions = store.workflow?.executions ? 
-    Object.values(store.workflow.executions).filter(exec => exec.status === 'running') : [];
-  
-  // console.log('🔧 [ChatRoom] 활성 워크플로우 실행:', activeWorkflowExecutions.length, '개');
-
-
-  // console.log('📊 Store 상태:', {
-  //   '🏠 roomStore': store.room,
-  //   '📋 sessionStore': store.session,
-  //   '🔌 open_routerStore': store.open_router,
-  //   '💬 chatStore': store.chat,
-  //   '🖥️ clientStore': store.client,
-  //   '⚙️ chatConfig': store.chat.configs[sessionId!],
-  // });
-
-  // 사용 가능한 리소스들
-  const availableModels = Object.values(store.open_router?.models || {});
-  const availableServers = Object.values(store.mcp_registry?.servers || {});
-  const activeTools = chatConfig?.activeTools || [];
-  
-  // MCP 리소스들 필터링
-  const availableTools = store.mcp_registry ? Object.values(store.mcp_registry.tools || {})
-    .filter(tool => mcpBindings.some(b => b.serverId === tool.serverId && b.status === 'active')) : [];
-  const availablePrompts = store.mcp_registry ? Object.values(store.mcp_registry.prompts || {})
-    .filter(prompt => mcpBindings.some(b => b.serverId === prompt.serverId && b.status === 'active')) : [];
-  const availableResources = store.mcp_registry ? Object.values(store.mcp_registry.resources || {})
-    .filter(resource => mcpBindings.some(b => b.serverId === resource.serverId && b.status === 'active')) : [];
 
   // 🔥 스마트 협업 메시지 전송 (AI 주도 협업 버전) - 오버레이 기능 복구!
   const sendCooperativeMessage = useCallback(async (content: string, forceOverlay: boolean = false) => {
@@ -308,295 +256,9 @@ export default function ChatRoom() {
     // }
   }, [sessionId, session, chatConfig]);
 
-  // 🔥 협업 메시지 전송 시스템 (AI + Overlay 협업)
-  const sendMessage = async (messageContent?: string, tags?: Tag[]) => {
-    const contentToSend =
-      typeof messageContent === 'string' ? messageContent : input;
-    console.log('📤 [RealtimeChat] 협업 sendMessage 호출');
-    console.log('📝 Content:', contentToSend);
-    console.log('🏷️ Tags:', tags || selectedTags);
-    console.log('🤖👁️ Mode:', overlayMode);
-    console.log('🤖 AI Client:', aiClientId);
-    console.log('👁️ Overlay Client:', overlayClientId);
 
-    if (!contentToSend.trim() || !sessionId || isStreaming) {
-      console.log('⛔ Message sending blocked:', {
-        'input empty': !contentToSend.trim(),
-        'no sessionId': !sessionId,
-        isStreaming,
-      });
-      return;
-    }
 
-    setIsStreaming(true);
 
-    try {
-      // 🔥 새로운 협업 메시지 시스템 사용
-      await sendCooperativeMessage(contentToSend, overlayMode === 'overlay');
-      
-      console.log('✅ [RealtimeChat] 협업 메시지 전송 완료');
-      
-      // 메시지 전송 후 정리
-      setSelectedTags([]);
-      setInput('');
-      
-      // 📜 스크롤 (더 강력하게!)
-      console.log('📜 [sendMessage] 메시지 전송 완료 - 스크롤 강제 실행!');
-      
-      // 즉시 스크롤
-      scrollToBottom();
-      
-      // 추가 스크롤 시도들
-      requestAnimationFrame(() => {
-        scrollToBottom();
-        setTimeout(() => scrollToBottom(), 100);
-        setTimeout(() => scrollToBottom(), 200);
-        setTimeout(() => scrollToBottom(), 500);
-      });
-    } catch (error) {
-      console.error('❌ [RealtimeChat] 협업 메시지 전송 실패:', error);
-      
-      // 폴백: 기본 메시지 전송
-      dispatch({
-        type: 'chat.sendMessage',
-        payload: {
-          sessionId,
-          content: `❌ 협업 메시지 실패: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        },
-      });
-    } finally {
-      setIsStreaming(false);
-      console.log('🏁 [RealtimeChat] 협업 메시지 처리 완료');
-    }
-  };
-
-  // MCP 서버 연결/해제
-  const toggleMCPServer = async (serverId: string) => {
-    console.log('🔌 [toggleMCPServer] 시작:', {
-      serverId,
-      sessionId,
-      timestamp: new Date().toISOString()
-    });
-
-    try {
-      const existingBinding = mcpBindings.find(
-        (b) => b.serverId === serverId && b.status === 'active',
-      );
-
-      console.log('🔍 [toggleMCPServer] 기존 바인딩 확인:', {
-        serverId,
-        existingBinding: existingBinding ? {
-          id: existingBinding.id,
-          status: existingBinding.status,
-          clientId: existingBinding.clientId
-        } : null,
-        allBindings: mcpBindings.map(b => ({
-          serverId: b.serverId,
-          status: b.status,
-          id: b.id
-        }))
-      });
-
-      if (existingBinding) {
-        console.log('🔴 [toggleMCPServer] 기존 연결 해제 중...');
-        const disconnectResult = await dispatch({
-          type: 'mcp_coordinator.disconnectMCPFromSession',
-          payload: { sessionId, bindingId: existingBinding.id },
-        });
-        console.log('✅ [toggleMCPServer] 연결 해제 완료:', disconnectResult);
-      } else {
-        console.log('🟢 [toggleMCPServer] 새 연결 시작...');
-        
-        // 서버 정보 확인
-        const serverInfo = store.mcp_registry?.servers[serverId];
-        console.log('🔧 [toggleMCPServer] 서버 정보:', {
-          serverId,
-          serverExists: !!serverInfo,
-          serverData: serverInfo ? {
-            name: serverInfo.name,
-            command: serverInfo.command,
-            args: serverInfo.args,
-            transportType: serverInfo.transportType,
-            status: serverInfo.status
-          } : null
-        });
-        
-        if (!serverInfo) {
-          throw new Error(`서버 ${serverId}가 Registry에 등록되지 않았습니다.`);
-        }
-        
-        // 🔥 MCP Coordinator가 Transport 생성부터 연결까지 모두 처리함
-        // (서버 상태가 disconnected여도 connectMCPToSession에서 자동으로 처리)
-        console.log('📡 [toggleMCPServer] MCP Coordinator에 연결 요청...');
-        const connectResult = await dispatch({
-          type: 'mcp_coordinator.connectMCPToSession',
-          payload: { sessionId, serverId },
-        });
-        
-        console.log('✅ [toggleMCPServer] 연결 요청 완료:', {
-          connectResult,
-          bindingId: connectResult
-        });
-        let attempts = 0;
-        const maxAttempts = 50; // 5초 (100ms * 50)
-        let connectionSuccessful = false;
-        
-        while (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 100)); // 100ms 대기
-          
-          // 바인딩이 생성되었는지 확인
-          const newBinding = mcpBindings.find(binding => 
-            binding.serverId === serverId && binding.status === 'active'
-          );
-          
-          // 도구가 등록되었는지 확인
-          const serverTools = store.mcp_registry ? Object.values(store.mcp_registry.tools || {})
-            .filter(tool => tool.serverId === serverId) : [];
-          
-          if (newBinding && serverTools.length > 0) {
-            console.log('🎉 [toggleMCPServer] 연결 및 도구 등록 완료!', {
-              serverId,
-              bindingId: newBinding.id,
-              toolsCount: serverTools.length,
-              tools: serverTools.map(t => t.name)
-            });
-            connectionSuccessful = true;
-            break;
-          }
-          
-          attempts++;
-          if (attempts % 10 === 0) { // 1초마다 로그
-            console.log(`⏳ [toggleMCPServer] 대기 중... ${attempts/10}초`);
-          }
-        }
-        
-        if (!connectionSuccessful) {
-          console.warn('⚠️ [toggleMCPServer] 연결 대기 시간 초과, 그래도 계속 진행');
-        }
-        
-        // 🔥 서버를 autoConnect로 설정하여 향후 자동 연결되도록 함
-        try {
-          await dispatch({
-            type: 'mcp_registry.updateServerStatus',
-            payload: { 
-              serverId, 
-              status: 'connected',
-              options: { autoConnect: true }  // 🔥 자동 연결 활성화
-            }
-          });
-          console.log('🔥 [toggleMCPServer] autoConnect 활성화됨:', serverId);
-        } catch (error) {
-          console.warn('⚠️ [toggleMCPServer] autoConnect 설정 실패:', error);
-        }
-        
-        // 🔥 최종 상태 확인
-        const finalServerInfo = store.mcp_registry?.servers[serverId];
-        const finalServerTools = store.mcp_registry ? Object.values(store.mcp_registry.tools || {})
-          .filter(tool => tool.serverId === serverId) : [];
-                 const finalBinding = mcpBindings.find(binding => 
-           binding.serverId === serverId && binding.status === 'active'
-         );
-        
-                 console.log('🔍 [toggleMCPServer] 최종 상태:', {
-           serverId,
-           serverStatus: finalServerInfo?.status,
-           autoConnect: finalServerInfo?.autoConnect,
-           toolsCount: finalServerTools.length,
-           tools: finalServerTools.map(t => t.name),
-           id: finalBinding?.id,
-           hasBinding: !!finalBinding,
-           connectionSuccessful
-         });
-      }
-    } catch (error) {
-      console.error('❌ [toggleMCPServer] 실패:', {
-        serverId,
-        sessionId,
-        error: error instanceof Error ? {
-          message: error.message,
-          stack: error.stack,
-          name: error.name
-        } : error,
-        timestamp: new Date().toISOString()
-      });
-      
-      // 에러를 다시 던지지 않고 로그만 남김 (상위에서 처리)
-      throw error;
-    }
-  };
-
-  // MCP 서버 연결/해제 (Disconnect) 직접 구현
-  const handleDisconnectMCP = async (bindingId: string) => {
-    if (!sessionId || !bindingId) return;
-    await dispatch({
-      type: 'mcp_coordinator.disconnectMCPFromSession',
-      payload: { sessionId, bindingId },
-    });
-  };
-
-  // 모델 변경
-  const changeModel = (model: string) => {
-    console.log('🤖 Changing model to:', model);
-    dispatch({
-      type: 'chat.updateConfig',
-      payload: {
-        sessionId,
-        config: { model },
-      },
-    });
-  };
-
-  // 태그 관리 함수들
-  const addTag = (tag: Tag) => {
-    setSelectedTags(prev => {
-      const exists = prev.some(t => t.type === tag.type && t.name === tag.name);
-      if (exists) return prev;
-      return [...prev, tag];
-    });
-  };
-
-  const removeTag = (type: string, name: string) => {
-    setSelectedTags(prev => prev.filter(tag => !(tag.type === type && tag.name === name)));
-  };
-
-  // 스키마 기반 기본 파라미터 생성
-  const generateDefaultArgs = (inputSchema?: Tag['inputSchema']): any => {
-    if (!inputSchema || !inputSchema.properties) return {};
-    
-    const args: any = {};
-    const required = inputSchema.required || [];
-    
-    Object.entries(inputSchema.properties).forEach(([key, prop]: [string, any]) => {
-      if (required.includes(key)) {
-        // 필수 파라미터에 대한 기본값 제공
-        switch (prop.type) {
-          case 'string':
-            if (key.includes('message')) {
-              args[key] = `안녕하세요! "${key}" 파라미터를 테스트하고 있습니다.`;
-            } else if (key.includes('location') || key.includes('place')) {
-              args[key] = '서울';
-            } else if (key.includes('query') || key.includes('search')) {
-              args[key] = '테스트 검색어';
-            } else if (key.includes('path') || key.includes('file')) {
-              args[key] = './';
-            } else {
-              args[key] = `테스트 ${key}`;
-            }
-            break;
-          case 'number':
-            args[key] = 1;
-            break;
-          case 'boolean':
-            args[key] = true;
-            break;
-          default:
-            args[key] = `테스트 ${key}`;
-        }
-      }
-    });
-    
-    return args;
-  };
 
   // 🔥 깔끔하게 리팩토링된 워크플로우 실행 핸들러
   const handleLoadWorkflow = async (workflowData: any) => {
@@ -668,66 +330,6 @@ export default function ChatRoom() {
             }
           }
           
-          // 채팅에 결과 메시지 추가
-          if (sessionId) {
-            let resultMessage = `🔧 워크플로우 "${workflowData.name}" 로드 완료!\n\n`;
-            resultMessage += `📝 설명: ${workflowData.description || '설명 없음'}\n`;
-            resultMessage += `📊 총 노드 수: ${workflowData.nodes?.length || 0}개\n`;
-            resultMessage += `🖥️ 서버 노드 수: ${serverNodes.length}개\n\n`;
-            
-            if (connectedServers.length > 0) {
-              resultMessage += `✅ **연결된 MCP 서버들** (${connectedServers.length}개):\n`;
-              connectedServers.forEach(serverName => {
-                resultMessage += `  🔗 ${serverName}\n`;
-              });
-              resultMessage += `\n💡 이제 채팅에서 이 서버들의 도구를 바로 사용할 수 있습니다!\n`;
-              
-              // 🔥 AI에게 새로운 도구 추가 알림 (직접 호출)
-              try {
-                console.log('🤖 [handleLoadWorkflow] AI에게 새로운 도구 알림 전송:', connectedServers);
-                await dispatch({
-                  type: 'chat.notifyNewToolsAdded',
-                  payload: {
-                    sessionId: sessionId!,
-                    connectedServers,
-                    message: `🎉 **워크플로우 실행 완료!**\n\n🔧 새로운 MCP 서버가 연결되었습니다:\n${connectedServers.map(name => `• ${name}`).join('\n')}\n\n💡 이제 이 서버들의 도구를 채팅에서 바로 사용할 수 있습니다!`
-                  }
-                });
-                console.log('✅ [handleLoadWorkflow] AI 알림 전송 완료');
-              } catch (notifyError) {
-                console.error('❌ [handleLoadWorkflow] AI 알림 전송 실패:', notifyError);
-              }
-            }
-            
-            if (failedServers.length > 0) {
-              resultMessage += `\n⚠️ **연결 실패** (${failedServers.length}개):\n`;
-              failedServers.forEach(serverName => {
-                resultMessage += `  ❌ ${serverName}\n`;
-              });
-              resultMessage += `\n🔧 실패한 서버들은 설정을 확인해주세요.`;
-            }
-            
-            await dispatch({
-              type: 'chat.addMessage',
-              payload: {
-                sessionId,
-                message: {
-                  id: `workflow-loaded-${Date.now()}`,
-                  role: 'system',
-                  content: resultMessage,
-                  timestamp: new Date().toISOString(),
-                  metadata: {
-                    type: 'workflow_loaded',
-                    workflowData,
-                    connectedServers,
-                    failedServers,
-                    serverCount: serverNodes.length,
-                    hasNewTools: connectedServers.length > 0 // 🔥 AI가 새로운 도구 인식용 플래그
-                  }
-                }
-              }
-            });
-          }
           
           setShowWorkflowModal(false);
           setTimeout(() => scrollToBottom(), 100);
@@ -822,82 +424,7 @@ export default function ChatRoom() {
     }
   };
 
-  const executeMCPAction = async (tag: Tag): Promise<string> => {
-    if (!sessionId) throw new Error('세션이 없습니다');
-    
-    switch (tag.type) {
-      case 'tool':
-        try {
-          // 스키마 정보를 활용한 파라미터 생성
-          let args = generateDefaultArgs(tag.inputSchema);
-          
-          // 🚨 Fallback: 스키마가 없거나 args가 비어있으면 도구명 기반 기본값 제공
-          if (Object.keys(args).length === 0) {
-            console.log(`⚠️ 스키마 정보가 없어서 fallback 로직 사용`);
-            if (tag.name === 'echo') {
-              args = { message: `안녕하세요! Echo 도구를 테스트하고 있습니다.` };
-            } else if (tag.name.includes('weather')) {
-              args = { location: '서울' };
-            } else if (tag.name.includes('search')) {
-              args = { query: '테스트 검색어' };
-            } else if (tag.name.includes('read') || tag.name.includes('list')) {
-              args = { path: './' };
-            }
-          }
-          
-          console.log(`🎯 최종 생성된 파라미터:`, args);
-          
-          const result = await dispatch({
-            type: 'mcp_coordinator.executeToolForSession',
-            payload: { sessionId, toolName: tag.name, args }
-          });
-          
-          // MCP 응답에서 텍스트 추출
-          let resultText = '';
-          if (result && result.content && Array.isArray(result.content)) {
-            resultText = result.content
-              .filter((item: any) => item.type === 'text')
-              .map((item: any) => item.text)
-              .join('\n');
-          } else {
-            resultText = JSON.stringify(result, null, 2);
-          }
-          
-          return `🔧 도구 "${tag.name}" 실행 결과:\n${resultText}`;
-        } catch (error) {
-          throw new Error(`도구 실행 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
-        }
 
-      case 'prompt':
-        try {
-          // 프롬프트 파라미터 생성
-          const args = generateDefaultArgs(tag.inputSchema);
-          console.log(`🎯 생성된 파라미터:`, args);
-          
-          const content = await dispatch({
-            type: 'mcp_registry.getPrompt',
-            payload: { promptName: tag.name, args }
-          });
-          return `📝 프롬프트 "${tag.name}" 내용:\n${content}`;
-        } catch (error) {
-          throw new Error(`프롬프트 가져오기 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
-        }
-
-      case 'resource':
-        try {
-          const contents = await dispatch({
-            type: 'mcp_registry.readResource',
-            payload: { resourceUri: tag.name }
-          });
-          return `📄 리소스 "${tag.name}" 내용:\n${JSON.stringify(contents, null, 2)}`;
-        } catch (error) {
-          throw new Error(`리소스 읽기 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
-        }
-
-      default:
-        throw new Error(`지원하지 않는 태그 타입: ${tag.type}`);
-    }
-  };
 
   if (!session || !room) {
     console.log('⚠️ No session or room found, showing error');
@@ -975,7 +502,7 @@ export default function ChatRoom() {
               activeTools={activeTools}
               selectedTags={selectedTags}
               onTagRemove={removeTag}
-              onExecuteMCPAction={executeMCPAction}
+              onExecuteMCPAction={(tag: Tag) => executeMCPAction(tag, sessionId!)}
             />
           </div>
         </div>

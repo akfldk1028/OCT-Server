@@ -121,7 +121,7 @@ export function useWorkflowExecution() {
               payload: {
                 sessionId,
                 connectedServers: successfulServers,
-                message: `🎉 **워크플로우 실행 완료!**\n\n🔧 새로운 MCP 서버가 연결되었습니다:\n${successfulServers.map(name => `• ${name}`).join('\n')}\n\n💡 이제 이 서버들의 도구를 채팅에서 바로 사용할 수 있습니다!`
+                message: `🎉 **워크플로우 연결 완료!**\n\n✅ **새로운 MCP 서버들이 활성화되었습니다:**\n${successfulServers.map(name => `🔗 ${name}`).join('\n')}\n\n🚀 **이제 다음 메시지부터 이 도구들을 자동으로 사용할 수 있습니다!**\n💬 "현재 사용 가능한 도구들을 알려주세요" 라고 물어보세요!`
               }
             });
             console.log('✅ [executeWorkflow] AI 알림 전송 완료');

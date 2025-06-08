@@ -26,7 +26,7 @@ export const chatStore = createStore<ChatState>((set, get) => ({
   streamingMessages: {},
 
   // 🏷️ 선택된 태그들을 처리해서 도구, 프롬프트, 리소스 정보 반환
-  processSelectedTags: async (sessionId: string, selectedTags: any[]) => {
+  processSelectedTags: async (sessionId: string, selectedTags: any[], isOverlayMode: boolean = false) => {
     let tools = undefined;
     let systemPrompts = '';
     let resourceContents = '';
@@ -75,24 +75,29 @@ export const chatStore = createStore<ChatState>((set, get) => ({
             }
           });
           
-          // 🎯 오버레이 도구 추가 (AI가 직접 판단해서 사용할 수 있도록!)
-          uniqueTools.set('analyze_screen_overlay', {
-            type: 'function' as const,
-            function: {
-              name: 'analyze_screen_overlay',
-              description: 'Analyze the current screen and provide visual guides. Use this when you need to see what\'s on the user\'s screen or provide visual assistance.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  question: {
-                    type: 'string',
-                    description: 'What you want to analyze or help with on the screen'
-                  }
-                },
-                required: ['question']
+          // 🎯 오버레이 도구 추가 (오버레이 모드일 때만!)
+          if (isOverlayMode) {
+            uniqueTools.set('analyze_screen_overlay', {
+              type: 'function' as const,
+              function: {
+                name: 'analyze_screen_overlay',
+                description: '⚠️ CRITICAL: Screen overlay tool for VISUAL TASKS ONLY. Use ONLY when user explicitly requests to LOCATE, FIND, or SEE specific UI elements on screen. Can cause Android/Samsung overlay conflicts. DO NOT use for: general questions, explanations, tutorials, or text-based help. USE ONLY for: finding buttons/menus, visual guidance, screen element location, overlay markers.',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    question: {
+                      type: 'string',
+                      description: 'Specific visual task to help with on the screen'
+                    }
+                  },
+                  required: ['question']
+                }
               }
-            }
-          });
+            });
+            console.log('👁️ [processSelectedTags] 오버레이 모드 - analyze_screen_overlay 도구 추가됨 (제한적 사용)');
+          } else {
+            console.log('💬 [processSelectedTags] 채팅 모드 - 화면 분석 도구 제외됨');
+          }
           
           tools = Array.from(uniqueTools.values());
         
@@ -267,7 +272,7 @@ export const chatStore = createStore<ChatState>((set, get) => ({
   },
 
   // 🤖 AI 메시지 배열 준비
-  prepareAIMessages: (sessionId: string, systemPrompts: string, resourceContents: string) => {
+  prepareAIMessages: (sessionId: string, systemPrompts: string, resourceContents: string, isOverlayMode: boolean = false) => {
     const messages = get().messages[sessionId] || [];
     let aiMessages: AIMessage[] = messages
       .slice(0, -1)
@@ -282,12 +287,42 @@ export const chatStore = createStore<ChatState>((set, get) => ({
     // 🔄 프롬프트나 리소스가 있으면 시스템 메시지로 추가
     if (systemPrompts || resourceContents) {
       // 🔇 간결한 시스템 프롬프트 (사용자 UX 친화적)
-      const systemContent = `당신은 도움이 되는 AI 어시스턴트입니다. 
+      let systemContent = `당신은 도움이 되는 AI 어시스턴트입니다. 
 
 사용 가능한 도구들을 활용하여 사용자의 질문에 정확하고 자연스럽게 답변해주세요.
 - 한국어로 친근하고 명확하게 답변하세요
 - 도구 실행 결과는 요약해서 사용자가 이해하기 쉽게 설명하세요
-- 내부 시스템 정보나 기술적 세부사항은 노출하지 마세요
+- 내부 시스템 정보나 기술적 세부사항은 노출하지 마세요`;
+
+      // 🎯 오버레이 모드일 때 화면 분석 도구 사용 가이드라인 추가 (전문 가이드라인)
+      if (isOverlayMode) {
+        systemContent += `
+
+🎯 **Screen Overlay Analysis Guidelines (전문 가이드라인):**
+
+**DO NOT USE analyze_screen_overlay for:**
+- General questions ("이거 어떻게 해?", "뭐가 있어?", "설명해줘")
+- Abstract concepts or explanations
+- Text-based information requests
+- Feature descriptions or tutorials
+- Error troubleshooting that doesn't require visual inspection
+
+**ONLY USE analyze_screen_overlay when:**
+- User explicitly asks to LOCATE specific UI elements ("버튼 찾아줘", "메뉴 어디 있어")
+- User needs VISUAL GUIDANCE for screen interaction ("여기서 클릭할 곳 알려줘")
+- User mentions SCREEN VISIBILITY issues ("화면에 뭐가 보여?", "이 화면에서 할 수 있는 것")
+- User requests OVERLAY GUIDES or visual markers ("가이드 보여줘", "표시해줘")
+
+**Decision Process:**
+1. Is this a visual/spatial question? → Consider screen analysis
+2. Can this be answered with text only? → NO screen analysis needed
+3. Does user need to SEE something specific? → Use screen analysis
+4. Is user asking for conceptual help? → Text response only
+
+Remember: Screen overlay detection can cause system conflicts on Android/Samsung devices. Use sparingly and only when visually necessary.`;
+      }
+
+      systemContent += `
 
 ${systemPrompts ? `참고 정보: ${systemPrompts}` : ''}
 ${resourceContents ? `추가 자료: ${resourceContents}` : ''}`;
@@ -297,7 +332,7 @@ ${resourceContents ? `추가 자료: ${resourceContents}` : ''}`;
         content: systemContent,
       });
       
-      console.log('🔇 간결한 시스템 메시지 추가됨 (사용자 친화적)');
+      console.log('🔇 간결한 시스템 메시지 추가됨 (사용자 친화적)', isOverlayMode ? '+ 오버레이 가이드라인' : '');
     }
     
     return aiMessages;
@@ -628,7 +663,7 @@ ${resourceContents ? `추가 자료: ${resourceContents}` : ''}`;
 
   // 🌊 스트리밍 메시지 (깔끔하게 리팩토링됨!)
   sendStreamingMessage: async (payload) => {
-    const { sessionId, content, selectedTags = [] } = payload;
+    const { sessionId, content, selectedTags = [], isOverlayMode = false } = payload;
     console.log('💬 [sendStreamingMessage] 호출됨!');
     console.log('🆔 sessionId:', sessionId);
     console.log('📝 content:', content);
@@ -684,8 +719,8 @@ ${resourceContents ? `추가 자료: ${resourceContents}` : ''}`;
     }));
 
     try {
-      // 3. 🏷️ 선택된 태그들 처리
-      const { tools, systemPrompts, resourceContents } = await get().processSelectedTags(sessionId, selectedTags);
+      // 3. 🏷️ 선택된 태그들 처리 (오버레이 모드 전달)
+      const { tools, systemPrompts, resourceContents } = await get().processSelectedTags(sessionId, selectedTags, isOverlayMode);
       
       // 🔍 디버깅: 사용 가능한 프롬프트와 리소스 표시
       if (selectedTags.length > 0) {
@@ -701,7 +736,7 @@ ${resourceContents ? `추가 자료: ${resourceContents}` : ''}`;
       }
       
       // 4. 🤖 AI 메시지 준비
-      const aiMessages = get().prepareAIMessages(sessionId, systemPrompts, resourceContents);
+      const aiMessages = get().prepareAIMessages(sessionId, systemPrompts, resourceContents, isOverlayMode);
       
       console.log('📤 OpenRouter로 보낼 aiMessages:', aiMessages);
       console.log('🛠️ OpenRouter로 보낼 tools:', tools ? JSON.stringify(tools, null, 2) : 'undefined');
@@ -909,11 +944,12 @@ ${resourceContents ? `추가 자료: ${resourceContents}` : ''}`;
     try {
       console.log('🎯 [sendOverlayMessage] 호출됨:', { sessionId, content, triggerOverlay });
       
-      // 1. 일반 채팅 메시지 전송
+      // 1. 오버레이 모드로 채팅 메시지 전송 (화면 분석 도구 포함)
       const chatResult = await get().sendStreamingMessage({
         sessionId,
         content,
-        selectedTags
+        selectedTags,
+        isOverlayMode: true // 🔥 오버레이 모드로 AI에게 화면 분석 도구 제공
       });
       
       // 2. overlay 모드가 활성화되어 있으면 overlay 가이드도 트리거
