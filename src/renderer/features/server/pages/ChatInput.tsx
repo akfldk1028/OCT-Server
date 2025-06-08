@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/renderer/common/components/ui/button';
+import { Textarea } from '@/renderer/common/components/ui/textarea';
 import { Loader2, Send, MessageSquare, Zap } from 'lucide-react';
 import TagInput, { type Tag } from '../components/Chat/TagInput';
 

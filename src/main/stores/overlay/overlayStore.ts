@@ -73,37 +73,14 @@ export const overlayStore = createStore<LocalAppState>((set, get) => ({
   },
   CLEAR_HISTORY: () => set({ runHistory: [] }),
   PROCESS_GUIDE: (payload: any) => processGuide(set as any, get as any, payload), // === 기타 Overlay 함수 필드 ===
-  SET_VIEW: (view) => set({ activeView: view }),
-  TAKE_SCREENSHOT: async (hide, show) => {
-    /* 구현 */ return '';
-  },
-  GET_IMAGE_PREVIEW: async (path) => {
-    /* 구현 */ return '';
-  },
-  DELETE_SCREENSHOT: async (path) => ({ success: true }),
-  CLEAR_QUEUES: () => set({ screenshotQueue: [], extraScreenshotQueue: [] }),
+  // 기타 함수들은 addScreenshotActions에서 실제 구현 사용
 
-  GENERATE_GUIDE: async (software, question, screenshotData) => ({}),
   STOP_RUN: () => set({ running: false }),
   TOGGLE_GUIDE_MODE: (enabled) =>
     set((state) => ({ isGuideMode: enabled ?? !state.isGuideMode })),
-  //   SHOW_GUIDE:         async (data) => ({ success: true }),
-  CLEAR_GUIDE_OVERLAYS: async () => {},
-  DETECT_ACTIVE_SOFTWARE: async () => ({
-    processName: '',
-    windowTitle: '',
-    id: 0,
-    software: '',
-  }),
-  SET_MAIN_WINDOW: (window: BrowserWindow | null) => {},
-  REGISTER_SHORTCUTS: () => {},
-
-  TOGGLE_MAIN_WINDOW: () => {},
-  INIT_AUTO_UPDATER: () => {},
-  CHECK_FOR_UPDATES: () => {},
-  START_UPDATE: async () => ({ success: true }),
-  INSTALL_UPDATE: () => {},
-  INIT_IPC_HANDLERS: () => {},
+  
+  // 🔥 필수 인터페이스 준수를 위한 기본 구현들 (실제 구현은 Actions에서 override)
+  GENERATE_GUIDE: async (software: string, question: string, screenshotData?: string) => ({}),
   START_APP: () => {},
   STOP_APP: () => {},
 }));

@@ -1,123 +1,22 @@
 // components/ChatRoom.tsx
-import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router';
 import { useStore, useDispatch } from '@/hooks/useStore';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Send,
-  Loader2,
-  Settings,
-  Plus,
-  X,
-  Bot,
-  User,
-  AlertCircle,
-  Wrench,
-  Workflow,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Button } from '@/renderer/common/components/ui/button';
+import { Card } from '@/renderer/common/components/ui/card';
+import { Input } from '@/renderer/common/components/ui/input';
 import ChatInput from './ChatInput';
+import ChatHeader from '../components/Chat/ChatHeader';
+import ChatMessages from '../components/Chat/ChatMessages';
+import EmptyState from '../components/Chat/EmptyState';
 import MCPManager from '../components/MCPManager';
 import ChatSidebar from '../components/Chat/ChatSidebar';
 import WorkflowListModal from '../components/Flow/WorkflowListModal';
+import { useWorkflowExecution } from '../hook/useWorkflowExecution';
+import type { WorkflowExecutionConfig } from '../types/workflow.types';
 import type { Tag } from '../components/Chat/TagInput';
 import type { ServerLayoutContext } from '../types/server-types';
 import { useChatScroll } from '@/hooks/use-chat-scroll';
-import { useWorkflowExecution } from '../hook/useWorkflowExecution';
-import type { WorkflowExecutionConfig } from '../types/workflow.types';
-
-// 메시지 아이템을 memoized 컴포넌트로 분리
-const MessageItem = memo(function MessageItem({ message }: { message: any }) {
-  const isUser = message.role === 'user';
-  const isAssistant = message.role === 'assistant';
-  const isTool = message.role === 'tool';
-  const isError = message.role === 'system';
-
-  const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString('ko-KR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  return (
-    <div
-      className={cn(
-        'group flex gap-3 px-4 py-3 hover:bg-muted/30 transition-colors',
-        isUser && 'justify-end',
-      )}
-    >
-      {!isUser && (
-        <div className="flex-shrink-0">
-          {isAssistant && (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-              <Bot className="w-5 h-5 text-white" />
-            </div>
-          )}
-          {isTool && (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center">
-              <Wrench className="w-5 h-5 text-white" />
-            </div>
-          )}
-          {isError && (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-400 to-pink-500 flex items-center justify-center">
-              <AlertCircle className="w-5 h-5 text-white" />
-            </div>
-          )}
-        </div>
-      )}
-      
-      <div className={cn('flex flex-col gap-1 max-w-[85%]', isUser && 'items-end')}>
-        <div
-          className={cn(
-            'rounded-2xl px-4 py-3 relative group-hover:shadow-sm transition-all',
-            isUser && 'bg-yellow-400 text-black rounded-br-md',
-            isAssistant && 'bg-muted/80 rounded-bl-md',
-            isTool && 'bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-950/50 dark:to-green-950/50 border border-blue-200 dark:border-blue-800',
-            isError && 'bg-destructive/10 text-destructive border border-destructive/20',
-          )}
-        >
-          {isTool && (
-            <div className="flex items-center gap-2 text-xs font-medium mb-2 text-blue-600 dark:text-blue-400">
-              <Wrench className="w-3 h-3" />
-              <span>도구: {message.metadata?.toolName}</span>
-            </div>
-          )}
-          
-          <div className="whitespace-pre-wrap leading-relaxed">
-            {message.content}
-          </div>
-          
-          {/* 시간 표시 */}
-          <div className={cn(
-            'text-xs mt-2 opacity-60 transition-opacity',
-            isUser ? 'text-black/90 drop-shadow-sm' : 'text-muted-foreground'
-          )}>
-            {message.timestamp && formatTime(message.timestamp)}
-          </div>
-        </div>
-      </div>
-      
-      {isUser && (
-        <div className="flex-shrink-0">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center">
-            <User className="w-5 h-5 text-white" />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-});
 
 export default function ChatRoom() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -133,6 +32,80 @@ export default function ChatRoom() {
   const [showSettings, setShowSettings] = useState(false);
   const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
   const [showWorkflowModal, setShowWorkflowModal] = useState(false);
+  
+  // 🔥 Overlay 모드 상태 관리
+  const [overlayMode, setOverlayMode] = useState<'chat' | 'overlay'>('chat');
+  
+  // 🔥 협업 클라이언트 상태 관리
+  const [aiClientId, setAiClientId] = useState<string | null>(null);
+  const [overlayClientId, setOverlayClientId] = useState<string | null>(null);
+  const [clientsStatus, setClientsStatus] = useState({
+    ai: 'idle' as 'idle' | 'thinking' | 'responding',
+    overlay: 'idle' as 'idle' | 'analyzing' | 'generating'
+  });
+
+  // 🤖👁️ 협업 클라이언트 초기화 (조용하게, 토글만 준비)
+  useEffect(() => {
+    if (!sessionId) return;
+    
+    // 🔥 토글 상태만 준비하고 실제 실행은 채팅 시에만
+    let mounted = true;
+    
+    const prepareCooperativeMode = () => {
+      if (!mounted) return;
+      
+      try {
+        // 🔥 가상 ID만 생성 (실제 동작은 메시지 전송 시)
+        const tempAiId = `ai-${sessionId}-${Date.now()}`;
+        const tempOverlayId = `overlay-${sessionId}-${Date.now()}`;
+        
+        setAiClientId(tempAiId);
+        setOverlayClientId(tempOverlayId);
+        
+        console.log('🤝 [RealtimeChat] 협업 모드 준비 완료 (아직 비활성)');
+        
+      } catch (error) {
+        console.error('❌ [RealtimeChat] 협업 모드 준비 실패:', error);
+      }
+    };
+
+    // 조용하게 준비만
+    const timeoutId = setTimeout(prepareCooperativeMode, 100);
+
+    return () => {
+      mounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [sessionId]);
+
+  // 🔥 Overlay 가이드 트리거 (chatStore.sendOverlayMessage 직접 호출)
+  const triggerOverlayGuide = useCallback(async (question?: string) => {
+    const finalQuestion = question || '이 화면에서 할 수 있는 작업들을 알려주세요';
+    console.log('👁️ [RealtimeChat] Overlay 가이드 트리거:', finalQuestion);
+    
+    if (!sessionId) {
+      console.error('❌ [triggerOverlayGuide] sessionId 없음');
+      return;
+    }
+    
+    try {
+      // 🎯 chatStore.sendOverlayMessage 직접 호출하여 오버레이 실행
+      await dispatch({
+        type: 'chat.sendOverlayMessage',
+        payload: {
+          sessionId,
+          content: finalQuestion,
+          selectedTags: [],
+          triggerOverlay: true // 🔥 오버레이 트리거 활성화!
+        }
+      });
+      console.log('✅ [RealtimeChat] Overlay 가이드 트리거 완료');
+    } catch (error) {
+      console.error('❌ [RealtimeChat] Overlay 가이드 실패:', error);
+    }
+  }, [sessionId, dispatch]);
+
+  // 📝 sendMessage 함수 참조 (나중에 정의됨)
 
   // 🔥 워크플로우 실행 훅 사용
   const { 
@@ -154,15 +127,37 @@ export default function ChatRoom() {
   // 📜 자동 스크롤 - 간단한 훅 사용
   const { containerRef, scrollToBottom } = useChatScroll();
 
-  // 🔄 메시지 변경시 자동 스크롤
+  // 🔄 메시지 변경시 자동 스크롤 (강화된 버전)
   useEffect(() => {
-    // DOM 업데이트 완료 후 스크롤 (약간의 지연)
-    const timeoutId = setTimeout(() => {
-      scrollToBottom();
-    }, 50);
+    console.log('🔄 [RealtimeChat] 스크롤 useEffect 트리거됨!', {
+      messagesLength: messages.length,
+      isStreaming,
+      lastMessageId: messages[messages.length - 1]?.id
+    });
     
-    return () => clearTimeout(timeoutId);
-  }, [messages.length, isStreaming, scrollToBottom]);
+    // 메시지가 있을 때만 스크롤 실행
+    if (messages.length > 0) {
+      // 여러 단계로 스크롤 시도 (확실하게!)
+      const scrollAttempts = [
+        () => scrollToBottom(), // 즉시
+        () => setTimeout(() => scrollToBottom(), 50), // 50ms 후
+        () => setTimeout(() => scrollToBottom(), 100), // 100ms 후
+        () => setTimeout(() => scrollToBottom(), 200), // 200ms 후
+      ];
+      
+      // 모든 스크롤 시도 실행
+      scrollAttempts.forEach(attempt => {
+        requestAnimationFrame(() => {
+          attempt();
+        });
+      });
+      
+      // 정리
+      return () => {
+        // 타임아웃들이 정리되도록 (최신 것만 유지)
+      };
+    }
+  }, [messages, isStreaming, scrollToBottom]); // 🔥 messages 전체를 의존성으로!
 
   // 🔥 이제 useOutletContext에서 userId를 직접 받으므로 별도 조회 불필요
   // console.log('👤 [ChatRoom] 현재 사용자 ID (context):', userId);
@@ -195,6 +190,89 @@ export default function ChatRoom() {
     .filter(prompt => mcpBindings.some(b => b.serverId === prompt.serverId && b.status === 'active')) : [];
   const availableResources = store.mcp_registry ? Object.values(store.mcp_registry.resources || {})
     .filter(resource => mcpBindings.some(b => b.serverId === resource.serverId && b.status === 'active')) : [];
+
+  // 🔥 스마트 협업 메시지 전송 (AI 주도 협업 버전) - 오버레이 기능 복구!
+  const sendCooperativeMessage = useCallback(async (content: string, forceOverlay: boolean = false) => {
+    if (!sessionId) return;
+
+    try {
+      setClientsStatus({ 
+        ai: 'thinking', 
+        overlay: forceOverlay ? 'analyzing' : 'idle' 
+      });
+      console.log('🤖👁️ [RealtimeChat] AI 주도 협업 메시지 처리 시작:', { content, forceOverlay });
+
+      // 🔥 오버레이 모드가 활성화된 경우 chatStore.sendOverlayMessage 사용!
+      if (forceOverlay) {
+        console.log('👁️ [sendCooperativeMessage] 오버레이 모드 - chatStore.sendOverlayMessage 호출');
+        
+        try {
+          setClientsStatus(prev => ({ ...prev, overlay: 'analyzing' }));
+          
+          // 🎯 chatStore.sendOverlayMessage 사용 (오버레이 기능 통합!)
+          await dispatch({
+            type: 'chat.sendOverlayMessage',
+            payload: {
+              sessionId,
+              content: content,
+              selectedTags,
+              triggerOverlay: true // 🔥 오버레이 트리거 활성화!
+            }
+          });
+          
+          console.log('✅ [sendCooperativeMessage] 오버레이 메시지 완료!');
+          setClientsStatus(prev => ({ ...prev, overlay: 'idle' }));
+          
+        } catch (overlayError) {
+          console.error('❌ [sendCooperativeMessage] 오버레이 메시지 실패:', overlayError);
+          setClientsStatus(prev => ({ ...prev, overlay: 'idle' }));
+          
+          // 폴백: 일반 메시지로 전송
+          await dispatch({
+            type: 'chat.sendStreamingMessage',
+            payload: {
+              sessionId,
+              content: content,
+              selectedTags,
+            }
+          });
+        }
+      } else {
+        // 🤖 일반 AI 메시지 (오버레이 없음)
+        console.log('🤖 [sendCooperativeMessage] 일반 AI 메시지 전송');
+        
+        try {
+          await dispatch({
+            type: 'chat.sendStreamingMessage',
+            payload: {
+              sessionId,
+              content: content,
+              selectedTags,
+            }
+          });
+          
+          console.log('✅ [RealtimeChat] AI 메시지 전송 완료!');
+          
+        } catch (error) {
+          console.error('❌ [sendCooperativeMessage] AI 메시지 전송 실패:', error);
+          
+          // 🔧 fallback: 기본 메시지 전송
+          await dispatch({
+            type: 'chat.sendMessage',
+            payload: {
+              sessionId,
+              content: content,
+            }
+          });
+        }
+      }
+
+    } catch (error) {
+      console.error('❌ [sendCooperativeMessage] 전체 처리 실패:', error);
+    } finally {
+      setClientsStatus({ ai: 'idle', overlay: 'idle' });
+    }
+  }, [sessionId, availableTools, selectedTags, dispatch]);
 
   // console.log('📦 Available resources:', {
   //   '🤖 models': availableModels.length,
@@ -230,14 +308,16 @@ export default function ChatRoom() {
     // }
   }, [sessionId, session, chatConfig]);
 
-  // 메시지 전송
+  // 🔥 협업 메시지 전송 시스템 (AI + Overlay 협업)
   const sendMessage = async (messageContent?: string, tags?: Tag[]) => {
     const contentToSend =
       typeof messageContent === 'string' ? messageContent : input;
-    console.log('📤 sendMessage called');
-    console.log('📝 Input:', contentToSend);
-    console.log('🏷️ Selected tags:', tags || selectedTags);
-    console.log('🔄 isStreaming:', isStreaming);
+    console.log('📤 [RealtimeChat] 협업 sendMessage 호출');
+    console.log('📝 Content:', contentToSend);
+    console.log('🏷️ Tags:', tags || selectedTags);
+    console.log('🤖👁️ Mode:', overlayMode);
+    console.log('🤖 AI Client:', aiClientId);
+    console.log('👁️ Overlay Client:', overlayClientId);
 
     if (!contentToSend.trim() || !sessionId || isStreaming) {
       console.log('⛔ Message sending blocked:', {
@@ -251,36 +331,42 @@ export default function ChatRoom() {
     setIsStreaming(true);
 
     try {
-      await dispatch({
-        type: 'chat.sendStreamingMessage',
-        payload: { 
-          sessionId, 
-          content: contentToSend,
-          selectedTags: tags || selectedTags  // 🏷️ 선택된 태그들 전달
-        },
-      });
-      console.log('✅ Message dispatch completed');
+      // 🔥 새로운 협업 메시지 시스템 사용
+      await sendCooperativeMessage(contentToSend, overlayMode === 'overlay');
       
-      // 메시지 전송 후 태그 초기화
+      console.log('✅ [RealtimeChat] 협업 메시지 전송 완료');
+      
+      // 메시지 전송 후 정리
       setSelectedTags([]);
       setInput('');
       
-      // 📜 메시지 전송 후 스크롤
-      setTimeout(() => {
+      // 📜 스크롤 (더 강력하게!)
+      console.log('📜 [sendMessage] 메시지 전송 완료 - 스크롤 강제 실행!');
+      
+      // 즉시 스크롤
+      scrollToBottom();
+      
+      // 추가 스크롤 시도들
+      requestAnimationFrame(() => {
         scrollToBottom();
-      }, 100);
+        setTimeout(() => scrollToBottom(), 100);
+        setTimeout(() => scrollToBottom(), 200);
+        setTimeout(() => scrollToBottom(), 500);
+      });
     } catch (error) {
-      console.error('❌ Failed to send message:', error);
+      console.error('❌ [RealtimeChat] 협업 메시지 전송 실패:', error);
+      
+      // 폴백: 기본 메시지 전송
       dispatch({
         type: 'chat.sendMessage',
         payload: {
           sessionId,
-          content: `Error: ${error instanceof Error ? error.message : 'Failed to send message'}`,
+          content: `❌ 협업 메시지 실패: ${error instanceof Error ? error.message : 'Unknown error'}`,
         },
       });
     } finally {
       setIsStreaming(false);
-      console.log('🏁 Message sending finished');
+      console.log('🏁 [RealtimeChat] 협업 메시지 처리 완료');
     }
   };
 
@@ -595,6 +681,22 @@ export default function ChatRoom() {
                 resultMessage += `  🔗 ${serverName}\n`;
               });
               resultMessage += `\n💡 이제 채팅에서 이 서버들의 도구를 바로 사용할 수 있습니다!\n`;
+              
+              // 🔥 AI에게 새로운 도구 추가 알림 (직접 호출)
+              try {
+                console.log('🤖 [handleLoadWorkflow] AI에게 새로운 도구 알림 전송:', connectedServers);
+                await dispatch({
+                  type: 'chat.notifyNewToolsAdded',
+                  payload: {
+                    sessionId: sessionId!,
+                    connectedServers,
+                    message: `🎉 **워크플로우 실행 완료!**\n\n🔧 새로운 MCP 서버가 연결되었습니다:\n${connectedServers.map(name => `• ${name}`).join('\n')}\n\n💡 이제 이 서버들의 도구를 채팅에서 바로 사용할 수 있습니다!`
+                  }
+                });
+                console.log('✅ [handleLoadWorkflow] AI 알림 전송 완료');
+              } catch (notifyError) {
+                console.error('❌ [handleLoadWorkflow] AI 알림 전송 실패:', notifyError);
+              }
             }
             
             if (failedServers.length > 0) {
@@ -619,7 +721,8 @@ export default function ChatRoom() {
                     workflowData,
                     connectedServers,
                     failedServers,
-                    serverCount: serverNodes.length
+                    serverCount: serverNodes.length,
+                    hasNewTools: connectedServers.length > 0 // 🔥 AI가 새로운 도구 인식용 플래그
                   }
                 }
               }
@@ -815,132 +918,56 @@ export default function ChatRoom() {
     <div className="min-h-screen w-full flex">
       {/* Main Chat Container */}
       <div className="flex-1 max-w-5xl mx-auto flex flex-col h-screen">
-        {/* Minimal Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-              <Bot className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{room.name}</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm text-gray-500">Live</span>
-                {mcpBindings.filter((b) => b.status === 'active').length > 0 && (
-                  <span className="text-sm text-blue-600 font-medium">
-                    • {mcpBindings.filter((b) => b.status === 'active').length} tools connected
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Model Selector */}
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-full px-4 py-2">
-              <Select
-                value={chatConfig?.model}
-                onValueChange={(value) => changeModel(value)}
-              >
-                <SelectTrigger className="border-0 bg-transparent text-sm font-medium focus:ring-0 shadow-none">
-                  <SelectValue placeholder="Select model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableModels.slice(0, 5).map((model) => (
-                    <SelectItem key={model.id} value={model.id}>
-                      {model.name.split('/').pop()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {/* Action Buttons */}
-            <button
-              onClick={() => setShowWorkflowModal(true)}
-              className="w-10 h-10 rounded-full bg-yellow-400 hover:bg-yellow-500 flex items-center justify-center transition-colors"
-              title="Connect workflow"
-            >
-              <Workflow className="w-5 h-5 text-white" />
-            </button>
-            
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
-            >
-              <Settings className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-            </button>
-          </div>
-        </div>
+        {/* Header */}
+        <ChatHeader 
+          roomName={room.name}
+          aiClientId={aiClientId}
+          overlayClientId={overlayClientId}
+          clientsStatus={clientsStatus}
+          mcpBindingsCount={mcpBindings.filter((b) => b.status === 'active').length}
+          overlayMode={overlayMode}
+          setOverlayMode={setOverlayMode}
+          triggerOverlayGuide={triggerOverlayGuide}
+          currentModel={chatConfig?.model}
+          availableModels={availableModels}
+          onModelChange={changeModel}
+          onWorkflowClick={() => setShowWorkflowModal(true)}
+          onSettingsClick={() => setShowSettings(!showSettings)}
+        />
 
         {/* Chat Messages Area */}
-        <div ref={containerRef} className="flex-1 overflow-y-auto px-8 py-6">
-          {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full">
-              <div className="text-center max-w-md">
-                <div className="w-20 h-20 mx-auto mb-8 bg-gradient-to-r from-blue-400 to-purple-600 rounded-3xl flex items-center justify-center">
-                  <Bot className="w-10 h-10 text-white" />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                  Start a conversation
-                </h2>
-                <p className="text-gray-500 dark:text-gray-400 mb-8">
-                  Ask me anything or try one of these suggestions
-                  {mcpBindings.filter((b) => b.status === 'active').length > 0 && (
-                    <span className="block mt-2 text-sm text-blue-600 font-medium">
-                      ✨ {mcpBindings.filter((b) => b.status === 'active').length} powerful tools are ready to help
-                    </span>
-                  )}
-                </p>
-                <div className="flex flex-wrap gap-3 justify-center">
-                  {[
-                    { text: "👋 Say hello", message: "Hello! How are you today?" },
-                    { text: "🌤️ Weather", message: "What's the weather like?" },
-                    { text: "💻 Coding help", message: "I need help with coding" },
-                    ...(mcpBindings.filter((b) => b.status === 'active').length > 0 ? [
-                      { text: "🔧 Use tools", message: "Use the connected tools to help me with a task" }
-                    ] : [])
-                  ].map((suggestion, index) => (
-                    <button
-                      key={index}
-                      onClick={() => sendMessage(suggestion.message)}
-                      className="px-4 py-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-sm font-medium transition-colors"
-                    >
-                      {suggestion.text}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+        <div className="flex-1 overflow-hidden min-h-0">
+          {messages.length === 0 && !isStreaming ? (
+            <EmptyState
+              onShowWorkflow={() => setShowWorkflowModal(true)}
+              onShowSettings={() => setShowSettings(true)}
+              mcpToolsCount={availableTools.length}
+              onStartChat={(message) => sendMessage(message)}
+              currentModel={chatConfig?.model || 'openai/gpt-4'}
+              connectedServers={mcpBindings
+                .filter(b => b.status === 'active')
+                .map(b => {
+                  const server = availableServers.find(s => s.id === b.serverId);
+                  return server?.name || b.serverId;
+                })
+              }
+            />
           ) : (
-            <div className="max-w-3xl mx-auto space-y-6">
-              {messages.map((msg) => <MessageItem key={msg.id} message={msg} />)}
-              
-              {isStreaming && (
-                <div className="flex gap-4">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-purple-600 flex items-center justify-center flex-shrink-0">
-                    <Bot className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl px-4 py-3 inline-block">
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                        </div>
-                        <span className="text-sm text-gray-500">Thinking...</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <ChatMessages
+            ref={containerRef}
+            messages={messages}
+            mcpBindingsCount={mcpBindings.filter((b) => b.status === 'active').length}
+            onSendMessage={sendMessage}
+            isStreaming={isStreaming}
+            aiClientId={aiClientId}
+            overlayClientId={overlayClientId}
+            clientsStatus={clientsStatus}
+          />
           )}
         </div>
 
         {/* Chat Input */}
-        <div className="border-t border-gray-100 dark:border-gray-800 p-6">
+        <div className="border-t border-border p-6">
           <div className="max-w-3xl mx-auto">
             <ChatInput 
               onSend={sendMessage} 

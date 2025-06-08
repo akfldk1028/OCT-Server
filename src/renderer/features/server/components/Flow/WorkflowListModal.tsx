@@ -15,6 +15,7 @@ interface WorkflowListModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoadWorkflow: (workflowData: any) => Promise<void>;
+  onServerAdded?: (newServerNode: any) => Promise<void>;
   userId?: string;
   // 특정 클라이언트 타입만 보여주도록 필터링
   filterClientType?: 'claude_desktop' | 'local' | 'openai' | 'mixed' | 'unknown' | null;
@@ -27,6 +28,7 @@ export default function WorkflowListModal({
   isOpen, 
   onClose, 
   onLoadWorkflow, 
+  onServerAdded,
   userId,
   filterClientType = null,
   title = '워크플로우 불러오기',

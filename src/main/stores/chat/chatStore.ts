@@ -1,5 +1,6 @@
 // main/stores/chat/chatStore.ts
 import { createStore } from 'zustand/vanilla';
+// @ts-ignore
 import { v4 as uuidv4 } from 'uuid';
 import { openrouterStore } from '../openrouter/openrouterStore';
 import type { ChatState, ChatMessage, ChatConfig } from './chat-types';
@@ -30,8 +31,152 @@ export const chatStore = createStore<ChatState>((set, get) => ({
     let systemPrompts = '';
     let resourceContents = '';
     
-    if (selectedTags.length === 0) {
-      console.log('📝 No tags selected - AI will respond normally without tools');
+    // 🔥 새로운 도구 알림이 최근에 있었는지 확인
+    const recentMessages = get().messages[sessionId] || [];
+    const hasRecentNewToolsNotification = recentMessages
+      .slice(-5) // 최근 5개 메시지만 확인
+      .some(msg => msg.metadata?.type === 'new_tools_notification');
+    
+    if (hasRecentNewToolsNotification) {
+      console.log('🎯 [processSelectedTags] 최근 새로운 도구 알림 감지됨 - 모든 도구를 다시 로드합니다');
+    }
+    
+          // 🔥 태그가 없어도 연결된 모든 MCP Tools, Prompts, Resources를 자동으로 제공
+      if (selectedTags.length === 0) {
+        console.log('🤖 No tags selected - 자동으로 모든 연결된 MCP Tools, Prompts, Resources를 AI에게 제공합니다');
+        
+        // 1. 🔧 세션에 연결된 모든 MCP 도구들 가져오기
+        const allMcpTools = await mcpCoordinatorStore
+          .getState()
+          .getSessionTools({ sessionId });
+          
+        if (allMcpTools.length > 0) {
+          // 🔥 OpenRouter 전송 전에 도구 이름 중복 체크 및 제거
+          const uniqueTools = new Map<string, any>();
+          
+          allMcpTools.forEach((tool) => {
+            const toolSpec = {
+              type: 'function' as const,
+              function: {
+                name: tool.name,
+                description: tool.description || `Execute ${tool.name} tool`,
+                parameters: tool.inputSchema || {
+                  type: 'object',
+                  properties: {},
+                  additionalProperties: true
+                },
+              },
+            };
+            
+            if (!uniqueTools.has(tool.name)) {
+              uniqueTools.set(tool.name, toolSpec);
+            } else {
+              console.warn(`⚠️ [processSelectedTags] 중복된 도구 이름 발견, 건너뛰기: ${tool.name} (서버: ${tool.serverName})`);
+            }
+          });
+          
+          // 🎯 오버레이 도구 추가 (AI가 직접 판단해서 사용할 수 있도록!)
+          uniqueTools.set('analyze_screen_overlay', {
+            type: 'function' as const,
+            function: {
+              name: 'analyze_screen_overlay',
+              description: 'Analyze the current screen and provide visual guides. Use this when you need to see what\'s on the user\'s screen or provide visual assistance.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  question: {
+                    type: 'string',
+                    description: 'What you want to analyze or help with on the screen'
+                  }
+                },
+                required: ['question']
+              }
+            }
+          });
+          
+          tools = Array.from(uniqueTools.values());
+        
+        // 🎯 새로운 도구 알림이 있었다면 시스템 프롬프트에 추가
+        if (hasRecentNewToolsNotification) {
+          console.log(`🔥 새로운 도구들이 감지되어 ${allMcpTools.length}개 도구, 중복 제거 후 ${tools.length}개 도구를 AI에게 제공:`, tools.map(t => t.function.name));
+          systemPrompts += `\n\n🔧 **최근 새로운 도구들이 추가되었습니다!**\n사용 가능한 도구: ${tools.map(t => t.function.name).join(', ')}\n이 도구들을 적극적으로 활용해서 사용자를 도와주세요.`;
+        } else {
+          console.log(`🎯 자동으로 ${allMcpTools.length}개 도구, 중복 제거 후 ${tools.length}개 도구를 AI에게 제공:`, tools.map(t => t.function.name));
+        }
+      } else {
+        console.log('ℹ️ 연결된 MCP 도구가 없습니다');
+      }
+
+      // 2. 📝 등록된 모든 프롬프트들 자동 처리
+      const registry = mcpRegistryStore.getState();
+      const allPrompts = Object.values(registry.prompts);
+      
+      if (allPrompts.length > 0) {
+        console.log('📝 자동으로 모든 등록된 프롬프트들을 처리합니다:', allPrompts.map(p => p.name));
+        
+        try {
+          const promptContents = await Promise.all(
+                         allPrompts.map(async (prompt) => {
+               try {
+                 const result = await registry.getPrompt(prompt.name, {});
+                 if (result && (result as any).messages) {
+                   return `**${prompt.name}**: ${(result as any).messages.map((m: any) => m.content.text).join('\n')}`;
+                 }
+                 return `**${prompt.name}**: ${prompt.description || 'No description'}`;
+               } catch (error) {
+                 console.warn(`⚠️ 프롬프트 ${prompt.name} 처리 실패:`, error);
+                 return `**${prompt.name}**: (처리 실패)`;
+               }
+             })
+          );
+          
+          systemPrompts = promptContents.filter(content => content.trim()).join('\n\n');
+          console.log('✅ 프롬프트 자동 처리 완료');
+        } catch (error) {
+          console.warn('⚠️ 프롬프트 일괄 처리 실패:', error);
+        }
+      } else {
+        console.log('ℹ️ 등록된 프롬프트가 없습니다');
+      }
+
+      // 3. 📄 등록된 모든 리소스들 자동 처리
+      const allResources = Object.values(registry.resources);
+      
+      if (allResources.length > 0) {
+        console.log('📄 자동으로 모든 등록된 리소스들을 처리합니다:', allResources.map(r => r.name || r.uri));
+        
+        try {
+          const resourceContentsArray = await Promise.all(
+            allResources.slice(0, 5).map(async (resource) => { // 최대 5개만 처리 (성능상)
+              try {
+                const result = await registry.readResource(resource.uri);
+                if (result && result.contents) {
+                                     const content = result.contents
+                     .map((c: any) => c.type === 'text' ? c.text : `[${c.type}]`)
+                     .join('\n')
+                     .slice(0, 1000); // 최대 1000자까지만
+                  return `**${resource.name || resource.uri}**: ${content}`;
+                }
+                return `**${resource.name || resource.uri}**: ${resource.description || 'No description'}`;
+              } catch (error) {
+                console.warn(`⚠️ 리소스 ${resource.uri} 처리 실패:`, error);
+                return `**${resource.name || resource.uri}**: (처리 실패)`;
+              }
+            })
+          );
+          
+          resourceContents = resourceContentsArray.filter(content => content.trim()).join('\n\n');
+          if (allResources.length > 5) {
+            resourceContents += `\n\n... 그 외 ${allResources.length - 5}개 리소스 더 있음`;
+          }
+          console.log('✅ 리소스 자동 처리 완료');
+        } catch (error) {
+          console.warn('⚠️ 리소스 일괄 처리 실패:', error);
+        }
+      } else {
+        console.log('ℹ️ 등록된 리소스가 없습니다');
+      }
+      
       return { tools, systemPrompts, resourceContents };
     }
 
@@ -136,35 +281,23 @@ export const chatStore = createStore<ChatState>((set, get) => ({
 
     // 🔄 프롬프트나 리소스가 있으면 시스템 메시지로 추가
     if (systemPrompts || resourceContents) {
-      // 📈 개선된 시스템 프롬프트 - 도구 실행 결과 활용 가이드 포함
-      const systemContent = `당신은 전문적이고 도움이 되는 AI 어시스턴트입니다. 다음 컨텍스트 정보를 신중히 분석하고 활용하여 정확하고 유용한 답변을 제공해주세요.
+      // 🔇 간결한 시스템 프롬프트 (사용자 UX 친화적)
+      const systemContent = `당신은 도움이 되는 AI 어시스턴트입니다. 
 
-📋 **컨텍스트 정보 활용 지침:**
-- 제공된 리소스와 프롬프트의 정보를 우선적으로 참고하세요
-- 컨텍스트에서 직접적으로 답변할 수 있는 내용은 해당 정보를 기반으로 답변하세요
-- 컨텍스트에 없는 정보를 추측하지 말고, 명확히 구분해서 설명하세요
+사용 가능한 도구들을 활용하여 사용자의 질문에 정확하고 자연스럽게 답변해주세요.
+- 한국어로 친근하고 명확하게 답변하세요
+- 도구 실행 결과는 요약해서 사용자가 이해하기 쉽게 설명하세요
+- 내부 시스템 정보나 기술적 세부사항은 노출하지 마세요
 
-🔧 **도구 실행 결과 활용 지침:**
-- 도구 실행 결과가 포함된 경우, 해당 결과를 바탕으로 구체적이고 정확한 답변을 제공하세요
-- 도구가 반환한 데이터를 분석하여 사용자에게 유용한 인사이트를 제공하세요
-- 여러 도구의 결과가 있다면 종합적으로 분석해서 설명하세요
-- 도구 실행 오류가 있었다면 대안을 제시하거나 문제 해결 방법을 안내하세요
-
-💬 **응답 품질 기준:**
-- 한국어로 자연스럽고 명확하게 답변해주세요
-- 구체적인 예시와 함께 설명하여 이해하기 쉽게 해주세요
-- 필요시 구조화된 형태(목록, 표 등)로 정보를 정리해주세요
-
-🔍 **제공된 컨텍스트:**${systemPrompts}${resourceContents}
-
-위 정보를 바탕으로 사용자의 질문에 정확하고 유용한 답변을 제공해주세요.`;
+${systemPrompts ? `참고 정보: ${systemPrompts}` : ''}
+${resourceContents ? `추가 자료: ${resourceContents}` : ''}`;
       
       aiMessages.unshift({
         role: 'system',
         content: systemContent,
       });
       
-      console.log('📋 개선된 시스템 메시지 추가됨 (프롬프트/리소스/도구)');
+      console.log('🔇 간결한 시스템 메시지 추가됨 (사용자 친화적)');
     }
     
     return aiMessages;
@@ -211,7 +344,7 @@ export const chatStore = createStore<ChatState>((set, get) => ({
     );
   },
 
-  // 🚀 MCP 도구들 실행 - 개선된 버전
+  // 🚀 MCP 도구들 실행 - 개선된 버전 (오버레이 도구 포함)
   executeMCPTools: async (sessionId: string, toolCalls: any[]) => {
     if (toolCalls.length === 0) return '';
     
@@ -224,6 +357,81 @@ export const chatStore = createStore<ChatState>((set, get) => ({
         const args = JSON.parse(toolCall.function.arguments);
         console.log(`🔧 도구 실행: ${toolCall.function.name}`, args);
         
+        // 🎯 오버레이 도구 특별 처리 (AI가 직접 판단해서 호출!)
+        if (toolCall.function.name === 'analyze_screen_overlay') {
+          console.log('👁️ [executeMCPTools] AI가 오버레이 도구를 호출했습니다!', args);
+          
+          try {
+            // 오버레이 시작 메시지 추가
+            const overlayStartMessage = {
+              id: 'Message-' + uuidv4(),
+              sessionId,
+              role: 'assistant' as const,
+              content: '👁️ **Overlay Vision이 화면을 분석하고 있습니다...**\n\n🔍 화면 캡처 및 가이드 생성 중...',
+              timestamp: new Date().toISOString(),
+              metadata: {
+                type: 'overlay-start',
+                isCooperative: true,
+                avatar: 'overlay'
+              },
+            };
+            
+            // 메시지 추가
+            set((state) => ({
+              messages: {
+                ...state.messages,
+                [sessionId]: [...(state.messages[sessionId] || []), overlayStartMessage],
+              },
+            }));
+            
+            // 오버레이 실행
+            const { combinedStore } = require('../combinedStore');
+            const overlayState = combinedStore.getState().overlay;
+            
+            if (overlayState?.RUN_AGENT_OVERLAY) {
+              overlayState.SET_INSTRUCTIONS(args.question || '현재 화면을 분석해주세요');
+              overlayState.SET_INSTRUCTIONS_OVERLAY({
+                software: 'unknown',
+                question: args.question || '현재 화면을 분석해주세요'
+              });
+              
+              await overlayState.RUN_AGENT_OVERLAY();
+              
+              // 성공 메시지로 업데이트
+              const successMessage = {
+                ...overlayStartMessage,
+                content: '✨ **Overlay Vision • 화면 분석 완료**\n\n🎯 화면에 노란색 가이드가 표시되었습니다!\n👀 스크린에 표시된 가이드를 확인해보세요!',
+                metadata: {
+                  type: 'overlay-success',
+                  isCooperative: true,
+                  avatar: 'overlay'
+                },
+              };
+              
+              set((state) => ({
+                messages: {
+                  ...state.messages,
+                  [sessionId]: (state.messages[sessionId] || []).map(msg => 
+                    msg.id === overlayStartMessage.id ? successMessage : msg
+                  ),
+                },
+              }));
+              
+              toolResults.push('🎯 **Overlay Vision 완료** - 화면에 가이드가 표시되었습니다.');
+              
+            } else {
+              throw new Error('Overlay system not available');
+            }
+            
+          } catch (overlayError) {
+            console.error('❌ [executeMCPTools] 오버레이 실행 실패:', overlayError);
+            toolResults.push(`⚠️ **Overlay Vision 오류** - ${overlayError instanceof Error ? overlayError.message : '알 수 없는 오류'}`);
+          }
+          
+          continue; // 다음 도구로
+        }
+        
+        // 일반 MCP 도구 실행
         const result = await mcpCoordinatorStore
           .getState()
           .executeToolForSession({ 
@@ -265,14 +473,14 @@ export const chatStore = createStore<ChatState>((set, get) => ({
       }
     }
     
-    // 🎯 도구 실행 결과들을 종합해서 AI가 잘 이해할 수 있도록 구성
-    return `\n\n🛠️ **MCP 도구 실행 결과 요약**\n총 ${toolCalls.length}개 도구 실행됨\n\n${toolResults.join('\n\n')}`;
+    // 🎯 도구 실행 결과들을 AI만 볼 수 있도록 구성 (사용자에게는 숨김)
+    return `[도구 실행됨: ${toolCalls.length}개]\n${toolResults.join('\n')}`;
   },
 
-  // 세션 초기화
+  // 🚀 SDK 스타일 세션 초기화 (간단하고 사용자 친화적)
   initializeSession: async (payload) => {
     const { sessionId, config } = payload;
-    console.log('💬 Initializing chat session:', sessionId);
+    console.log('🚀 [SDK Style] Chat 세션 초기화:', sessionId);
 
     // 1. 채팅 설정 초기화
     set((state) => ({
@@ -289,42 +497,15 @@ export const chatStore = createStore<ChatState>((set, get) => ({
       },
     }));
 
-    // 기본 MCP 서버들 연결
+    // 2. 🔥 SDK 스타일로 MCP 서버들 자동 연결
     try {
-      // 기본 MCP 서버들 연결
-      const registry = mcpRegistryStore.getState();
-      if (Object.keys(registry.servers).length === 0) {
-        registry.initializeDefaultServers();
-      }
-      
-      // autoConnect가 true인 모든 서버들 자동 연결
-      const coordinator = mcpCoordinatorStore.getState();
-      const autoConnectServers = Object.values(registry.servers).filter(
-        server => server.autoConnect === true
-      );
-      
-      console.log(`🔍 Auto-connect 대상 서버들:`, autoConnectServers.map(s => s.name));
-      
-      for (const server of autoConnectServers) {
-        if (!coordinator.isServerConnectedToSession({ sessionId, serverId: server.id })) {
-          try {
-            console.log(`🤖 Auto-connecting MCP server: ${server.name}`);
-            await coordinator.connectMCPToSession({ sessionId, serverId: server.id });
-            console.log(`✅ Auto-connected: ${server.name}`);
-          } catch (error) {
-            console.error(`❌ Failed to auto-connect ${server.name}:`, error);
-          }
-        } else {
-          console.log(`🔗 Already connected: ${server.name}`);
-        }
-      }
-      
-      console.log(`✅💬 Chat initialized with MCP for session: ${sessionId}`);
+      const connectionResult = await get().connectMCPServers(sessionId);
+      console.log(`🎉 SDK 스타일 MCP 연결 완료:`, connectionResult);
     } catch (error) {
-      console.error('❌ Failed to initialize MCP servers:', error);
+      console.error('❌ SDK 스타일 MCP 연결 실패:', error);
     }
 
-    console.log(`✅💬 Chat initialized with MCP for session: ${sessionId}`);
+    console.log(`✅ [SDK Style] Chat 초기화 완료: ${sessionId}`);
   },
 
 
@@ -588,7 +769,9 @@ export const chatStore = createStore<ChatState>((set, get) => ({
         console.log('📝 최종 fullContent:', fullContent);
       }
 
-      // 8. ✅ 스트리밍 완료
+      // 8. ✅ 키워드 기반 오버레이 감지 제거됨 - 이제 AI가 도구로 직접 판단합니다!
+
+      // 9. ✅ 스트리밍 완료
       console.log('✅ [sendStreamingMessage] 스트리밍 완료!');
       set((state) => ({
         streamingMessages: {
@@ -712,5 +895,260 @@ export const chatStore = createStore<ChatState>((set, get) => ({
         }));
       }
     }
+  },
+
+  // 🔥 Overlay 기능 통합 - AI와 채팅을 overlay로 연결
+  sendOverlayMessage: async (payload: { 
+    sessionId: string; 
+    content: string; 
+    selectedTags?: any[];
+    triggerOverlay?: boolean;
+  }) => {
+    const { sessionId, content, selectedTags = [], triggerOverlay = false } = payload;
+    
+    try {
+      console.log('🎯 [sendOverlayMessage] 호출됨:', { sessionId, content, triggerOverlay });
+      
+      // 1. 일반 채팅 메시지 전송
+      const chatResult = await get().sendStreamingMessage({
+        sessionId,
+        content,
+        selectedTags
+      });
+      
+      // 2. overlay 모드가 활성화되어 있으면 overlay 가이드도 트리거
+      if (triggerOverlay) {
+        console.log('🔥 Overlay Vision 에이전트 시작...');
+        
+        // 🔥 먼저 시작 메시지 추가 (즉시 표시)
+        const startMessage: ChatMessage = {
+          id: uuidv4(),
+          sessionId,
+          role: 'assistant',
+          content: '👁️ **Overlay Vision 에이전트가 화면을 분석 중입니다...**\n\n🔍 화면 캡처 및 가이드 생성 중...',
+          timestamp: new Date().toISOString(),
+          metadata: {
+            type: 'overlay-start',
+            isCooperative: true,
+            avatar: 'overlay'
+          },
+        };
+        
+        set((state) => ({
+          messages: {
+            ...state.messages,
+            [sessionId]: [...(state.messages[sessionId] || []), startMessage],
+          },
+        }));
+        
+        try {
+          // overlayStore에서 가이드 생성 호출
+          const { combinedStore } = require('../combinedStore');
+          const overlayState = combinedStore.getState().overlay;
+          
+          if (overlayState?.RUN_AGENT_OVERLAY) {
+            // 사용자 질문을 overlay 시스템에 전달
+            overlayState.SET_INSTRUCTIONS(content);
+            overlayState.SET_INSTRUCTIONS_OVERLAY({
+              software: 'unknown', // 자동 감지
+              question: content
+            });
+            
+            // AI overlay 가이드 실행
+            const overlayResult = await overlayState.RUN_AGENT_OVERLAY();
+            console.log('✅ Overlay 가이드 실행 완료:', overlayResult);
+            
+            // 🎉 성공 메시지로 업데이트
+            const successMessage: ChatMessage = {
+              id: startMessage.id, // 같은 ID로 업데이트
+              sessionId,
+              role: 'assistant',
+              content: '✨ **Overlay Vision • 화면 분석 완료**\n\n🎯 화면에 노란색 가이드가 표시되었습니다!\n👀 이거 봐봐! 여기 클릭해봐!',
+              timestamp: new Date().toISOString(),
+              metadata: {
+                type: 'overlay-success',
+                isCooperative: true,
+                avatar: 'overlay'
+              },
+            };
+            
+            // 기존 메시지를 성공 메시지로 교체
+            set((state) => ({
+              messages: {
+                ...state.messages,
+                [sessionId]: (state.messages[sessionId] || []).map(msg => 
+                  msg.id === startMessage.id ? successMessage : msg
+                ),
+              },
+            }));
+            
+          } else {
+            throw new Error('Overlay store not available');
+          }
+          
+        } catch (overlayError) {
+          console.error('❌ Overlay 실행 실패:', overlayError);
+          
+          // 🚨 실패 메시지로 업데이트
+          const errorMessage: ChatMessage = {
+            id: startMessage.id, // 같은 ID로 업데이트
+            sessionId,
+            role: 'assistant',
+            content: `⚠️ **Overlay Vision • 오류 발생**\n\n화면 분석 중 문제가 발생했습니다:\n\`${overlayError instanceof Error ? overlayError.message : '알 수 없는 오류'}\``,
+            timestamp: new Date().toISOString(),
+            metadata: {
+              type: 'overlay-error',
+              isCooperative: true,
+              avatar: 'overlay'
+            },
+          };
+          
+          set((state) => ({
+            messages: {
+              ...state.messages,
+              [sessionId]: (state.messages[sessionId] || []).map(msg => 
+                msg.id === startMessage.id ? errorMessage : msg
+              ),
+            },
+          }));
+        }
+      }
+      
+      return chatResult;
+      
+    } catch (error) {
+      console.error('❌ [sendOverlayMessage] 전체 실행 실패:', error);
+      throw error;
+    }
+  },
+
+  // 🔥 간단한 SDK 스타일 MCP 연결 시스템
+  connectMCPServers: async (sessionId: string, serverConfigs?: any[]) => {
+    console.log('🚀 [SDK Style] MCP 서버들 자동 연결 시작...');
+    
+    const registry = mcpRegistryStore.getState();
+    const coordinator = mcpCoordinatorStore.getState();
+    
+    // 1. 기본 서버들이 없으면 초기화
+    if (Object.keys(registry.servers).length === 0) {
+      registry.initializeDefaultServers();
+      console.log('📦 기본 MCP 서버들 등록 완료');
+    }
+    
+    // 2. 연결할 서버 목록 결정 (SDK 스타일)
+    const serversToConnect = serverConfigs || Object.values(registry.servers).filter(
+      server => server.autoConnect === true
+    );
+    
+    console.log(`🎯 연결할 서버들 (${serversToConnect.length}개):`, serversToConnect.map(s => s.name || s.id));
+    
+    // 3. 병렬로 빠르게 연결 (사용자 친화적)
+    const connectionPromises = serversToConnect.map(async (server) => {
+      const serverId = server.id;
+      
+      if (coordinator.isServerConnectedToSession({ sessionId, serverId })) {
+        console.log(`✅ 이미 연결됨: ${server.name || serverId}`);
+        return { serverId, status: 'already_connected', name: server.name };
+      }
+      
+      try {
+        console.log(`🔗 연결 중: ${server.name || serverId}`);
+        await coordinator.connectMCPToSession({ sessionId, serverId });
+        console.log(`✅ 연결 완료: ${server.name || serverId}`);
+        return { serverId, status: 'connected', name: server.name };
+      } catch (error) {
+        console.error(`❌ 연결 실패: ${server.name || serverId}`, error);
+        return { serverId, status: 'failed', name: server.name, error };
+      }
+    });
+    
+    // 4. 모든 연결 완료 대기
+    const results = await Promise.allSettled(connectionPromises);
+    
+    // 5. 결과 정리 (사용자 친화적 로깅)
+    const successful = results.filter(r => r.status === 'fulfilled' && r.value.status === 'connected').length;
+    const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.status === 'failed')).length;
+    const alreadyConnected = results.filter(r => r.status === 'fulfilled' && r.value.status === 'already_connected').length;
+    
+    console.log(`🎉 MCP 연결 완료! 성공: ${successful}개, 실패: ${failed}개, 기존연결: ${alreadyConnected}개`);
+    
+    return {
+      total: serversToConnect.length,
+      successful,
+      failed,
+      alreadyConnected,
+      results: results.map(r => r.status === 'fulfilled' ? r.value : { status: 'error', error: r.reason })
+    };
+  },
+
+  // 🤖 SDK 스타일로 간단하게 AI 메시지 전송 (MCP 자동 연결 포함)
+  sendMessageWithAutoMCP: async (payload: { sessionId: string; content: string; selectedTags?: any[] }) => {
+    const { sessionId, content, selectedTags = [] } = payload;
+    
+    console.log('🤖 [SDK Style] AI 메시지 전송 시작...');
+    
+    // 1. MCP 서버들 자동 연결 (SDK 스타일)
+    await get().connectMCPServers(sessionId);
+    
+    // 2. 기존 스트리밍 메시지 전송
+    return await get().sendStreamingMessage({ sessionId, content, selectedTags });
+  },
+
+  // 🔧 새로운 도구 추가 알림 (워크플로우 완료 후 AI에게 알림)
+  notifyNewToolsAdded: async (payload: { 
+    sessionId: string; 
+    connectedServers: string[];
+    message?: string;
+  }) => {
+    const { sessionId, connectedServers, message } = payload;
+    
+    if (connectedServers.length === 0) {
+      console.log('🔧 [notifyNewToolsAdded] 새로운 서버 없음, 알림 스킵');
+      return;
+    }
+
+    console.log('🔧 [notifyNewToolsAdded] 새로운 도구 알림 추가:', connectedServers);
+
+    // AI에게 새로운 도구들이 사용 가능하다는 시스템 메시지 추가
+    const systemMessage: ChatMessage = {
+      id: 'Message-' + uuidv4(),
+      sessionId,
+      role: 'system',
+      content: message || `🔧 **새로운 도구가 추가되었습니다!**\n\n✨ **${connectedServers.join(', ')}** MCP 서버(들)이 연결되었습니다.\n💡 다음 메시지부터 이 서버들의 도구를 자동으로 사용할 수 있습니다!`,
+      timestamp: new Date().toISOString(),
+      metadata: {
+        type: 'new_tools_notification',
+        connectedServers,
+        isSystemMessage: true,
+      },
+    };
+
+    set((state) => ({
+      messages: {
+        ...state.messages,
+        [sessionId]: [...(state.messages[sessionId] || []), systemMessage],
+      },
+    }));
+
+    console.log('✅ [notifyNewToolsAdded] AI 알림 메시지 추가됨');
+  },
+
+  // 🔥 메시지 추가 (워크플로우 결과 등)
+  addMessage: (payload) => {
+    const { sessionId, message } = payload;
+    
+    const fullMessage: ChatMessage = {
+      ...message,
+      sessionId,
+    };
+
+    set((state) => ({
+      messages: {
+        ...state.messages,
+        [sessionId]: [...(state.messages[sessionId] || []), fullMessage],
+      },
+    }));
+
+    console.log('📝 [addMessage] 메시지 추가됨:', message.role, message.content?.substring(0, 50) + '...');
   },
 }));

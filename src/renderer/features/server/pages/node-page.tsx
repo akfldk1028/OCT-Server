@@ -404,9 +404,6 @@ export default function NodePage() {
         )}
         </div>
       </div>
-      
-      {/* 모달들을 최상위에서 렌더링 (ReactFlow 바깥) */}
-      
     </div>
   );
 }

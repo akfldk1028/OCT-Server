@@ -100,6 +100,37 @@ export function useWorkflowExecution() {
         currentStep: '완료'
       }));
 
+      // 🔧 성공한 서버들을 AI에게 알림
+      const successfulServers = results
+        .filter(result => result.success)
+        .map(result => result.serverName);
+
+      if (successfulServers.length > 0) {
+        console.log('🤖 [executeWorkflow] AI에게 새로운 도구 알림 전송:', successfulServers);
+        
+        // ChatStore를 통해 AI에게 새로운 도구 알림
+        try {
+          // 활성 세션 찾기
+          const sessions = store?.session?.sessions || {};
+          const activeSessions = Object.values(sessions).filter((session: any) => session.status === 'active');
+          const sessionId = activeSessions.length > 0 ? activeSessions[0].id : Object.keys(sessions)[0];
+          
+          if (sessionId) {
+            await dispatch({
+              type: 'chat.notifyNewToolsAdded',
+              payload: {
+                sessionId,
+                connectedServers: successfulServers,
+                message: `🎉 **워크플로우 실행 완료!**\n\n🔧 새로운 MCP 서버가 연결되었습니다:\n${successfulServers.map(name => `• ${name}`).join('\n')}\n\n💡 이제 이 서버들의 도구를 채팅에서 바로 사용할 수 있습니다!`
+              }
+            });
+            console.log('✅ [executeWorkflow] AI 알림 전송 완료');
+          }
+        } catch (notifyError) {
+          console.error('❌ [executeWorkflow] AI 알림 전송 실패:', notifyError);
+        }
+      }
+
       onComplete?.(results);
 
     } catch (error) {

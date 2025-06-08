@@ -7,34 +7,61 @@ export function useChatScroll() {
   const scrollToBottom = useCallback(() => {
     console.log('🔄 [scrollToBottom] 호출됨!');
     
-    if (!containerRef.current) {
-      console.log('❌ [scrollToBottom] containerRef.current가 null입니다!');
-      return;
-    }
+    // 더 강력한 스크롤 함수
+    const performScroll = () => {
+      if (!containerRef.current) {
+        console.log('❌ [scrollToBottom] containerRef.current가 null입니다!');
+        return false;
+      }
 
-    const container = containerRef.current;
-    
-    console.log('📊 [scrollToBottom] 스크롤 정보:', {
-      scrollHeight: container.scrollHeight,
-      clientHeight: container.clientHeight,
-      scrollTop: container.scrollTop,
-      hasOverflow: container.scrollHeight > container.clientHeight
-    });
-    
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior: 'smooth',
-    });
-    
-    console.log('✅ [scrollToBottom] scrollTo 실행됨!');
-    
-    // 추가 확인: 실제로 스크롤되었는지 체크
-    setTimeout(() => {
-      console.log('📈 [scrollToBottom] 스크롤 후 위치:', {
+      const container = containerRef.current;
+      
+      console.log('📊 [scrollToBottom] 스크롤 정보:', {
+        scrollHeight: container.scrollHeight,
+        clientHeight: container.clientHeight,
         scrollTop: container.scrollTop,
-        maxScroll: container.scrollHeight - container.clientHeight
+        hasOverflow: container.scrollHeight > container.clientHeight,
+        element: container.tagName,
+        className: container.className
       });
-    }, 100);
+      
+      // 강제 스크롤 (smooth 대신 instant로 확실하게)
+      container.scrollTop = container.scrollHeight;
+      
+      // 혹시나 해서 smooth도 실행
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth',
+      });
+      
+      console.log('✅ [scrollToBottom] scrollTo 실행됨! (instant + smooth)');
+      
+      // 실제로 스크롤되었는지 체크
+      const isAtBottom = Math.abs(container.scrollTop - (container.scrollHeight - container.clientHeight)) < 5;
+      console.log('📍 [scrollToBottom] 스크롤 위치 체크:', {
+        currentScrollTop: container.scrollTop,
+        maxScrollTop: container.scrollHeight - container.clientHeight,
+        isAtBottom
+      });
+      
+      return isAtBottom;
+    };
+    
+    // 즉시 실행
+    const success1 = performScroll();
+    
+    // requestAnimationFrame으로 한 번 더
+    requestAnimationFrame(() => {
+      const success2 = performScroll();
+      
+      // 마지막으로 한 번 더 확인
+      setTimeout(() => {
+        if (!success1 && !success2) {
+          console.log('🔄 [scrollToBottom] 마지막 시도...');
+          performScroll();
+        }
+      }, 50);
+    });
   }, []);
 
   return { containerRef, scrollToBottom };
