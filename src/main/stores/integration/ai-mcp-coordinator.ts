@@ -302,6 +302,21 @@ export const mcpCoordinatorStore = createStore<MCPCoordinatorState>(
           .getState()
           .closeTransport({ sessionId: binding.transportSessionId });
 
+        // 🔥 mcpRegistryStore 서버 상태 업데이트 (연결 해제)
+        try {
+          const server = mcpRegistryStore.getState().servers[binding.serverId];
+          if (server) {
+            mcpRegistryStore.getState().registerServer({
+              ...server,
+              clientId: '', // 클라이언트 ID 제거
+              status: 'disconnected',
+            });
+            console.log('🔧 Registry server status updated to disconnected');
+          }
+        } catch (registryError) {
+          console.warn('⚠️ Registry update failed during disconnect:', registryError);
+        }
+
         // 바인딩 상태 업데이트
         set((state) => ({
           sessionBindings: {
@@ -356,22 +371,85 @@ export const mcpCoordinatorStore = createStore<MCPCoordinatorState>(
       console.log(`🔧 toolName: ${toolName}`);
       console.log(`📦 args:`, args);
       
+      // 🔍 연결 상태 진단
+      const bindings = get().sessionBindings[sessionId] || [];
+      console.log(`🔗 세션 바인딩:`, bindings.length, '개');
+      bindings.forEach(binding => {
+        console.log(`  - ${binding.serverId}: ${binding.status} (client: ${binding.clientId})`);
+      });
+      
       // 도구가 등록되어 있는지 확인
       const tool = mcpRegistryStore.getState().getTool(toolName);
       if (!tool) {
         console.error(`❌ Tool not found in registry: ${toolName}`);
+        console.log(`📋 Available tools:`, Object.keys(mcpRegistryStore.getState().tools));
         throw new Error(`Tool ${toolName} not found in registry`);
       }
       
       console.log(`✅ Tool found:`, tool);
       console.log(`🔗 Tool server: ${tool.serverId} (${tool.serverName})`);
       
+      // 🔍 서버 연결 상태 확인
+      const server = mcpRegistryStore.getState().servers[tool.serverId];
+      if (!server) {
+        console.error(`❌ Server not found: ${tool.serverId}`);
+        throw new Error(`Server ${tool.serverId} not found`);
+      }
+      
+      console.log(`🖥️ Server details:`, {
+        name: server.name,
+        status: server.status,
+        clientId: server.clientId,
+        hasClientId: !!server.clientId
+      });
+      
+      // 🔍 클라이언트 상태 확인
+      if (server.clientId) {
+        const client = clientStore.getState().getClient({ clientId: server.clientId });
+        console.log(`👤 Client details:`, {
+          exists: !!client,
+          status: client?.status,
+          lastActivity: client?.lastActivity
+        });
+      } else {
+        console.error(`❌ Server has no clientId: ${server.name}`);
+        throw new Error(`Server ${server.name} is not connected (no clientId)`);
+      }
+      
+      // 🔍 세션-서버 바인딩 확인
+      const isConnectedToSession = get().isServerConnectedToSession({ sessionId, serverId: tool.serverId });
+      console.log(`🔗 Is server connected to session:`, isConnectedToSession);
+      
+      if (!isConnectedToSession) {
+        console.error(`❌ Server ${tool.serverId} not connected to session ${sessionId}`);
+        throw new Error(`Server ${server.name} is not connected to this session`);
+      }
+      
       // mcpRegistryStore의 executeTool 사용
       console.log(`📤 Calling mcpRegistryStore.executeTool...`);
-      const result = await mcpRegistryStore.getState().executeTool(toolName, args);
-      console.log(`📨 Result from mcpRegistryStore.executeTool:`, result);
-      
-      return result;
+      try {
+        const result = await mcpRegistryStore.getState().executeTool(toolName, args);
+        console.log(`📨 Result from mcpRegistryStore.executeTool:`, result);
+        return result;
+      } catch (error) {
+        console.error(`❌ Tool execution failed:`, error);
+        // 🔧 자동 재연결 시도
+        if (error && typeof error === 'object' && 'message' in error && 
+            (error.message as string).includes('not connected')) {
+          console.log(`🔄 Connection lost, attempting to reconnect server ${tool.serverId}...`);
+          try {
+            await get().connectMCPToSession({ sessionId, serverId: tool.serverId });
+            console.log(`✅ Reconnection successful, retrying tool execution...`);
+            const retryResult = await mcpRegistryStore.getState().executeTool(toolName, args);
+            console.log(`📨 Retry result:`, retryResult);
+            return retryResult;
+          } catch (reconnectError) {
+            console.error(`❌ Reconnection failed:`, reconnectError);
+            throw error; // 원래 오류 다시 던지기
+          }
+        }
+        throw error;
+      }
     },
 
     getSessionTools: async (payload) => {

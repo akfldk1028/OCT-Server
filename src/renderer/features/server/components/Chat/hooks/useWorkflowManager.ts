@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useStore, useDispatch } from '@/hooks/useStore';
-import { useWorkflowExecution } from '../../../hook/useWorkflowExecution';
+import { useWorkflowExecution } from './useWorkflowExecution';
 import type { WorkflowExecutionConfig } from '../../../types/workflow.types';
 
 export function useWorkflowManager(sessionId: string | undefined, toggleMCPServer: (serverId: string) => Promise<void>) {

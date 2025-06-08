@@ -4,9 +4,9 @@ import type {
   WorkflowExecutionState, 
   WorkflowExecutionResult,
   MCPServerConfig 
-} from '../types/workflow.types';
-import type { InstalledServer } from '../types/server-types';
-import { MCPServerManager } from '../services/mcpServerManager';
+} from '../../../types/workflow.types';
+import type { InstalledServer } from '../../../types/server-types';
+import { MCPServerManager } from '../../../services/mcpServerManager';
 import { useDispatch, useStore } from '@/renderer/hooks/useStore';
 
 // 🔥 워크플로우 실행 훅
