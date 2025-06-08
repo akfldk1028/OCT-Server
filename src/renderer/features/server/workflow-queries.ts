@@ -313,34 +313,7 @@ export const deleteWorkflow = async (
 };
 
 // 🔥 워크플로우 실행 기록 생성 (SSR용)
-export const createWorkflowExecution = async (
-  client: SupabaseClient<Database>,
-  data: {
-    workflow_id: number;
-    profile_id: string;
-    execution_id: string;
-    status?: 'running' | 'completed' | 'failed' | 'cancelled';
-    result_data?: any;
-    error_message?: string;
-  }
-) => {
-  try {
-    const { data: execution, error } = await client
-      .from('workflow_executions')
-      .insert({
-        ...data,
-        status: data.status || 'running',
-      })
-      .select()
-      .single();
-      
-    if (error) throw error;
-    return execution;
-  } catch (error) {
-    console.error('Failed to create workflow execution:', error);
-    throw error;
-  }
-};
+
 
 // 🔥 사용자 워크플로우 실행 기록 (SSR용)
 export const getUserWorkflowExecutions = async (
@@ -420,4 +393,122 @@ export const getPublicWorkflows = async (
     console.error('Failed to fetch public workflows:', error);
     throw error;
   }
-}; 
+};
+
+// 워크플로우 실행 기록 저장 (새로운 실행 시작 시)
+export async function saveWorkflowExecution(
+  client: SupabaseClient,
+  payload: {
+    workflow_id: number;
+    user_id: string;
+    execution_id: string;
+    status?: 'running' | 'completed' | 'failed' | 'cancelled';
+    result_data?: any;
+    error_message?: string;
+    nodes_executed?: number;
+    nodes_failed?: number;
+  }
+) {
+  console.log('🔥 [saveWorkflowExecution] 실행 기록 저장:', payload);
+  
+  const { data, error } = await client
+    .from('workflow_executions')
+    .insert({
+      workflow_id: payload.workflow_id,
+      user_id: payload.user_id,
+      execution_id: payload.execution_id,
+      status: payload.status || 'running',
+      result_data: payload.result_data || null,
+      error_message: payload.error_message || null,
+      nodes_executed: payload.nodes_executed || 0,
+      nodes_failed: payload.nodes_failed || 0,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('❌ [saveWorkflowExecution] 저장 실패:', error);
+    throw error;
+  }
+
+  console.log('✅ [saveWorkflowExecution] 저장 성공:', data);
+  return data;
+}
+
+// 워크플로우 실행 기록 업데이트 (완료/실패 시)
+export async function updateWorkflowExecution(
+  client: SupabaseClient,
+  executionId: string,
+  updates: {
+    status: 'completed' | 'failed' | 'cancelled';
+    result_data?: any;
+    error_message?: string;
+    duration_ms?: number;
+    nodes_executed?: number;
+    nodes_failed?: number;
+  }
+) {
+  console.log('🔄 [updateWorkflowExecution] 실행 기록 업데이트:', { executionId, updates });
+  
+  const { data, error } = await client
+    .from('workflow_executions')
+    .update({
+      ...updates,
+      completed_at: new Date().toISOString(),
+    })
+    .eq('execution_id', executionId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('❌ [updateWorkflowExecution] 업데이트 실패:', error);
+    throw error;
+  }
+
+  console.log('✅ [updateWorkflowExecution] 업데이트 성공:', data);
+  return data;
+}
+
+// 워크플로우 공유/템플릿 저장
+export async function createWorkflowShare(
+  client: SupabaseClient,
+  payload: {
+    workflow_id: number;
+    shared_by_user_id: string;
+    share_type?: 'template' | 'public' | 'link';
+    share_title?: string;
+    share_description?: string;
+    share_token?: string;
+    can_view?: boolean;
+    can_copy?: boolean;
+    can_edit?: boolean;
+    expires_at?: string;
+  }
+) {
+  console.log('📤 [createWorkflowShare] 공유/템플릿 생성:', payload);
+  
+  const { data, error } = await client
+    .from('workflow_shares')
+    .insert({
+      workflow_id: payload.workflow_id,
+      shared_by_user_id: payload.shared_by_user_id,
+      share_type: payload.share_type || 'link',
+      share_title: payload.share_title,
+      share_description: payload.share_description,
+      share_token: payload.share_token || `share_${Date.now()}`,
+      can_view: payload.can_view ?? true,
+      can_copy: payload.can_copy ?? true,
+      can_edit: payload.can_edit ?? false,
+      expires_at: payload.expires_at,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('❌ [createWorkflowShare] 저장 실패:', error);
+    throw error;
+  }
+
+  console.log('✅ [createWorkflowShare] 저장 성공:', data);
+  return data;
+} 

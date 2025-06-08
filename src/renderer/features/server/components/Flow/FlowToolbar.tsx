@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { Button } from '@/renderer/common/components/ui/button';
 import { Input } from '@/renderer/common/components/ui/input';
@@ -13,6 +13,9 @@ import {
   getProductById 
 } from '../../../products/queries';
 import { getClients } from '../../queries';
+import { createWorkflow, saveWorkflowNodes, saveWorkflowEdges, getUserWorkflows } from '../../workflow-queries';
+import { publishAsTemplate } from '../../template-queries';
+import WorkflowListModal from './WorkflowListModal';
 
 interface FlowToolbarProps {
   className?: string;
@@ -22,9 +25,29 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
   const { getNodes, getEdges, setNodes, setEdges, fitView } = useReactFlow();
   const { toast } = useToast();
   const [workflowName, setWorkflowName] = useState('');
+  const [showWorkflowModal, setShowWorkflowModal] = useState(false);
+  
+  // 🔥 Colab 스타일 워크플로우 상태 관리
+  const [currentWorkflowId, setCurrentWorkflowId] = useState<number | null>(null);
+  const [isModified, setIsModified] = useState(false);
+  const [originalWorkflowName, setOriginalWorkflowName] = useState('');
   
   // 서버/클라이언트 데이터 컨텍스트 가져오기
   const { servers, clients, userId } = useOutletContext<ServerLayoutContext>();
+
+  // 🔥 변경 감지 (노드나 엣지가 변경될 때마다)
+  useEffect(() => {
+    if (currentWorkflowId && !isModified) {
+      setIsModified(true);
+    }
+  }, [getNodes(), getEdges()]);
+
+  // 🔥 워크플로우 이름 변경 감지
+  useEffect(() => {
+    if (currentWorkflowId && workflowName !== originalWorkflowName) {
+      setIsModified(true);
+    }
+  }, [workflowName, originalWorkflowName, currentWorkflowId]);
 
   // 노드 데이터에서 ID 참조 추출
   const getNodeDataRef = (node: any) => {
@@ -175,50 +198,76 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
     }
   };
 
-  // DB에 워크플로우 저장
-  const saveWorkflowToDB = async (workflowData: any) => {
-    try {
-      if (!userId) {
-        console.warn('⚠️ [saveWorkflowToDB] userId 없음, DB 저장 스킵');
-        return;
-      }
+  // 🔥 Colab 스타일 저장 함수들
+  const saveAsNewWorkflow = async (name: string) => {
+    const nodes = getNodes();
+    const edges = getEdges();
+    
+    const workflowData = {
+      name: name || `Workflow_${new Date().toISOString().slice(0, 19)}`,
+      version: '1.0.0',
+      createdAt: new Date().toISOString(),
+      userId: userId,
+      description: `워크플로우 - ${nodes.length}개 노드, ${edges.length}개 연결`,
+      nodes: nodes.map(node => ({
+        id: node.id,
+        type: node.type,
+        position: node.position,
+        width: node.width,
+        height: node.height,
+        dataRef: getNodeDataRef(node),
+      })),
+      edges: edges.map(edge => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: edge.sourceHandle,
+        targetHandle: edge.targetHandle,
+        type: edge.type,
+        animated: edge.animated,
+        style: edge.style,
+        label: edge.label,
+      }))
+    };
 
-      // TODO: Supabase에 workflows 테이블 생성 후 저장
-      // const { client } = makeSSRClient();
-      // await client.from('workflows').insert({
-      //   user_id: userId,
-      //   name: workflowData.name,
-      //   description: workflowData.description,
-      //   workflow_data: workflowData,
-      //   created_at: workflowData.createdAt
-      // });
-
-      console.log('💾 [saveWorkflowToDB] DB 저장 완료 (시뮬레이션):', workflowData.name);
-    } catch (error) {
-      console.error('❌ [saveWorkflowToDB] DB 저장 실패:', error);
+    const dbResult = await saveWorkflowToDB(workflowData);
+    
+    // 새로 저장한 후 현재 워크플로우로 설정
+    if (dbResult?.id) {
+      setCurrentWorkflowId(dbResult.id);
+      setOriginalWorkflowName(name);
+      setWorkflowName(name);
+      setIsModified(false);
     }
+    
+    return dbResult;
   };
 
-  // 워크플로우를 ID 기반으로 저장 (실제 데이터는 제외)
-  const handleSaveWorkflow = async () => {
+  const updateExistingWorkflow = async () => {
+    if (!currentWorkflowId) return null;
+    
+    const nodes = getNodes();
+    const edges = getEdges();
+    
     try {
-      const nodes = getNodes();
-      const edges = getEdges();
+      const { client } = makeSSRClient();
       
+      // 기존 워크플로우 업데이트 (TODO: 실제 업데이트 쿼리 구현 필요)
+      console.log('🔄 [updateExistingWorkflow] 기존 워크플로우 업데이트:', currentWorkflowId);
+      
+      // 임시로 새로 저장하는 방식 (나중에 실제 업데이트 로직으로 교체)
       const workflowData = {
-        name: workflowName || `Workflow_${new Date().toISOString().slice(0, 19)}`,
+        name: workflowName,
         version: '1.0.0',
         createdAt: new Date().toISOString(),
-        userId: userId, // 🔥 사용자 ID 추가
-        description: `워크플로우 - ${nodes.length}개 노드, ${edges.length}개 연결`,
-        // 🔥 ID와 위치/타입 정보만 저장, 실제 데이터는 제외
+        userId: userId,
+        description: `워크플로우 - ${nodes.length}개 노드, ${edges.length}개 연결 (업데이트됨)`,
         nodes: nodes.map(node => ({
           id: node.id,
           type: node.type,
           position: node.position,
           width: node.width,
           height: node.height,
-          // 🔥 실제 데이터 대신 ID만 저장
           dataRef: getNodeDataRef(node),
         })),
         edges: edges.map(edge => ({
@@ -234,34 +283,170 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
         }))
       };
 
-      // JSON 파일로 다운로드
-      const jsonString = JSON.stringify(workflowData, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
+      const result = await saveWorkflowToDB(workflowData);
       
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${workflowData.name}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // 수정 상태 초기화
+      setIsModified(false);
+      setOriginalWorkflowName(workflowName);
+      
+      return result;
+      
+    } catch (error) {
+      console.error('❌ [updateExistingWorkflow] 업데이트 실패:', error);
+      throw error;
+    }
+  };
 
-      // localStorage에도 저장 (백업용)
-      const savedWorkflows = JSON.parse(localStorage.getItem('saved_workflows') || '[]');
-      savedWorkflows.push(workflowData);
-      localStorage.setItem('saved_workflows', JSON.stringify(savedWorkflows));
+  // DB에 워크플로우 저장
+  const saveWorkflowToDB = async (workflowData: any) => {
+    try {
+      if (!userId) {
+        console.warn('⚠️ [saveWorkflowToDB] userId 없음, DB 저장 스킵');
+        return;
+      }
 
-      // 🔥 Supabase DB에도 저장 (선택적)
-      await saveWorkflowToDB(workflowData);
-
-      toast({
-        title: '워크플로우 저장 완료! 🎉',
-        description: `${workflowData.name} 파일이 다운로드되고 DB에 저장되었습니다.`,
-        variant: 'success',
+      console.log('🔥 [saveWorkflowToDB] Supabase 저장 시작:', workflowData.name);
+      
+      const { client } = makeSSRClient();
+      
+      // 1. 워크플로우 생성
+      const workflowResult = await createWorkflow(client as any, {
+        profile_id: userId,
+        name: workflowData.name,
+        description: workflowData.description,
+        flow_structure: {
+          nodes: workflowData.nodes,
+          edges: workflowData.edges,
+          metadata: {
+            version: workflowData.version,
+            createdAt: workflowData.createdAt
+          }
+        },
+        status: 'draft' as any,
+        is_public: false,
+        is_template: false
       });
+      
+      if (!workflowResult?.id) {
+        throw new Error('워크플로우 생성 실패');
+      }
+      
+      console.log('✅ [saveWorkflowToDB] 워크플로우 생성됨:', workflowResult);
+      
+      // 2. 노드들 저장
+      const nodes = getNodes();
+      if (nodes.length > 0) {
+        const nodeData = nodes
+          .filter(node => node.type) // type이 있는 노드만 필터링
+          .map(node => ({
+            node_id: String(node.id),
+            node_type: node.type!,
+            position_x: Math.round(node.position.x), // 🔥 정수로 반올림
+            position_y: Math.round(node.position.y), // 🔥 정수로 반올림
+            node_config: node.data,
+            // 🔥 노드 타입별로 ID 연결 (타입 안전하게)
+            original_server_id: node.type === 'server' && node.data ? 
+              (Number((node.data as any)?.original_server_id) || Number((node.data as any)?.mcp_servers?.id) || undefined) : undefined,
+            user_mcp_usage_id: node.type === 'server' && node.data ? 
+              (Number((node.data as any)?.id) || undefined) : undefined,
+            client_id: (node.type === 'service' || node.type === 'client') && node.data ? 
+              (Number((node.data as any)?.config?.client_id) || Number((node.data as any)?.client_id) || undefined) : undefined
+          }));
+        
+        await saveWorkflowNodes(client as any, {
+          workflow_id: workflowResult.id,
+          nodes: nodeData
+        });
+        
+        console.log('✅ [saveWorkflowToDB] 노드 저장 완료:', nodeData.length, '개');
+      }
+      
+      // 3. 엣지들 저장
+      const edges = getEdges();
+      if (edges.length > 0) {
+        const edgeData = edges.map(edge => ({
+          edge_id: String(edge.id),
+          source_node_id: String(edge.source),
+          target_node_id: String(edge.target),
+          source_handle: edge.sourceHandle || undefined,
+          target_handle: edge.targetHandle || undefined,
+          edge_config: {
+            type: edge.type,
+            animated: edge.animated,
+            style: edge.style,
+            label: edge.label ? String(edge.label) : undefined
+          }
+        }));
+        
+        await saveWorkflowEdges(client as any, {
+          workflow_id: workflowResult.id,
+          edges: edgeData
+        });
+        
+        console.log('✅ [saveWorkflowToDB] 엣지 저장 완료:', edgeData.length, '개');
+      }
 
-      console.log('💾 [FlowToolbar] 워크플로우 저장됨:', workflowData);
+      console.log('🎉 [saveWorkflowToDB] Supabase 저장 완료!', {
+        workflowId: workflowResult.id,
+        name: workflowData.name,
+        nodes: nodes.length,
+        edges: edges.length
+      });
+      
+      return workflowResult;
+      
+    } catch (error) {
+      console.error('❌ [saveWorkflowToDB] Supabase 저장 실패:', error);
+      throw error;
+    }
+  };
+
+  // 워크플로우를 ID 기반으로 저장 (실제 데이터는 제외)
+  // 🔥 Colab 스타일 저장 처리 (기존 vs 새로운)
+  const handleSaveWorkflow = async () => {
+    try {
+      if (currentWorkflowId && !isModified) {
+        // 변경사항이 없으면 저장하지 않음
+        toast({
+          title: '저장할 변경사항 없음',
+          description: '현재 워크플로우에 변경사항이 없습니다.',
+          variant: 'default',
+        });
+        return;
+      }
+
+      if (currentWorkflowId) {
+        // 기존 워크플로우 업데이트
+        const result = await updateExistingWorkflow();
+        
+        toast({
+          title: '워크플로우 업데이트 완료! 🔄',
+          description: `${workflowName} 기존 워크플로우가 업데이트되었습니다.`,
+          variant: 'success',
+        });
+        
+        console.log('🔄 [FlowToolbar] 워크플로우 업데이트됨:', result);
+      } else {
+        // 새 워크플로우로 저장 (이름 입력 필요)
+        if (!workflowName.trim()) {
+          toast({
+            title: '워크플로우 이름 필요',
+            description: '새 워크플로우는 이름이 필요합니다.',
+            variant: 'default',
+          });
+          return;
+        }
+
+        const result = await saveAsNewWorkflow(workflowName);
+        
+        toast({
+          title: '새 워크플로우 저장 완료! 🎉',
+          description: `${workflowName} 새로운 워크플로우로 저장되었습니다.`,
+          variant: 'success',
+        });
+        
+        console.log('💾 [FlowToolbar] 새 워크플로우 저장됨:', result);
+      }
 
     } catch (error) {
       console.error('❌ [FlowToolbar] 저장 실패:', error);
@@ -273,6 +458,58 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
     }
   };
 
+  // 🔥 다른 이름으로 저장 (항상 새 워크플로우 생성)
+  const handleSaveAsNewWorkflow = async () => {
+    try {
+      const newName = workflowName ? `${workflowName}_복사본` : `Workflow_${new Date().toISOString().slice(0, 19)}`;
+      
+      const result = await saveAsNewWorkflow(newName);
+      
+      toast({
+        title: '다른 이름으로 저장 완료! 📑',
+        description: `${newName} 새로운 복사본이 생성되었습니다.`,
+        variant: 'success',
+      });
+      
+      console.log('📑 [FlowToolbar] 다른 이름으로 저장됨:', result);
+
+    } catch (error) {
+      console.error('❌ [FlowToolbar] 다른 이름으로 저장 실패:', error);
+      toast({
+        title: '저장 실패',
+        description: '다른 이름으로 저장 중 오류가 발생했습니다.',
+        variant: 'error',
+      });
+    }
+  };
+
+  // 🔥 새 워크플로우 시작
+  const handleNewWorkflow = () => {
+    if (isModified && currentWorkflowId) {
+      // 변경사항이 있으면 확인
+      const confirm = window.confirm('현재 워크플로우에 저장되지 않은 변경사항이 있습니다. 새 워크플로우를 시작하시겠습니까?');
+      if (!confirm) return;
+    }
+    
+    // 모든 상태 초기화
+    setNodes([]);
+    setEdges([]);
+    setWorkflowName('');
+    setCurrentWorkflowId(null);
+    setOriginalWorkflowName('');
+    setIsModified(false);
+    
+    toast({
+      title: '새 워크플로우 시작! 🆕',
+      description: '새로운 워크플로우를 시작합니다.',
+      variant: 'default',
+    });
+    
+    console.log('🆕 [FlowToolbar] 새 워크플로우 시작');
+  };
+
+  // 🔥 JSON 파일 로드 기능 (주석처리 - Supabase 우선)
+  /*
   // JSON 파일에서 워크플로우 로드 (ID 기반으로 데이터 파싱)
   const handleLoadWorkflow = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -340,21 +577,96 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
     // 같은 파일을 다시 선택할 수 있도록 value 초기화
     event.target.value = '';
   };
+  */
 
-  // localStorage에서 워크플로우 목록 보기
-  const handleShowSavedWorkflows = () => {
+  // Supabase에서 워크플로우를 불러와서 ReactFlow에 로드
+  const handleLoadWorkflowFromDB = async (workflowData: any) => {
     try {
-      const savedWorkflows = JSON.parse(localStorage.getItem('saved_workflows') || '[]');
-      console.log('💾 [FlowToolbar] 저장된 워크플로우들:', savedWorkflows);
+      console.log('🔥 [FlowToolbar] 워크플로우 로드 시작:', workflowData);
       
+      // 워크플로우 이름 설정
+      if (workflowData.name) {
+        setWorkflowName(workflowData.name);
+      }
+      
+      // 노드 데이터 복원 (서버/클라이언트 정보를 실제 데이터로 변환)
+      const restoredNodes = await Promise.all(
+        workflowData.nodes.map(async (node: any) => {
+          console.log('🔍 [FlowToolbar] 노드 복원:', node);
+          
+          // 노드 데이터에서 실제 서버/클라이언트 정보 복원
+          let restoredData = node.data;
+          
+          // 서버 노드인 경우 실제 서버 데이터 복원
+          if (node.type === 'server' && node.data?.original_server_id) {
+            try {
+              const serverData = await restoreNodeData({
+                type: 'server',
+                serverId: node.data.original_server_id,
+                userMcpUsageId: node.data.id,
+              });
+              restoredData = serverData;
+            } catch (error) {
+              console.warn('⚠️ [FlowToolbar] 서버 데이터 복원 실패:', error);
+            }
+          }
+          
+          // 클라이언트 노드인 경우 실제 클라이언트 데이터 복원
+          if ((node.type === 'service' || node.type === 'client') && node.data?.config?.client_id) {
+            try {
+              const clientData = await restoreNodeData({
+                type: 'client',
+                clientId: node.data.config.client_id,
+              });
+              restoredData = clientData;
+            } catch (error) {
+              console.warn('⚠️ [FlowToolbar] 클라이언트 데이터 복원 실패:', error);
+            }
+          }
+          
+          return {
+            ...node,
+            data: restoredData,
+          };
+        })
+      );
+      
+      console.log('✅ [FlowToolbar] 노드 복원 완료:', restoredNodes);
+      
+      // ReactFlow에 노드와 엣지 설정
+      setNodes(restoredNodes);
+      setEdges(workflowData.edges || []);
+      
+      // 🔥 현재 워크플로우 상태 설정 (기존 워크플로우로 인식)
+      setCurrentWorkflowId(workflowData.id);
+      setOriginalWorkflowName(workflowData.name || '');
+      setIsModified(false);
+      
+      // 화면에 맞게 조정
+      setTimeout(() => {
+        fitView();
+      }, 100);
+      
+      console.log('🎉 [FlowToolbar] 워크플로우 로드 완료 - 현재 워크플로우로 설정:', workflowData.id);
+      
+    } catch (error) {
+      console.error('❌ [FlowToolbar] 워크플로우 로드 실패:', error);
+      throw error;
+    }
+  };
+
+  // Supabase에서 사용자 워크플로우 목록 보기 (모달 열기)
+  const handleShowSavedWorkflows = async () => {
+    if (!userId) {
       toast({
-        title: '저장된 워크플로우',
-        description: `총 ${savedWorkflows.length}개의 워크플로우가 저장되어 있습니다. (콘솔 확인)`,
+        title: '로그인 필요',
+        description: '워크플로우 목록을 보려면 먼저 로그인해주세요.',
         variant: 'default',
       });
-    } catch (error) {
-      console.error('❌ [FlowToolbar] 목록 조회 실패:', error);
+      return;
     }
+
+    setShowWorkflowModal(true);
   };
 
   // 현재 워크플로우 정보 출력
@@ -373,74 +685,252 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
     });
   };
 
+  // 🔥 템플릿으로 발행 (관리자용)
+  const handlePublishTemplate = async () => {
+    try {
+      if (!userId) {
+        toast({
+          title: '로그인 필요',
+          description: '템플릿을 발행하려면 먼저 로그인해주세요.',
+          variant: 'default',
+        });
+        return;
+      }
+
+      const nodes = getNodes();
+      const edges = getEdges();
+      
+      if (nodes.length === 0) {
+        toast({
+          title: '노드 없음',
+          description: '템플릿으로 발행할 노드가 없습니다.',
+          variant: 'default',
+        });
+        return;
+      }
+
+      // 🔥 1단계: 먼저 워크플로우 저장
+      const workflowResult = await saveWorkflowToDB({
+        name: workflowName || `Template_${new Date().toISOString().slice(0, 19)}`,
+        version: '1.0.0',
+        createdAt: new Date().toISOString(),
+        userId: userId,
+        description: `템플릿 - ${nodes.length}개 노드, ${edges.length}개 연결`,
+        nodes: nodes.map(node => ({
+          id: node.id,
+          type: node.type,
+          position: node.position,
+          dataRef: getNodeDataRef(node)
+        })),
+        edges: edges.map(edge => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          sourceHandle: edge.sourceHandle,
+          targetHandle: edge.targetHandle,
+          type: edge.type,
+          animated: edge.animated,
+          style: edge.style,
+          label: edge.label
+        }))
+      });
+
+      if (!workflowResult?.id) {
+        throw new Error('워크플로우 저장 실패');
+      }
+
+      // 🔥 2단계: 템플릿으로 발행
+      const { client } = makeSSRClient();
+      const templateResult = await publishAsTemplate(client as any, {
+        workflow_id: workflowResult.id,
+        profile_id: userId,
+        share_title: workflowName || `템플릿 ${workflowResult.id}`,
+        share_description: `${nodes.length}개 노드로 구성된 워크플로우 템플릿입니다.`,
+      });
+
+      console.log('🎉 [FlowToolbar] 템플릿 발행 완료:', templateResult);
+
+      toast({
+        title: '템플릿 발행 완료! 📤',
+        description: `"${workflowName || '워크플로우'}"가 템플릿으로 공개되었습니다.`,
+        variant: 'success',
+      });
+
+    } catch (error) {
+      console.error('❌ [FlowToolbar] 템플릿 발행 실패:', error);
+      toast({
+        title: '템플릿 발행 실패',
+        description: '템플릿을 발행하는 중 오류가 발생했습니다.',
+        variant: 'error',
+      });
+    }
+  };
+
   return (
-    <div className={`flex items-center gap-2 p-3 bg-card border-b border-border ${className}`}>
-      {/* 워크플로우 이름 입력 */}
-      <Input
-        type="text"
-        placeholder="워크플로우 이름..."
-        value={workflowName}
-        onChange={(e) => setWorkflowName(e.target.value)}
-        className="w-48"
-      />
-
-      {/* Save 버튼 */}
-      <Button
-        onClick={handleSaveWorkflow}
-        className="flex items-center gap-2"
-        variant="default"
-      >
-        <Save className="h-4 w-4" />
-        저장
-      </Button>
-
-      {/* Load 버튼 */}
-      <label className="cursor-pointer">
-        <Button
-          type="button"
-          className="flex items-center gap-2"
-          variant="outline"
-          asChild
-        >
-          <span>
-            <Upload className="h-4 w-4" />
-            불러오기
-          </span>
-        </Button>
-        <input
-          type="file"
-          accept=".json"
-          onChange={handleLoadWorkflow}
-          className="hidden"
+    <div className={`flex items-center gap-1 px-4 py-2 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-b border-border/50 backdrop-blur-sm ${className}`}>
+      {/* 🔥 Colab 스타일 워크플로우 이름 입력 */}
+      <div className="relative">
+        <Input
+          type="text"
+          placeholder={currentWorkflowId ? "기존 워크플로우" : "새 워크플로우 이름"}
+          value={workflowName}
+          onChange={(e) => setWorkflowName(e.target.value)}
+          className={`w-40 h-8 text-sm border-0 ${
+            currentWorkflowId 
+              ? 'bg-green-50/80 dark:bg-green-900/20 focus:bg-green-50 dark:focus:bg-green-900/30' 
+              : 'bg-white/60 dark:bg-slate-800/60 focus:bg-white dark:focus:bg-slate-800'
+          }`}
         />
-      </label>
-
-      {/* 저장된 목록 보기 */}
-      <Button
-        onClick={handleShowSavedWorkflows}
-        className="flex items-center gap-2"
-        variant="ghost"
-        size="sm"
-      >
-        <FileJson className="h-4 w-4" />
-        목록
-      </Button>
-
-      {/* 현재 정보 보기 */}
-      <Button
-        onClick={handleShowCurrentFlow}
-        className="flex items-center gap-2"
-        variant="ghost"
-        size="sm"
-      >
-        <Download className="h-4 w-4" />
-        정보
-      </Button>
-
-      {/* 상태 표시 */}
-      <div className="ml-auto text-sm text-muted-foreground">
-        {getNodes().length}개 노드, {getEdges().length}개 연결
+        {currentWorkflowId && (
+          <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full" title="기존 워크플로우" />
+        )}
+        {isModified && (
+          <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-orange-500 rounded-full" title="수정됨" />
+        )}
       </div>
+
+      {/* 구분선 */}
+      <div className="h-6 w-px bg-border/50 mx-1" />
+
+      {/* 🔥 Colab 스타일 저장 버튼들 */}
+      <div className="flex items-center gap-1">
+        {/* Save 버튼 - 기존/새로운에 따라 다른 동작 */}
+        <Button
+          onClick={handleSaveWorkflow}
+          size="sm"
+          variant="ghost"
+          className={`h-8 px-2 hover:bg-blue-100 dark:hover:bg-blue-900/30 ${
+            isModified ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+          }`}
+          title={currentWorkflowId ? 
+            (isModified ? `"${workflowName}" 저장 (수정됨)` : `"${workflowName}" 저장 (변경없음)`) : 
+            "새 워크플로우로 저장"
+          }
+        >
+          <Save className={`h-4 w-4 mr-1 ${
+            isModified ? 'text-blue-700 dark:text-blue-300' : 'text-blue-600 dark:text-blue-400'
+          }`} />
+          <span className="text-xs text-blue-600 dark:text-blue-400">
+            {currentWorkflowId ? '저장' : '저장'}
+          </span>
+          {isModified && currentWorkflowId && (
+            <span className="ml-1 w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+          )}
+        </Button>
+
+        {/* SaveAs 버튼 - 항상 새로운 복사본 생성 */}
+        <Button
+          onClick={handleSaveAsNewWorkflow}
+          size="sm"
+          variant="ghost"
+          className="h-8 px-2 hover:bg-orange-100 dark:hover:bg-orange-900/30"
+          title="다른 이름으로 저장 (새 복사본 생성)"
+        >
+          <Save className="h-4 w-4 mr-1 text-orange-600 dark:text-orange-400" />
+          <span className="text-xs text-orange-600 dark:text-orange-400">복사</span>
+        </Button>
+
+        {/* New 버튼 - 새 워크플로우 시작 */}
+        <Button
+          onClick={handleNewWorkflow}
+          size="sm"
+          variant="ghost"
+          className="h-8 px-2 hover:bg-gray-100 dark:hover:bg-gray-900/30"
+          title="새 워크플로우 시작"
+        >
+          <span className="text-sm mr-1">🆕</span>
+          <span className="text-xs text-gray-600 dark:text-gray-400">새로</span>
+        </Button>
+
+        {/* Load 버튼 - Supabase에서 불러오기 */}
+        <Button
+          onClick={handleShowSavedWorkflows}
+          size="sm"
+          variant="ghost"
+          className="h-8 px-2 hover:bg-green-100 dark:hover:bg-green-900/30"
+          title="Supabase에서 불러오기"
+        >
+          <Upload className="h-4 w-4 mr-1 text-green-600 dark:text-green-400" />
+          <span className="text-xs text-green-600 dark:text-green-400">불러오기</span>
+        </Button>
+
+        {/* 파일에서 불러오기 (주석처리 - Supabase 우선) */}
+        {/*
+        <label className="cursor-pointer">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 p-0 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+            title="파일에서 불러오기"
+            asChild
+          >
+            <span>
+              <FileJson className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            </span>
+          </Button>
+          <input
+            type="file"
+            accept=".json"
+            onChange={handleLoadWorkflow}
+            className="hidden"
+          />
+        </label>
+        */}
+
+        {/* 템플릿 발행 버튼 */}
+        <Button
+          onClick={handlePublishTemplate}
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 p-0 hover:bg-purple-100 dark:hover:bg-purple-900/30"
+          title="템플릿 발행"
+        >
+          <span className="text-purple-600 dark:text-purple-400">📤</span>
+        </Button>
+      </div>
+
+      {/* 구분선 */}
+      <div className="h-6 w-px bg-border/50 mx-1" />
+
+      {/* 보조 버튼들 */}
+      <div className="flex items-center gap-1">
+        <Button
+          onClick={handleShowCurrentFlow}
+          size="sm"
+          variant="ghost"
+          className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-700/50"
+          title="현재 정보"
+        >
+          <Download className="h-3.5 w-3.5 text-slate-500" />
+        </Button>
+      </div>
+
+      {/* 🔥 Colab 스타일 상태 표시 */}
+      <div className="ml-auto flex items-center gap-2">
+        {/* 워크플로우 상태 */}
+        {currentWorkflowId && (
+          <div className="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+            기존 #{currentWorkflowId}
+            {isModified && <span className="ml-1 text-orange-600">*</span>}
+          </div>
+        )}
+        
+        {/* 노드/엣지 카운트 */}
+        <div className="text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-full">
+          <span className="font-medium text-blue-600 dark:text-blue-400">{getNodes().length}</span>
+          <span className="mx-1">·</span>
+          <span className="font-medium text-green-600 dark:text-green-400">{getEdges().length}</span>
+        </div>
+      </div>
+
+      {/* 워크플로우 목록 모달 */}
+      <WorkflowListModal 
+        isOpen={showWorkflowModal}
+        onClose={() => setShowWorkflowModal(false)}
+        onLoadWorkflow={handleLoadWorkflowFromDB}
+        userId={userId}
+      />
     </div>
   );
 } 

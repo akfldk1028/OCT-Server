@@ -23,13 +23,17 @@ import {
   User,
   AlertCircle,
   Wrench,
+  Workflow,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ChatInput from './ChatInput';
 import MCPManager from '../components/MCPManager';
 import ChatSidebar from '../components/Chat/ChatSidebar';
+import WorkflowListModal from '../components/Flow/WorkflowListModal';
 import type { Tag } from '../components/Chat/TagInput';
 import { useChatScroll } from '@/hooks/use-chat-scroll';
+import { makeSSRClient } from '@/renderer/supa-client';
+import { getCurrentUserProfileId } from '@/renderer/features/products/queries';
 
 // 메시지 아이템을 memoized 컴포넌트로 분리
 const MessageItem = memo(function MessageItem({ message }: { message: any }) {
@@ -124,6 +128,8 @@ export default function ChatRoom() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
+  const [showWorkflowModal, setShowWorkflowModal] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // console.log('🎬 ChatRoom rendered with sessionId:', sessionId);
 
@@ -146,6 +152,23 @@ export default function ChatRoom() {
     
     return () => clearTimeout(timeoutId);
   }, [messages.length, isStreaming, scrollToBottom]);
+
+  // 현재 사용자 ID 가져오기
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const { client } = makeSSRClient();
+        const userId = await getCurrentUserProfileId(client);
+        setCurrentUserId(userId);
+        console.log('👤 [ChatRoom] 현재 사용자 ID:', userId);
+      } catch (error) {
+        console.warn('⚠️ [ChatRoom] 사용자 정보 가져오기 실패:', error);
+        setCurrentUserId(null);
+      }
+    };
+
+    fetchCurrentUser();
+  }, []);
 
 
   // console.log('📊 Store 상태:', {
@@ -358,6 +381,58 @@ export default function ChatRoom() {
   };
 
   // 실제 MCP 작업 실행
+  // 워크플로우 불러오기 함수
+  const handleLoadWorkflow = async (workflowData: any) => {
+    try {
+      console.log('💻 [ChatRoom] 로컬 워크플로우 불러오기:', workflowData);
+      
+      // 워크플로우 데이터를 채팅에 메시지로 추가
+      const workflowMessage = `🔧 워크플로우 "${workflowData.name}"를 로컬 환경에서 실행할 준비가 완료되었습니다.\n\n` +
+        `📝 설명: ${workflowData.description || '설명 없음'}\n` +
+        `💻 클라이언트 타입: ${workflowData.client_type || 'local'}\n` +
+        `📊 노드 수: ${workflowData.nodes?.length || 0}개\n\n` +
+        `이 워크플로우를 실행하시겠습니까?`;
+      
+      // 시스템 메시지로 추가
+      dispatch({
+        type: 'chat.addMessage',
+        payload: {
+          sessionId,
+          message: {
+            id: `workflow-${Date.now()}`,
+            role: 'system',
+            content: workflowMessage,
+            timestamp: new Date().toISOString(),
+            metadata: {
+              type: 'workflow_loaded',
+              workflowData: workflowData
+            }
+          }
+        }
+      });
+      
+      setShowWorkflowModal(false);
+      
+    } catch (error) {
+      console.error('❌ [ChatRoom] 워크플로우 로드 실패:', error);
+      
+      // 오류 메시지 추가
+      dispatch({
+        type: 'chat.addMessage',
+        payload: {
+          sessionId,
+          message: {
+            id: `error-${Date.now()}`,
+            role: 'system',
+            content: `❌ 워크플로우 로드 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
+            timestamp: new Date().toISOString(),
+            metadata: { type: 'error' }
+          }
+        }
+      });
+    }
+  };
+
   const executeMCPAction = async (tag: Tag): Promise<string> => {
     if (!sessionId) throw new Error('세션이 없습니다');
     
@@ -515,6 +590,17 @@ export default function ChatRoom() {
                 </Select>
               )}
               
+              {/* 워크플로우 버튼 */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowWorkflowModal(true)}
+                className="gap-2"
+              >
+                <Workflow className="w-4 h-4" />
+                워크플로우
+              </Button>
+              
               <Button
                 variant={showSettings ? "default" : "ghost"}
                 size="sm"
@@ -627,6 +713,17 @@ export default function ChatRoom() {
         availableModels={availableModels}
         onToggleMCPServer={toggleMCPServer}
         onDisconnectMCP={handleDisconnectMCP}
+      />
+
+      {/* 워크플로우 모달 (로컬 클라이언트용만) */}
+      <WorkflowListModal
+        isOpen={showWorkflowModal}
+        onClose={() => setShowWorkflowModal(false)}
+        onLoadWorkflow={handleLoadWorkflow}
+        userId={currentUserId || undefined}
+        filterClientType="local"
+        title="로컬 워크플로우 불러오기"
+        description="채팅에서 실행할 로컬 환경용 워크플로우를 선택하세요"
       />
     </div>
   );

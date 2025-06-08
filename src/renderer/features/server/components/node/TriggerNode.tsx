@@ -4,6 +4,8 @@ import { useToast } from '@/renderer/hooks/use-toast';
 import { dfsTraverse, FlowNode, FlowEdge } from './FlowDfsUtil';
 import { executeWorkflow } from '../Flow/FlowEngine';
 import { enhanceNodeData, enhanceWorkflowData } from '../Flow/NodeDataEnhancer';
+import { makeSSRClient } from '@/renderer/supa-client';
+import { saveWorkflowExecution, updateWorkflowExecution } from '../../workflow-queries';
 
 interface TriggerNodeProps {
   id: string;
@@ -91,7 +93,31 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
     // });
 
     // 4. 워크플로우 실행 (FlowEngine 사용)
+    let executionRecord = null;
+    const executionId = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const startTime = Date.now();
+    
     try {
+      // 🔥 실행 기록 저장 (시작)
+      try {
+        const { client } = makeSSRClient();
+        const userId = (window as any).zubridge?.getState?.()?.session?.profile_id;
+        const workflowId = 1; // 임시로 1 사용 (실제로는 저장된 워크플로우 ID)
+        
+        if (userId) {
+          executionRecord = await saveWorkflowExecution(client, {
+            workflow_id: workflowId,
+            user_id: userId,
+            execution_id: executionId,
+            status: 'running',
+            nodes_executed: 0,
+          });
+          console.log('✅ [TriggerNode] 실행 기록 저장됨:', executionRecord);
+        }
+      } catch (dbError) {
+        console.warn('⚠️ [TriggerNode] 실행 기록 저장 실패 (계속 진행):', dbError);
+      }
+      
       // 워크플로우 실행
       const executionResult = await executeWorkflow(id, nodes, edges);
       console.log('워크플로우 실행 결과:', executionResult);
@@ -134,9 +160,50 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
           setLogs((prevLogs) => [...prevLogs.slice(-4), resultLog]);
         });
       }
+      
+      // 🔥 실행 완료 기록 업데이트
+      if (executionRecord) {
+        try {
+          const { client } = makeSSRClient();
+          const endTime = Date.now();
+          const duration = endTime - startTime;
+          
+          await updateWorkflowExecution(client, executionId, {
+            status: executionResult.success ? 'completed' : 'failed',
+            result_data: executionResult,
+            duration_ms: duration,
+            nodes_executed: nodes.length,
+            nodes_failed: executionResult.success ? 0 : 1,
+          });
+          console.log('✅ [TriggerNode] 실행 완료 기록 업데이트됨');
+        } catch (dbError) {
+          console.warn('⚠️ [TriggerNode] 실행 완료 기록 업데이트 실패:', dbError);
+        }
+      }
+      
     } catch (error) {
       console.error('워크플로우 실행 오류:', error);
       setLogs((prevLogs) => [...prevLogs.slice(-4), `❌ 오류: ${error}`]);
+      
+      // 🔥 실행 실패 기록 업데이트
+      if (executionRecord) {
+        try {
+          const { client } = makeSSRClient();
+          const endTime = Date.now();
+          const duration = endTime - startTime;
+          
+          await updateWorkflowExecution(client, executionId, {
+            status: 'failed',
+            error_message: error instanceof Error ? error.message : String(error),
+            duration_ms: duration,
+            nodes_executed: 0,
+            nodes_failed: 1,
+          });
+          console.log('✅ [TriggerNode] 실행 실패 기록 업데이트됨');
+        } catch (dbError) {
+          console.warn('⚠️ [TriggerNode] 실행 실패 기록 업데이트 실패:', dbError);
+        }
+      }
     }
 
     // 5. 전체 결과 JSON 로그 (이모지 포함)
