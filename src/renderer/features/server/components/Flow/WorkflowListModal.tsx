@@ -521,7 +521,7 @@ export default function WorkflowListModal({
 
     const modalContent = (
     <div 
-      className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
       style={{ 
         zIndex: 999999,
         position: 'fixed',
@@ -536,7 +536,7 @@ export default function WorkflowListModal({
       onClick={handleBackdropClick}
     >
        <div 
-         className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-[900px] max-h-[700px] flex flex-col relative border border-gray-100 dark:border-gray-800"
+         className="bg-card rounded-2xl shadow-2xl w-[900px] max-h-[700px] flex flex-col relative border border-border"
          style={{ 
            zIndex: 1000000,
            maxWidth: '95vw',
@@ -546,15 +546,15 @@ export default function WorkflowListModal({
          onClick={(e) => e.stopPropagation()}
        >
         {/* 헤더 */}
-        <div className="flex justify-between items-start p-8 border-b border-gray-100 dark:border-gray-800">
+        <div className="flex justify-between items-start p-8 border-b border-border">
           <div className="space-y-1">
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">
+            <h2 className="text-2xl font-semibold text-card-foreground tracking-tight">
               {title}
             </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               {description}
               {filterClientType && (
-                <span className="block mt-1 text-blue-600 dark:text-blue-400 font-medium">
+                <span className="block mt-1 text-primary font-medium">
                   {filterClientType === 'local' && '💻 로컬 전용 워크플로우'}
                   {filterClientType === 'claude_desktop' && '🧠 Claude Desktop 전용 워크플로우'}
                   {filterClientType === 'openai' && '🔧 OpenAI 전용 워크플로우'}
@@ -568,16 +568,16 @@ export default function WorkflowListModal({
             onClick={onClose}
             variant="ghost"
             size="sm"
-            className="h-10 w-10 p-0 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            className="h-10 w-10 p-0 rounded-full hover:bg-muted transition-colors"
           >
-            <X className="h-5 w-5 text-gray-500" />
+            <X className="h-5 w-5 text-muted-foreground" />
           </Button>
         </div>
 
         {/* 클라이언트 타입 탭 (filterClientType이 설정되지 않은 경우만 보여주기) */}
         {!filterClientType && (
-          <div className="px-8 pt-6 pb-4 bg-gray-50/50 dark:bg-gray-800/20">
-            <div className="flex space-x-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+          <div className="px-8 pt-6 pb-4 bg-muted/30">
+            <div className="flex space-x-1 bg-muted rounded-xl p-1">
             {[
               { key: 'all', label: '전체', icon: '🌐', count: clientTypeCounts.all },
               { key: 'claude_desktop', label: 'Claude Desktop', icon: '🧠', count: clientTypeCounts.claude_desktop },
@@ -591,16 +591,16 @@ export default function WorkflowListModal({
                 onClick={() => setSelectedClientTab(tab.key)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   selectedClientTab === tab.key
-                    ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600 dark:text-blue-400'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    ? 'bg-card shadow-sm text-primary'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <span>{tab.icon}</span>
                 <span>{tab.label}</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full ${
                   selectedClientTab === tab.key
-                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                    ? 'bg-primary/10 text-primary'
+                    : 'bg-muted text-muted-foreground'
                 }`}>
                   {tab.count}
                 </span>
@@ -611,21 +611,21 @@ export default function WorkflowListModal({
         )}
 
         {/* 검색 및 필터 */}
-        <div className="px-8 pb-6 bg-gray-50/50 dark:bg-gray-800/20">
+        <div className="px-8 pb-6 bg-muted/30">
           <div className="flex gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="워크플로우 검색..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-12 h-11 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                className="pl-12 h-11 bg-card rounded-xl shadow-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               />
             </div>
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-sm shadow-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all min-w-[140px]"
+              className="px-4 py-3 border border-border rounded-xl bg-card text-sm shadow-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all min-w-[140px]"
             >
               <option value="all">모든 상태</option>
               <option value="draft">초안</option>
@@ -640,19 +640,19 @@ export default function WorkflowListModal({
         <div className="flex-1 overflow-y-auto px-8 py-6">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-40 space-y-4">
-              <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-500 border-t-transparent"></div>
-              <span className="text-gray-600 dark:text-gray-400 font-medium">워크플로우를 불러오는 중...</span>
+              <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary border-t-transparent"></div>
+              <span className="text-muted-foreground font-medium">워크플로우를 불러오는 중...</span>
             </div>
           ) : filteredWorkflows.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 space-y-4">
-              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
-                <Search className="h-8 w-8 text-gray-400" />
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center">
+                <Search className="h-8 w-8 text-muted-foreground" />
               </div>
               <div className="text-center space-y-1">
-                <p className="text-gray-900 dark:text-white font-medium">
+                <p className="text-card-foreground font-medium">
                   {searchTerm ? '검색 결과가 없습니다' : '저장된 워크플로우가 없습니다'}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-muted-foreground">
                   {searchTerm ? '다른 검색어를 시도해보세요' : '새로운 워크플로우를 만들어보세요'}
                 </p>
               </div>
@@ -662,7 +662,7 @@ export default function WorkflowListModal({
               {filteredWorkflows.map((workflow) => (
                 <div
                   key={workflow.id}
-                  className="group border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-blue-200 hover:bg-blue-50/30 dark:hover:border-blue-800 dark:hover:bg-blue-900/10 transition-all duration-200 cursor-pointer hover:shadow-md"
+                  className="group border border-border rounded-lg p-4 hover:border-primary/30 hover:bg-primary/5 transition-all duration-200 cursor-pointer hover:shadow-md"
                   onClick={() => handleSelectWorkflow(workflow)}
                 >
                   <div className="flex justify-between items-center">
@@ -681,27 +681,27 @@ export default function WorkflowListModal({
                                 if (e.key === 'Escape') handleCancelNameEdit();
                               }}
                               onBlur={() => handleSaveNameEdit(workflow.id)}
-                              className="text-sm font-semibold bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded px-2 py-1 flex-1 min-w-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                              className="text-sm font-semibold bg-primary/5 border border-primary/20 rounded px-2 py-1 flex-1 min-w-0 focus:outline-none focus:ring-2 focus:ring-primary/20"
                               autoFocus
                               disabled={updatingStatus.has(workflow.id)}
                             />
                             <button
                               onClick={() => handleSaveNameEdit(workflow.id)}
-                              className="text-xs text-blue-600 hover:text-blue-700 px-1"
+                              className="text-xs text-primary hover:text-primary/80 px-1"
                               disabled={updatingStatus.has(workflow.id)}
                             >
                               ✓
                             </button>
                             <button
                               onClick={handleCancelNameEdit}
-                              className="text-xs text-gray-500 hover:text-gray-700 px-1"
+                              className="text-xs text-muted-foreground hover:text-foreground px-1"
                             >
                               ✕
                             </button>
                           </div>
                         ) : (
                           <h3 
-                            className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded px-1 py-0.5"
+                            className="text-sm font-semibold text-card-foreground group-hover:text-primary transition-colors truncate cursor-pointer hover:bg-muted rounded px-1 py-0.5"
                             onDoubleClick={(e) => {
                               e.stopPropagation();
                               handleStartNameEdit(workflow.id, workflow.name);
@@ -719,10 +719,10 @@ export default function WorkflowListModal({
                             onChange={(e) => handleStatusChange(workflow.id, e.target.value as any, workflow.name)}
                             disabled={updatingStatus.has(workflow.id)}
                             className={`text-xs font-medium px-2 py-0.5 rounded border-0 cursor-pointer transition-all ${
-                              workflow.status === 'active' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                              workflow.status === 'draft' ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' :
-                              workflow.status === 'shared' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
-                              'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                              workflow.status === 'active' ? 'bg-primary/10 text-primary' :
+                              workflow.status === 'draft' ? 'bg-muted text-muted-foreground' :
+                              workflow.status === 'shared' ? 'bg-chart-2/10 text-chart-2' :
+                              'bg-chart-3/10 text-chart-3'
                             } ${updatingStatus.has(workflow.id) ? 'opacity-50 cursor-wait' : 'hover:opacity-80'}`}
                           >
                             <option value="draft">초안</option>
@@ -731,19 +731,19 @@ export default function WorkflowListModal({
                             <option value="archived">보관됨</option>
                           </select>
                           {updatingStatus.has(workflow.id) && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-gray-900/50 rounded">
-                              <div className="animate-spin rounded-full h-3 w-3 border border-blue-500 border-t-transparent" />
+                            <div className="absolute inset-0 flex items-center justify-center bg-card/50 rounded">
+                              <div className="animate-spin rounded-full h-3 w-3 border border-primary border-t-transparent" />
                             </div>
                           )}
                         </div>
                         
                         {/* 클라이언트 타입 뱃지 */}
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
-                          workflow.client_type === 'claude_desktop' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
-                          workflow.client_type === 'local' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                          workflow.client_type === 'openai' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                          workflow.client_type === 'mixed' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                          'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                          workflow.client_type === 'claude_desktop' ? 'bg-chart-2/10 text-chart-2' :
+                          workflow.client_type === 'local' ? 'bg-chart-1/10 text-chart-1' :
+                          workflow.client_type === 'openai' ? 'bg-primary/10 text-primary' :
+                          workflow.client_type === 'mixed' ? 'bg-chart-4/10 text-chart-4' :
+                          'bg-muted text-muted-foreground'
                         }`}>
                           {workflow.client_type === 'claude_desktop' && '🧠 Claude'}
                           {workflow.client_type === 'local' && '💻 Local'}
@@ -761,8 +761,8 @@ export default function WorkflowListModal({
                           disabled={updatingStatus.has(workflow.id)}
                           className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 transition-all ${
                             workflow.is_template 
-                              ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/50' 
-                              : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
+                              ? 'bg-chart-4/10 text-chart-4 hover:bg-chart-4/20' 
+                              : 'bg-muted text-muted-foreground hover:bg-chart-4/5'
                           } ${updatingStatus.has(workflow.id) ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
                           title={workflow.is_template ? '템플릿 해제하기' : '템플릿으로 설정하기'}
                         >
@@ -778,8 +778,8 @@ export default function WorkflowListModal({
                           disabled={updatingStatus.has(workflow.id)}
                           className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 transition-all ${
                             workflow.is_public 
-                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50' 
-                              : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20'
+                              ? 'bg-chart-1/10 text-chart-1 hover:bg-chart-1/20' 
+                              : 'bg-muted text-muted-foreground hover:bg-chart-1/5'
                           } ${updatingStatus.has(workflow.id) ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
                           title={workflow.is_public ? '비공개로 변경하기' : '공개로 변경하기'}
                         >
@@ -789,20 +789,20 @@ export default function WorkflowListModal({
                       
                       {/* 두 번째 줄: 설명 (짧게 표시) */}
                       {workflow.description && (
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 line-clamp-1">
+                        <p className="text-xs text-muted-foreground mb-2 line-clamp-1">
                           {workflow.description}
                         </p>
                       )}
                       
                       {/* 세 번째 줄: 메타 정보 */}
-                      <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           {new Date(workflow.updated_at).toLocaleDateString('ko-KR')}
                         </span>
                         {workflow.profiles?.name && (
                           <span className="flex items-center gap-1">
-                            <div className="w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                            <div className="w-3 h-3 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-xs font-bold">
                               {workflow.profiles.name.charAt(0)}
                             </div>
                             {workflow.profiles.name}
@@ -821,7 +821,7 @@ export default function WorkflowListModal({
                     <div className="flex items-center gap-2 ml-4 flex-shrink-0">
                       <Button
                         size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 text-white border-0 rounded-lg px-3 py-1 shadow-sm group-hover:shadow-md transition-all text-xs"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground border-0 rounded-lg px-3 py-1 shadow-sm group-hover:shadow-md transition-all text-xs"
                       >
                         <Download className="h-3 w-3 mr-1" />
                         불러오기
@@ -830,13 +830,13 @@ export default function WorkflowListModal({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg p-1 transition-all opacity-0 group-hover:opacity-100"
+                        className="text-destructive hover:text-destructive/80 hover:bg-destructive/10 rounded-lg p-1 transition-all opacity-0 group-hover:opacity-100"
                         onClick={(e) => handleDeleteWorkflow(workflow.id, workflow.name, e)}
                         disabled={deletingWorkflows.has(workflow.id)}
                         title="워크플로우 삭제"
                       >
                         {deletingWorkflows.has(workflow.id) ? (
-                          <div className="animate-spin rounded-full h-3 w-3 border border-red-500 border-t-transparent" />
+                          <div className="animate-spin rounded-full h-3 w-3 border border-destructive border-t-transparent" />
                         ) : (
                           <Trash2 className="h-3 w-3" />
                         )}
@@ -850,14 +850,14 @@ export default function WorkflowListModal({
         </div>
 
         {/* 푸터 */}
-        <div className="px-8 py-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-800/20">
+        <div className="px-8 py-6 border-t border-border bg-muted/30">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
+              <span className="text-sm font-medium text-card-foreground">
                 총 {filteredWorkflows.length}개의 워크플로우
               </span>
               {searchTerm && (
-                <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
+                <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
                   "{searchTerm}" 검색 중
                 </span>
               )}
@@ -865,7 +865,7 @@ export default function WorkflowListModal({
             <Button 
               onClick={onClose} 
               variant="outline"
-              className="rounded-xl border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="rounded-xl hover:bg-muted transition-colors"
             >
               취소
             </Button>
