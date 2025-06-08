@@ -15,6 +15,7 @@ import { mcpCoordinatorStore } from './integration/ai-mcp-coordinator';
 import { installerStore } from './install/installerStore';
 import { agentOrchestratorStore } from './orchestrator/agentOrchestratorStore';
 import { workflowStore } from './workflow/workflowStore';
+import { overlayStore } from './overlay/overlayStore';
 
 export const combinedStore = createStore<CombinedState>((set, get) => ({
   // root: rootStore.getState(),
@@ -29,7 +30,7 @@ export const combinedStore = createStore<CombinedState>((set, get) => ({
   mcp_coordinator: mcpCoordinatorStore.getState(),
   installer: installerStore.getState(),
   workflow: workflowStore.getState(),
-
+  overlay: overlayStore.getState(),
   // agentOrchestrator: agentOrchestratorStore.getState(),
 }));
 
@@ -37,6 +38,10 @@ export const combinedStore = createStore<CombinedState>((set, get) => ({
 // rootStore.subscribe((state) => {
 //   combinedStore.setState((prev) => ({ ...prev, root: state }));
 // });
+
+overlayStore.subscribe((state) => {
+  combinedStore.setState((prev) => ({ ...prev, overlay: state }));
+});
 
 transportStore.subscribe((state) => {
   combinedStore.setState((prev) => ({ ...prev, transport: state }));

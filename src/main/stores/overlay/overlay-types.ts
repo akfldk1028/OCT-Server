@@ -2,8 +2,7 @@
 import { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta/messages/messages';
 import { BrowserWindow } from 'electron';
 
-// 전체 앱 상태 타입 정의
-export interface AppState {
+export interface OverlayState {
   // 기본 앱 상태
   instructions: string;            // 첫 번째 모듈 속성 추가
   fullyAuto: boolean;             // 첫 번째 모듈 속성 추가

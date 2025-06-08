@@ -81,7 +81,7 @@ const MessageItem = memo(function MessageItem({ message }: { message: any }) {
         <div
           className={cn(
             'rounded-2xl px-4 py-3 relative group-hover:shadow-sm transition-all',
-            isUser && 'bg-primary text-primary-foreground rounded-br-md',
+            isUser && 'bg-yellow-400 text-black rounded-br-md',
             isAssistant && 'bg-muted/80 rounded-bl-md',
             isTool && 'bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-950/50 dark:to-green-950/50 border border-blue-200 dark:border-blue-800',
             isError && 'bg-destructive/10 text-destructive border border-destructive/20',
@@ -100,8 +100,8 @@ const MessageItem = memo(function MessageItem({ message }: { message: any }) {
           
           {/* 시간 표시 */}
           <div className={cn(
-            'text-xs mt-2 opacity-0 group-hover:opacity-60 transition-opacity',
-            isUser ? 'text-primary-foreground/70' : 'text-muted-foreground'
+            'text-xs mt-2 opacity-60 transition-opacity',
+            isUser ? 'text-black/90 drop-shadow-sm' : 'text-muted-foreground'
           )}>
             {message.timestamp && formatTime(message.timestamp)}
           </div>
@@ -165,13 +165,13 @@ export default function ChatRoom() {
   }, [messages.length, isStreaming, scrollToBottom]);
 
   // 🔥 이제 useOutletContext에서 userId를 직접 받으므로 별도 조회 불필요
-  console.log('👤 [ChatRoom] 현재 사용자 ID (context):', userId);
+  // console.log('👤 [ChatRoom] 현재 사용자 ID (context):', userId);
 
   // 🚀 워크플로우 실행 상태 추적
   const activeWorkflowExecutions = store.workflow?.executions ? 
     Object.values(store.workflow.executions).filter(exec => exec.status === 'running') : [];
   
-  console.log('🔧 [ChatRoom] 활성 워크플로우 실행:', activeWorkflowExecutions.length, '개');
+  // console.log('🔧 [ChatRoom] 활성 워크플로우 실행:', activeWorkflowExecutions.length, '개');
 
 
   // console.log('📊 Store 상태:', {
@@ -249,7 +249,6 @@ export default function ChatRoom() {
     }
 
     setIsStreaming(true);
-    console.log('🚀 Starting message dispatch...');
 
     try {
       await dispatch({
@@ -352,9 +351,6 @@ export default function ChatRoom() {
           connectResult,
           bindingId: connectResult
         });
-        
-        // 🔥 연결 완료까지 대기 (최대 5초)
-        console.log('⏳ [toggleMCPServer] 연결 완료 대기 중...');
         let attempts = 0;
         const maxAttempts = 50; // 5초 (100ms * 50)
         let connectionSuccessful = false;
@@ -728,8 +724,6 @@ export default function ChatRoom() {
     
     switch (tag.type) {
       case 'tool':
-        console.log(`🔧 도구 실행: ${tag.name}`);
-        console.log(`📋 도구 스키마:`, tag.inputSchema);
         try {
           // 스키마 정보를 활용한 파라미터 생성
           let args = generateDefaultArgs(tag.inputSchema);
@@ -772,8 +766,6 @@ export default function ChatRoom() {
         }
 
       case 'prompt':
-        console.log(`📝 프롬프트 가져오기: ${tag.name}`);
-        console.log(`📋 프롬프트 스키마:`, tag.inputSchema);
         try {
           // 프롬프트 파라미터 생성
           const args = generateDefaultArgs(tag.inputSchema);
@@ -789,7 +781,6 @@ export default function ChatRoom() {
         }
 
       case 'resource':
-        console.log(`📄 리소스 읽기: ${tag.name}`);
         try {
           const contents = await dispatch({
             type: 'mcp_registry.readResource',
@@ -819,226 +810,196 @@ export default function ChatRoom() {
     );
   }
 
-  console.log('🎯 Rendering full chat interface');
 
   return (
-    <div className="flex min-h-screen w-full max-w-none bg-background">
-      {/* Main Chat Area */}
-      <div className="flex-1 grid grid-rows-[auto_1fr_auto] h-screen w-full max-w-none relative">
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-3">
-                <h2 className="font-semibold text-lg">{room.name}</h2>
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-muted-foreground">실시간</span>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-3 mt-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <Bot className="w-4 h-4 text-blue-500" />
-                  <Badge variant="secondary" className="text-xs font-normal">
-                    {chatConfig?.model?.split('/').pop() || 'No model'}
-                  </Badge>
-                </div>
-                
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>{messages.length}개 메시지</span>
-                </div>
-                
+    <div className="min-h-screen w-full flex">
+      {/* Main Chat Container */}
+      <div className="flex-1 max-w-5xl mx-auto flex flex-col h-screen">
+        {/* Minimal Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+              <Bot className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{room.name}</h1>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-sm text-gray-500">Live</span>
                 {mcpBindings.filter((b) => b.status === 'active').length > 0 && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="relative">
-                      <Wrench className="w-4 h-4 text-green-500" />
-                      <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    </div>
-                    <Badge variant="outline" className="text-xs border-green-200 bg-green-50 dark:bg-green-950/30">
-                      🔗 {mcpBindings.filter((b) => b.status === 'active').length}개 MCP 연결됨
-                    </Badge>
-                                         <span className="text-xs text-muted-foreground hidden lg:inline">
-                       (워크플로우 연동 가능)
-                     </span>
-                  </div>
-                )}
-                
-                {/* 🚀 활성 워크플로우 실행 상태 */}
-                {activeWorkflowExecutions.length > 0 && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="relative">
-                      <Workflow className="w-4 h-4 text-blue-500 animate-spin" />
-                    </div>
-                    <Badge variant="outline" className="text-xs border-blue-200 bg-blue-50 dark:bg-blue-950/30">
-                      ⚡ {activeWorkflowExecutions.length}개 워크플로우 실행중
-                    </Badge>
-                  </div>
+                  <span className="text-sm text-blue-600 font-medium">
+                    • {mcpBindings.filter((b) => b.status === 'active').length} tools connected
+                  </span>
                 )}
               </div>
             </div>
+          </div>
 
-            <div className="flex items-center gap-2">
-              {/* 빠른 모델 변경 */}
-              {!showSettings && (
-                <Select
-                  value={chatConfig?.model}
-                  onValueChange={(value) => changeModel(value)}
-                >
-                  <SelectTrigger className="w-[180px] h-8 text-xs">
-                    <SelectValue placeholder="모델 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableModels.slice(0, 5).map((model) => (
-                      <SelectItem key={model.id} value={model.id} className="text-xs">
-                        {model.name.split('/').pop()}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              
-              {/* 🔥 워크플로우 → MCP 연동 버튼 */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowWorkflowModal(true)}
-                className="gap-2 group"
-                title="워크플로우를 불러와서 MCP 서버를 자동 연결"
+          <div className="flex items-center gap-3">
+            {/* Model Selector */}
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-full px-4 py-2">
+              <Select
+                value={chatConfig?.model}
+                onValueChange={(value) => changeModel(value)}
               >
-                <Workflow className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                <span className="hidden sm:inline">MCP 연동</span>
-                <span className="sm:hidden">연동</span>
-              </Button>
-              
-              <Button
-                variant={showSettings ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setShowSettings(!showSettings)}
-                className="gap-2"
-              >
-                <Settings className="w-4 h-4" />
-                {showSettings ? '닫기' : '설정'}
-              </Button>
+                <SelectTrigger className="border-0 bg-transparent text-sm font-medium focus:ring-0 shadow-none">
+                  <SelectValue placeholder="Select model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableModels.slice(0, 5).map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {model.name.split('/').pop()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            
+            {/* Action Buttons */}
+            <button
+              onClick={() => setShowWorkflowModal(true)}
+              className="w-10 h-10 rounded-full bg-yellow-400 hover:bg-yellow-500 flex items-center justify-center transition-colors"
+              title="Connect workflow"
+            >
+              <Workflow className="w-5 h-5 text-white" />
+            </button>
+            
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
+            >
+              <Settings className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            </button>
           </div>
         </div>
 
-        {/* Messages */}
-        <div ref={containerRef} className="overflow-y-auto px-4 md:px-8 lg:px-16 xl:px-24 pt-0 min-h-0">
-          <div className="py-6">
-            {messages.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="max-w-md mx-auto">
-                  <div className="w-16 h-16 mx-auto mb-6 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
-                    <Bot className="w-8 h-8 text-white" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">AI 채팅 시작하기</h3>
-                  <p className="text-muted-foreground mb-6">
-                    질문이나 대화를 시작해보세요. 
-                    {activeTools.length > 0 && (
-                      <span className="block mt-1 text-sm">
-                        🛠️ {activeTools.length}개의 도구가 준비되어 있습니다.
-                      </span>
-                    )}
-                  </p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    <Button variant="outline" size="sm" onClick={() => sendMessage("안녕하세요!")}>
-                      👋 인사하기
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => sendMessage("오늘 날씨는 어때요?")}>
-                      🌤️ 날씨 문의
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => sendMessage("코딩 도움이 필요해요")}>
-                      💻 코딩 도움
-                    </Button>
-                    {mcpBindings.filter((b) => b.status === 'active').length > 0 && (
-                      <Button variant="outline" size="sm" onClick={() => sendMessage("연결된 MCP 도구들을 사용해서 작업을 도와주세요")}>
-                        🔧 MCP 도구 활용
-                      </Button>
-                    )}
-                  </div>
+        {/* Chat Messages Area */}
+        <div ref={containerRef} className="flex-1 overflow-y-auto px-8 py-6">
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="text-center max-w-md">
+                <div className="w-20 h-20 mx-auto mb-8 bg-gradient-to-r from-blue-400 to-purple-600 rounded-3xl flex items-center justify-center">
+                  <Bot className="w-10 h-10 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                  Start a conversation
+                </h2>
+                <p className="text-gray-500 dark:text-gray-400 mb-8">
+                  Ask me anything or try one of these suggestions
+                  {mcpBindings.filter((b) => b.status === 'active').length > 0 && (
+                    <span className="block mt-2 text-sm text-blue-600 font-medium">
+                      ✨ {mcpBindings.filter((b) => b.status === 'active').length} powerful tools are ready to help
+                    </span>
+                  )}
+                </p>
+                <div className="flex flex-wrap gap-3 justify-center">
+                  {[
+                    { text: "👋 Say hello", message: "Hello! How are you today?" },
+                    { text: "🌤️ Weather", message: "What's the weather like?" },
+                    { text: "💻 Coding help", message: "I need help with coding" },
+                    ...(mcpBindings.filter((b) => b.status === 'active').length > 0 ? [
+                      { text: "🔧 Use tools", message: "Use the connected tools to help me with a task" }
+                    ] : [])
+                  ].map((suggestion, index) => (
+                    <button
+                      key={index}
+                      onClick={() => sendMessage(suggestion.message)}
+                      className="px-4 py-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-sm font-medium transition-colors"
+                    >
+                      {suggestion.text}
+                    </button>
+                  ))}
                 </div>
               </div>
-            ) : (
-              <div className="space-y-1">
-                {messages.map((msg) => <MessageItem key={msg.id} message={msg} />)}
-              </div>
-            )}
-
-            {isStreaming && (
-              <div className="flex gap-3 px-4 py-4 animate-fade-in">
-                <div className="flex-shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-                    <Bot className="w-5 h-5 text-white" />
+            </div>
+          ) : (
+            <div className="max-w-3xl mx-auto space-y-6">
+              {messages.map((msg) => <MessageItem key={msg.id} message={msg} />)}
+              
+              {isStreaming && (
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-purple-600 flex items-center justify-center flex-shrink-0">
+                    <Bot className="w-4 h-4 text-white" />
                   </div>
-                </div>
-                <div className="flex-1">
-                  <div className="bg-muted/50 rounded-2xl px-4 py-3 max-w-fit">
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                  <div className="flex-1">
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl px-4 py-3 inline-block">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                        </div>
+                        <span className="text-sm text-gray-500">Thinking...</span>
                       </div>
-                      <span className="text-sm text-muted-foreground">AI가 응답을 생성하고 있습니다...</span>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* 입력창: 하단 고정 */}
-        <div className="border-t bg-background p-4 md:px-8 lg:px-16 xl:px-24">
-          <ChatInput 
-            onSend={sendMessage} 
-            isStreaming={isStreaming} 
-            activeTools={activeTools}
-            selectedTags={selectedTags}
-            onTagRemove={removeTag}
-            onExecuteMCPAction={executeMCPAction}
-          />
+        {/* Chat Input */}
+        <div className="border-t border-gray-100 dark:border-gray-800 p-6">
+          <div className="max-w-3xl mx-auto">
+            <ChatInput 
+              onSend={sendMessage} 
+              isStreaming={isStreaming} 
+              activeTools={activeTools}
+              selectedTags={selectedTags}
+              onTagRemove={removeTag}
+              onExecuteMCPAction={executeMCPAction}
+            />
+          </div>
         </div>
       </div>
 
-            {/* Settings Sidebar */}
-      <ChatSidebar
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-        onAddTag={addTag}
-        tools={availableTools}
-        prompts={availablePrompts}
-        resources={availableResources}
-        currentModel={chatConfig?.model || ''}
-        temperature={chatConfig?.temperature || 0.7}
-        onModelChange={changeModel}
-        onTemperatureChange={(temperature) => {
-          dispatch({
-            type: 'chat.updateConfig',
-            payload: {
-              sessionId,
-              config: { temperature },
-            },
-          });
-        }}
-        mcpBindings={mcpBindings}
-        availableServers={availableServers}
-        availableModels={availableModels}
-        onToggleMCPServer={toggleMCPServer}
-        onDisconnectMCP={handleDisconnectMCP}
-      />
+      {/* Settings Sidebar - Slide over */}
+      {showSettings && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
+            onClick={() => setShowSettings(false)}
+          />
+          <div className="fixed right-0 top-0 h-full w-80 bg-white dark:bg-gray-900 shadow-2xl z-50 transform transition-transform">
+            <ChatSidebar
+              isOpen={showSettings}
+              onClose={() => setShowSettings(false)}
+              onAddTag={addTag}
+              tools={availableTools}
+              prompts={availablePrompts}
+              resources={availableResources}
+              currentModel={chatConfig?.model || ''}
+              temperature={chatConfig?.temperature || 0.7}
+              onModelChange={changeModel}
+              onTemperatureChange={(temperature) => {
+                dispatch({
+                  type: 'chat.updateConfig',
+                  payload: {
+                    sessionId,
+                    config: { temperature },
+                  },
+                });
+              }}
+              mcpBindings={mcpBindings}
+              availableServers={availableServers}
+              availableModels={availableModels}
+              onToggleMCPServer={toggleMCPServer}
+              onDisconnectMCP={handleDisconnectMCP}
+            />
+          </div>
+        </>
+      )}
 
-      {/* 🔥 워크플로우 모달 (로컬 클라이언트용 + MCP 자동 연결) */}
+      {/* Workflow Modal */}
       <WorkflowListModal
         isOpen={showWorkflowModal}
         onClose={() => setShowWorkflowModal(false)}
         onLoadWorkflow={handleLoadWorkflow}
         userId={userId}
         filterClientType="local"
-        title="🔧 워크플로우 → MCP 연동"
-        description="로컬 워크플로우를 불러와서 MCP 서버들을 자동으로 채팅에 연결합니다"
+        title="🔧 Connect Workflow"
+        description="Load a workflow and automatically connect MCP servers to your chat"
       />
     </div>
   );

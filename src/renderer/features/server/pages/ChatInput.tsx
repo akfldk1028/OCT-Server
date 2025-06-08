@@ -59,13 +59,13 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({ onSend, isStreaming, a
       )}
       
       <div className={`flex gap-3 p-4 bg-background border rounded-xl transition-all duration-200 ${
-        isFocused ? 'ring-2 ring-primary/20 border-primary/30' : 'border-border'
+        isFocused ? 'ring-2 ring-yellow-400/20 border-yellow-400/30' : 'border-border'
       } ${isStreaming ? 'opacity-75' : ''}`}>
         
         {/* 메시지 아이콘 */}
         <div className="flex-shrink-0 mt-2">
           <MessageSquare className={`w-5 h-5 transition-colors ${
-            isFocused ? 'text-primary' : 'text-muted-foreground'
+            isFocused ? 'text-yellow-400' : 'text-muted-foreground'
           }`} />
         </div>
 
@@ -106,7 +106,7 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({ onSend, isStreaming, a
             size="icon"
             className={`h-10 w-10 rounded-lg transition-all duration-200 ${
               input.trim() && !isStreaming 
-                ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl' 
+                ? 'bg-yellow-400 hover:bg-yellow-500 text-black shadow-lg hover:shadow-xl' 
                 : ''
             }`}
             variant={input.trim() && !isStreaming ? "default" : "ghost"}

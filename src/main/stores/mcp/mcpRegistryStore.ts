@@ -133,24 +133,30 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
     const server = get().servers[serverId];
     if (!server || !server.clientId) throw new Error('Server not found or not connected');
 
-    try {
-      // 1. Tools 가져오기
-      if (server.capabilities.tools) {
+    console.log(`🔍 [discoverServerCapabilities] ${server.name} capabilities:`, server.capabilities);
+
+    const results = {
+      tools: [] as RegisteredTool[],
+      prompts: [] as RegisteredPrompt[],
+      resources: [] as RegisteredResource[],
+    };
+
+    // 1. Tools 가져오기
+    if (server.capabilities?.tools) {
+      try {
+        console.log(`🔧 [${server.name}] Tools capability 확인됨, tools/list 요청 중...`);
         const toolsResponse = await clientStore.getState().sendRequest({
           clientId: server.clientId,
           request: { 
             method: 'tools/list',
             params: {}
           },
-          schema: ListToolsResultSchema, // 응답 스키마 사용
+          schema: ListToolsResultSchema,
           options: { timeout: 5000 }
         });
 
         // mcpRegistryStore에 도구 등록
         toolsResponse.tools.forEach((tool: Tool) => {
-          console.log(`🔍 원본 Tool 데이터:`, tool); // 디버깅용
-          console.log(`🔍 Tool inputSchema:`, tool.inputSchema); // 스키마 확인
-          
           const registered: RegisteredTool = {
             ...tool,
             serverId,
@@ -159,25 +165,32 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
             usage: { count: 0 },
           };
           
-          console.log(`✅ 등록된 Tool:`, registered); // 등록 후 확인
-          
           set((state) => ({
             tools: {
               ...state.tools,
               [tool.name]: registered,
             },
           }));
+          
+          results.tools.push(registered);
         });
 
         console.log(`🔧 Registered ${toolsResponse.tools.length} tools from ${server.name}`);
+      } catch (error) {
+        console.warn(`⚠️ [${server.name}] Tools capability 실패 (계속 진행):`, error);
       }
+    } else {
+      console.log(`ℹ️ [${server.name}] Tools capability 없음`);
+    }
 
-      // 2. Prompts 가져오기
-      if (server.capabilities.prompts) {
+    // 2. Prompts 가져오기
+    if (server.capabilities?.prompts) {
+      try {
+        console.log(`📝 [${server.name}] Prompts capability 확인됨, prompts/list 요청 중...`);
         const promptsResponse = await clientStore.getState().sendRequest({
           clientId: server.clientId,
           request: { method: 'prompts/list', params: {} },
-          schema: ListPromptsResultSchema, // 응답 스키마 사용
+          schema: ListPromptsResultSchema,
         });
 
         // mcpRegistryStore에 프롬프트 등록
@@ -195,55 +208,60 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
               [prompt.name]: registered,
             },
           }));
+          
+          results.prompts.push(registered);
         });
 
         console.log(`📝 Registered ${promptsResponse.prompts.length} prompts from ${server.name}`);
+      } catch (error) {
+        console.warn(`⚠️ [${server.name}] Prompts capability 실패 (계속 진행):`, error);
       }
-
-
-        // 3. Resources 가져오기
-
-      const resources: RegisteredResource[] = [];
-      if (server.capabilities.resources) {
-        try {
-          const resourcesResponse = await clientStore.getState().sendRequest({
-            clientId: server.clientId,
-            request: { method: 'resources/list', params: {} },
-            schema: ListResourcesResultSchema, // 응답 스키마 사용
-          });
-    
-          resourcesResponse.resources.forEach((resource: Resource) => {
-            const registered: RegisteredResource = {
-              ...resource,
-              serverId,
-              serverName: server.name,
-            };
-            
-            set((state) => ({
-              resources: {
-                ...state.resources,
-                [resource.uri]: registered,
-              },
-            }));
-            
-            resources.push(registered);
-          });
-    
-          console.log(`📄 Registered ${resourcesResponse.resources.length} resources from ${server.name}`);
-        } catch (error) {
-          console.error(`Failed to get resources for ${serverId}:`, error);
-        }
-      }
-// 실제 구현에서는
-    return {
-      tools: get().getServerTools(serverId),  // ✅ RegisteredTool[] 반환
-      prompts: Object.values(get().prompts).filter(p => p.serverId === serverId), // ✅ RegisteredPrompt[] 반환
-      resources: Object.values(get().resources).filter(r => r.serverId === serverId), // ✅ RegisteredResource[] 반환
-    };
-    } catch (error) {
-      console.error(`Failed to discover capabilities for ${serverId}:`, error);
-      throw error;
+    } else {
+      console.log(`ℹ️ [${server.name}] Prompts capability 없음`);
     }
+
+    // 3. Resources 가져오기
+    if (server.capabilities?.resources) {
+      try {
+        console.log(`📄 [${server.name}] Resources capability 확인됨, resources/list 요청 중...`);
+        const resourcesResponse = await clientStore.getState().sendRequest({
+          clientId: server.clientId,
+          request: { method: 'resources/list', params: {} },
+          schema: ListResourcesResultSchema,
+        });
+  
+        resourcesResponse.resources.forEach((resource: Resource) => {
+          const registered: RegisteredResource = {
+            ...resource,
+            serverId,
+            serverName: server.name,
+          };
+          
+          set((state) => ({
+            resources: {
+              ...state.resources,
+              [resource.uri]: registered,
+            },
+          }));
+          
+          results.resources.push(registered);
+        });
+  
+        console.log(`📄 Registered ${resourcesResponse.resources.length} resources from ${server.name}`);
+      } catch (error) {
+        console.warn(`⚠️ [${server.name}] Resources capability 실패 (계속 진행):`, error);
+      }
+    } else {
+      console.log(`ℹ️ [${server.name}] Resources capability 없음`);
+    }
+
+    console.log(`✅ [${server.name}] Capabilities 발견 완료:`, {
+      tools: results.tools.length,
+      prompts: results.prompts.length,
+      resources: results.resources.length
+    });
+
+    return results;
   },
 
   // Refresh Tools

@@ -1,6 +1,14 @@
 import { Edge } from "@xyflow/react";
-import { ServerStatus } from './server';
 import type { InstalledServer, ClientType } from '@/renderer/features/server/types/server-types';
+
+
+export interface ServerStatus {
+  name: string;
+  status?: string;
+  online: boolean;
+  serverType?: string;
+}
+
 
 export interface NodeMetadata {
     typeVersion: string | number;

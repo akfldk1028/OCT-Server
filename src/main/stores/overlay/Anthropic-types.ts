@@ -1,3 +1,4 @@
+import { BetaMessageParam } from "@anthropic-ai/sdk/resources/beta/messages/messages.js";
 
 export type NextAction =
   | { type: 'key'; text: string }
@@ -93,7 +94,7 @@ export type NextAction =
 //     "type": "object",
 // }
 
-export type AppState = {
+export interface AnthropicState {
   instructions: string | null;
   fullyAuto: boolean;
   running: boolean;
