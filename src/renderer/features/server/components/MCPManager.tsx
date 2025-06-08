@@ -140,20 +140,42 @@ export default function MCPManager({ sessionId }: { sessionId: string }) {
     }
   };
 
-  // 연결 상태 시각화
+  // 연결 상태 시각화 (개선된 버전)
   const getConnectionStatus = (serverId: string) => {
+    // 1. Registry에서 서버 상태 확인
+    const server = servers.find(s => s.id === serverId);
+    const registryStatus = server?.status || 'disconnected';
+    
+    // 2. Binding 확인 (세션 연결 여부)
     const binding = bindings.find(b => b.serverId === serverId);
+    
+    // 3. Transport와 Client 상태 확인
+    const transport = binding ? transports.find(t => t.id === binding.transportSessionId) : null;
+    const client = binding ? clients.find(c => c.id === binding.clientId) : null;
+    
+    // 4. 도구 등록 확인
+    const serverTools = store.mcp_registry ? Object.values(store.mcp_registry.tools || {})
+      .filter(tool => tool.serverId === serverId) : [];
+    
+    console.log(`🔍 [getConnectionStatus] ${serverId} 상태 확인:`, {
+      registryStatus,
+      hasBinding: !!binding,
+      transportStatus: transport?.status,
+      clientStatus: client?.status,
+      toolsCount: serverTools.length
+    });
+    
+    // 5. 최종 상태 결정
     if (!binding) return 'disconnected';
     
-    const transport = transports.find(t => t.id === binding.transportSessionId);
-    const client = clients.find(c => c.id === binding.clientId);
-    
-    if (transport?.status === 'connected' && client?.status === 'connected') {
-      return 'active';
+    if (transport?.status === 'connected' && client?.status === 'connected' && serverTools.length > 0) {
+      return 'active'; // 🟢 완전히 연결되고 도구도 등록됨
     } else if (transport?.status === 'error' || client?.status === 'error') {
-      return 'error';
+      return 'error'; // 🔴 에러 상태
+    } else if (registryStatus === 'connected' && serverTools.length > 0) {
+      return 'registered'; // 🟡 등록되고 도구도 있지만 세션 연결은 부분적
     }
-    return 'connecting';
+    return 'connecting'; // 🟠 연결 중
   };
 
   return (

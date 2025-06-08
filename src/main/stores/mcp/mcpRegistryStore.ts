@@ -84,6 +84,8 @@ export const mcpRegistryStore = createStore<MCPRegistryState>((set, get) => ({
     if (server.status === 'connected' && server.clientId) {
       get().discoverServerCapabilities(server.id).catch(console.error);
     }
+    // 🔥 성공 여부 반환
+    return true;
   },
 
   // Unregister Server

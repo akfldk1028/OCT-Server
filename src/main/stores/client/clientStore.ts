@@ -51,32 +51,13 @@ export const clientStore = createStore<ClientState>((set, get) => ({
       notificationHandlers: {}, // Map → Record
     };
 
-    // set((state) => ({
-    //   clients: {
-    //     ...state.clients,
-    //     [id]: client,
-    //   },
-    // }));
-    set((state) => {
-      console.log('🔍 Setting state for store:', 'clientStore'); // store 이름 명시
-      console.log('📦 State keys:', Object.keys(state));
-      
-      // 직렬화 불가능한 객체 찾기
-      Object.entries(state).forEach(([key, value]) => {
-        if (value && typeof value === 'object') {
-          if (value.constructor && value.constructor.name !== 'Object' && value.constructor.name !== 'Array') {
-            console.error(`❌ Non-serializable object found in ${key}:`, value.constructor.name);
-          }
-        }
-      });
-      
-      return {
-        clients: {
-          ...state.clients,
-          [id]: client,
-        },
-      };
-    });
+    set((state) => ({
+      clients: {
+        ...state.clients,
+        [id]: client,
+      },
+    }));
+    
     console.log(`👤 Client created: ${name} (${id})`);
     return id;
   },

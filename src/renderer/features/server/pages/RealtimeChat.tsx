@@ -33,6 +33,8 @@ import WorkflowListModal from '../components/Flow/WorkflowListModal';
 import type { Tag } from '../components/Chat/TagInput';
 import type { ServerLayoutContext } from '../types/server-types';
 import { useChatScroll } from '@/hooks/use-chat-scroll';
+import { useWorkflowExecution } from '../hook/useWorkflowExecution';
+import type { WorkflowExecutionConfig } from '../types/workflow.types';
 
 // 메시지 아이템을 memoized 컴포넌트로 분리
 const MessageItem = memo(function MessageItem({ message }: { message: any }) {
@@ -132,6 +134,14 @@ export default function ChatRoom() {
   const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
   const [showWorkflowModal, setShowWorkflowModal] = useState(false);
 
+  // 🔥 워크플로우 실행 훅 사용
+  const { 
+    executionState, 
+    executeWorkflow, 
+    cleanupWorkflow, 
+    resetExecution 
+  } = useWorkflowExecution();
+
   // console.log('🎬 ChatRoom rendered with sessionId:', sessionId);
 
   // 세션 정보 가져오기
@@ -156,6 +166,12 @@ export default function ChatRoom() {
 
   // 🔥 이제 useOutletContext에서 userId를 직접 받으므로 별도 조회 불필요
   console.log('👤 [ChatRoom] 현재 사용자 ID (context):', userId);
+
+  // 🚀 워크플로우 실행 상태 추적
+  const activeWorkflowExecutions = store.workflow?.executions ? 
+    Object.values(store.workflow.executions).filter(exec => exec.status === 'running') : [];
+  
+  console.log('🔧 [ChatRoom] 활성 워크플로우 실행:', activeWorkflowExecutions.length, '개');
 
 
   // console.log('📊 Store 상태:', {
@@ -271,26 +287,159 @@ export default function ChatRoom() {
 
   // MCP 서버 연결/해제
   const toggleMCPServer = async (serverId: string) => {
-    console.log('🔌 toggleMCPServer called for:', serverId);
+    console.log('🔌 [toggleMCPServer] 시작:', {
+      serverId,
+      sessionId,
+      timestamp: new Date().toISOString()
+    });
 
-    const existingBinding = mcpBindings.find(
-      (b) => b.serverId === serverId && b.status === 'active',
-    );
+    try {
+      const existingBinding = mcpBindings.find(
+        (b) => b.serverId === serverId && b.status === 'active',
+      );
 
-    console.log('🔍 Existing binding:', existingBinding);
-
-    if (existingBinding) {
-      console.log('🔴 Disconnecting MCP server...');
-      await dispatch({
-        type: 'mcp_coordinator.disconnectMCPFromSession',
-        payload: { sessionId, bindingId: existingBinding.id },
+      console.log('🔍 [toggleMCPServer] 기존 바인딩 확인:', {
+        serverId,
+        existingBinding: existingBinding ? {
+          id: existingBinding.id,
+          status: existingBinding.status,
+          clientId: existingBinding.clientId
+        } : null,
+        allBindings: mcpBindings.map(b => ({
+          serverId: b.serverId,
+          status: b.status,
+          id: b.id
+        }))
       });
-    } else {
-      console.log('🟢 Connecting MCP server...');
-      await dispatch({
-        type: 'mcp_coordinator.connectMCPToSession',
-        payload: { sessionId, serverId },
+
+      if (existingBinding) {
+        console.log('🔴 [toggleMCPServer] 기존 연결 해제 중...');
+        const disconnectResult = await dispatch({
+          type: 'mcp_coordinator.disconnectMCPFromSession',
+          payload: { sessionId, bindingId: existingBinding.id },
+        });
+        console.log('✅ [toggleMCPServer] 연결 해제 완료:', disconnectResult);
+      } else {
+        console.log('🟢 [toggleMCPServer] 새 연결 시작...');
+        
+        // 서버 정보 확인
+        const serverInfo = store.mcp_registry?.servers[serverId];
+        console.log('🔧 [toggleMCPServer] 서버 정보:', {
+          serverId,
+          serverExists: !!serverInfo,
+          serverData: serverInfo ? {
+            name: serverInfo.name,
+            command: serverInfo.command,
+            args: serverInfo.args,
+            transportType: serverInfo.transportType,
+            status: serverInfo.status
+          } : null
+        });
+        
+        if (!serverInfo) {
+          throw new Error(`서버 ${serverId}가 Registry에 등록되지 않았습니다.`);
+        }
+        
+        // 🔥 MCP Coordinator가 Transport 생성부터 연결까지 모두 처리함
+        // (서버 상태가 disconnected여도 connectMCPToSession에서 자동으로 처리)
+        console.log('📡 [toggleMCPServer] MCP Coordinator에 연결 요청...');
+        const connectResult = await dispatch({
+          type: 'mcp_coordinator.connectMCPToSession',
+          payload: { sessionId, serverId },
+        });
+        
+        console.log('✅ [toggleMCPServer] 연결 요청 완료:', {
+          connectResult,
+          bindingId: connectResult
+        });
+        
+        // 🔥 연결 완료까지 대기 (최대 5초)
+        console.log('⏳ [toggleMCPServer] 연결 완료 대기 중...');
+        let attempts = 0;
+        const maxAttempts = 50; // 5초 (100ms * 50)
+        let connectionSuccessful = false;
+        
+        while (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 100)); // 100ms 대기
+          
+          // 바인딩이 생성되었는지 확인
+          const newBinding = mcpBindings.find(binding => 
+            binding.serverId === serverId && binding.status === 'active'
+          );
+          
+          // 도구가 등록되었는지 확인
+          const serverTools = store.mcp_registry ? Object.values(store.mcp_registry.tools || {})
+            .filter(tool => tool.serverId === serverId) : [];
+          
+          if (newBinding && serverTools.length > 0) {
+            console.log('🎉 [toggleMCPServer] 연결 및 도구 등록 완료!', {
+              serverId,
+              bindingId: newBinding.id,
+              toolsCount: serverTools.length,
+              tools: serverTools.map(t => t.name)
+            });
+            connectionSuccessful = true;
+            break;
+          }
+          
+          attempts++;
+          if (attempts % 10 === 0) { // 1초마다 로그
+            console.log(`⏳ [toggleMCPServer] 대기 중... ${attempts/10}초`);
+          }
+        }
+        
+        if (!connectionSuccessful) {
+          console.warn('⚠️ [toggleMCPServer] 연결 대기 시간 초과, 그래도 계속 진행');
+        }
+        
+        // 🔥 서버를 autoConnect로 설정하여 향후 자동 연결되도록 함
+        try {
+          await dispatch({
+            type: 'mcp_registry.updateServerStatus',
+            payload: { 
+              serverId, 
+              status: 'connected',
+              options: { autoConnect: true }  // 🔥 자동 연결 활성화
+            }
+          });
+          console.log('🔥 [toggleMCPServer] autoConnect 활성화됨:', serverId);
+        } catch (error) {
+          console.warn('⚠️ [toggleMCPServer] autoConnect 설정 실패:', error);
+        }
+        
+        // 🔥 최종 상태 확인
+        const finalServerInfo = store.mcp_registry?.servers[serverId];
+        const finalServerTools = store.mcp_registry ? Object.values(store.mcp_registry.tools || {})
+          .filter(tool => tool.serverId === serverId) : [];
+                 const finalBinding = mcpBindings.find(binding => 
+           binding.serverId === serverId && binding.status === 'active'
+         );
+        
+                 console.log('🔍 [toggleMCPServer] 최종 상태:', {
+           serverId,
+           serverStatus: finalServerInfo?.status,
+           autoConnect: finalServerInfo?.autoConnect,
+           toolsCount: finalServerTools.length,
+           tools: finalServerTools.map(t => t.name),
+           id: finalBinding?.id,
+           hasBinding: !!finalBinding,
+           connectionSuccessful
+         });
+      }
+    } catch (error) {
+      console.error('❌ [toggleMCPServer] 실패:', {
+        serverId,
+        sessionId,
+        error: error instanceof Error ? {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        } : error,
+        timestamp: new Date().toISOString()
       });
+      
+      // 에러를 다시 던지지 않고 로그만 남김 (상위에서 처리)
+      throw error;
     }
   };
 
@@ -367,56 +516,210 @@ export default function ChatRoom() {
     return args;
   };
 
-  // 실제 MCP 작업 실행
-  // 워크플로우 불러오기 함수
+  // 🔥 깔끔하게 리팩토링된 워크플로우 실행 핸들러
   const handleLoadWorkflow = async (workflowData: any) => {
+    // 🔥 디버깅: 함수 호출 확인
+    console.log('🎯🎯🎯 [handleLoadWorkflow] 함수 호출됨!!! 🎯🎯🎯');
+    console.log('🎯 [handleLoadWorkflow] workflowData:', workflowData);
+    
     try {
-      console.log('💻 [ChatRoom] 로컬 워크플로우 불러오기:', workflowData);
-      
-      // 워크플로우 데이터를 채팅에 메시지로 추가
-      const workflowMessage = `🔧 워크플로우 "${workflowData.name}"를 로컬 환경에서 실행할 준비가 완료되었습니다.\n\n` +
-        `📝 설명: ${workflowData.description || '설명 없음'}\n` +
-        `💻 클라이언트 타입: ${workflowData.client_type || 'local'}\n` +
-        `📊 노드 수: ${workflowData.nodes?.length || 0}개\n\n` +
-        `이 워크플로우를 실행하시겠습니까?`;
-      
-      // 시스템 메시지로 추가
-      dispatch({
-        type: 'chat.addMessage',
-        payload: {
-          sessionId,
-          message: {
-            id: `workflow-${Date.now()}`,
-            role: 'system',
-            content: workflowMessage,
-            timestamp: new Date().toISOString(),
-            metadata: {
-              type: 'workflow_loaded',
-              workflowData: workflowData
+      if (!workflowData?.nodes?.length) {
+        console.warn('⚠️ [handleLoadWorkflow] 워크플로우 노드가 없음');
+        return;
+      }
+
+      console.log('🔥 [handleLoadWorkflow] 워크플로우 실행 시작:', workflowData.name);
+
+      // 🔥 기존 서버들 정리 (기존 함수 그대로 사용)
+      await cleanupPreviousWorkflowServers();
+
+      // 서버 노드들만 필터링하고 InstalledServer 타입으로 변환
+      const serverNodes = workflowData.nodes
+        .filter((node: any) => node.type === 'server')
+        .map((node: any) => node.data)
+        .filter((data: any) => data && data.mcp_servers);
+
+      if (serverNodes.length === 0) {
+        console.warn('⚠️ [handleLoadWorkflow] 서버 노드가 없음');
+        return;
+      }
+
+      // 워크플로우 실행 설정
+      const executionConfig: WorkflowExecutionConfig = {
+        workflowData,
+        selectedServers: serverNodes,
+        onProgress: (progress) => {
+          console.log(`📊 [handleLoadWorkflow] 진행률: ${progress}%`);
+        },
+        onComplete: async (results) => {
+          console.log('🎉 [handleLoadWorkflow] 워크플로우 실행 완료:', results);
+          
+          // 각 성공한 서버를 채팅 세션에 연결
+          const connectedServers: string[] = [];
+          const failedServers: string[] = [];
+          
+          for (const result of results) {
+            if (result.success) {
+              try {
+                // 🔥 성공한 서버를 채팅 세션에 연결 (toggleMCPServer가 연결 완료까지 보장)
+                await toggleMCPServer(result.serverId);
+                
+                // 🔥 toggleMCPServer가 이미 연결 완료를 보장하므로 단순히 상태만 확인
+                const updatedBindings = store.mcp_coordinator?.sessionBindings[sessionId!] || [];
+                const isConnected = updatedBindings.some(b => 
+                  b.serverId === result.serverId && b.status === 'active'
+                );
+                
+                if (isConnected) {
+                  connectedServers.push(result.serverName);
+                  console.log('✅ [handleLoadWorkflow] 채팅 연결 완료:', result.serverName);
+                } else {
+                  failedServers.push(result.serverName);
+                  console.warn('⚠️ [handleLoadWorkflow] 채팅 연결 실패:', result.serverName);
+                }
+              } catch (connectionError) {
+                failedServers.push(result.serverName);
+                console.warn('⚠️ [handleLoadWorkflow] 채팅 연결 오류:', result.serverName, connectionError);
+              }
+            } else {
+              failedServers.push(result.serverName);
             }
           }
-        }
-      });
-      
-      setShowWorkflowModal(false);
-      
-    } catch (error) {
-      console.error('❌ [ChatRoom] 워크플로우 로드 실패:', error);
-      
-      // 오류 메시지 추가
-      dispatch({
-        type: 'chat.addMessage',
-        payload: {
-          sessionId,
-          message: {
-            id: `error-${Date.now()}`,
-            role: 'system',
-            content: `❌ 워크플로우 로드 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
-            timestamp: new Date().toISOString(),
-            metadata: { type: 'error' }
+          
+          // 채팅에 결과 메시지 추가
+          if (sessionId) {
+            let resultMessage = `🔧 워크플로우 "${workflowData.name}" 로드 완료!\n\n`;
+            resultMessage += `📝 설명: ${workflowData.description || '설명 없음'}\n`;
+            resultMessage += `📊 총 노드 수: ${workflowData.nodes?.length || 0}개\n`;
+            resultMessage += `🖥️ 서버 노드 수: ${serverNodes.length}개\n\n`;
+            
+            if (connectedServers.length > 0) {
+              resultMessage += `✅ **연결된 MCP 서버들** (${connectedServers.length}개):\n`;
+              connectedServers.forEach(serverName => {
+                resultMessage += `  🔗 ${serverName}\n`;
+              });
+              resultMessage += `\n💡 이제 채팅에서 이 서버들의 도구를 바로 사용할 수 있습니다!\n`;
+            }
+            
+            if (failedServers.length > 0) {
+              resultMessage += `\n⚠️ **연결 실패** (${failedServers.length}개):\n`;
+              failedServers.forEach(serverName => {
+                resultMessage += `  ❌ ${serverName}\n`;
+              });
+              resultMessage += `\n🔧 실패한 서버들은 설정을 확인해주세요.`;
+            }
+            
+            await dispatch({
+              type: 'chat.addMessage',
+              payload: {
+                sessionId,
+                message: {
+                  id: `workflow-loaded-${Date.now()}`,
+                  role: 'system',
+                  content: resultMessage,
+                  timestamp: new Date().toISOString(),
+                  metadata: {
+                    type: 'workflow_loaded',
+                    workflowData,
+                    connectedServers,
+                    failedServers,
+                    serverCount: serverNodes.length
+                  }
+                }
+              }
+            });
+          }
+          
+          setShowWorkflowModal(false);
+          setTimeout(() => scrollToBottom(), 100);
+        },
+        onError: async (error) => {
+          console.error('❌ [handleLoadWorkflow] 워크플로우 실행 실패:', error);
+          
+          if (sessionId) {
+            await dispatch({
+              type: 'chat.addMessage',
+              payload: {
+                sessionId,
+                message: {
+                  id: `workflow-error-${Date.now()}`,
+                  content: `❌ 워크플로우 실행 중 오류 발생: ${error.message}`,
+                  role: 'system',
+                  timestamp: new Date().toISOString(),
+                  metadata: {
+                    type: 'workflow-error',
+                    error: error.message
+                  }
+                }
+              }
+            });
           }
         }
-      });
+      };
+
+      // 워크플로우 실행
+      await executeWorkflow(executionConfig);
+
+    } catch (error) {
+      console.error('❌ [handleLoadWorkflow] 전체 실행 실패:', error);
+    }
+  };
+
+  // 🧹 기존 워크플로우 서버들 정리 (새 워크플로우 로드 시) - 기존 로직 유지
+  const cleanupPreviousWorkflowServers = async () => {
+    try {
+      console.log('🧹 [cleanupPreviousWorkflowServers] 시작...');
+      
+      // 현재 등록된 서버들 중 워크플로우 서버들 찾기 (id가 "workflow-"로 시작)
+      const currentServers = Object.values(store.mcp_registry?.servers || {});
+      const workflowServerIds = currentServers
+        .filter(server => server.id.startsWith('workflow-'))
+        .map(server => server.id);
+      
+      if (workflowServerIds.length === 0) {
+        console.log('🧹 [cleanupPreviousWorkflowServers] 정리할 서버 없음');
+        return;
+      }
+      
+      console.log('🧹 [cleanupPreviousWorkflowServers] 정리할 서버:', workflowServerIds.length, '개');
+      
+      // 1️⃣ 세션에서 연결 해제
+      for (const serverId of workflowServerIds) {
+        try {
+          const existingBinding = mcpBindings.find(
+            (b) => b.serverId === serverId && b.status === 'active'
+          );
+          
+          if (existingBinding) {
+            console.log('🔌 [cleanupPreviousWorkflowServers] 세션 연결 해제:', serverId);
+            await dispatch({
+              type: 'mcp_coordinator.disconnectMCPFromSession',
+              payload: { sessionId, bindingId: existingBinding.id },
+            });
+          }
+        } catch (disconnectError) {
+          console.warn('⚠️ [cleanupPreviousWorkflowServers] 세션 연결 해제 실패:', serverId, disconnectError);
+        }
+      }
+      
+      // 2️⃣ Registry에서 서버 제거 (도구, 프롬프트, 리소스도 함께 정리됨)
+      for (const serverId of workflowServerIds) {
+        try {
+          console.log('🗑️ [cleanupPreviousWorkflowServers] Registry에서 제거:', serverId);
+          await dispatch({
+            type: 'mcp_registry.unregisterServer',
+            payload: serverId
+          });
+        } catch (unregisterError) {
+          console.warn('⚠️ [cleanupPreviousWorkflowServers] Registry 제거 실패:', serverId, unregisterError);
+        }
+      }
+      
+      console.log('✅ [cleanupPreviousWorkflowServers] 정리 완료');
+      
+    } catch (error) {
+      console.warn('⚠️ [cleanupPreviousWorkflowServers] 실패:', error);
+      // 정리 실패해도 새 워크플로우 로드는 계속 진행
     }
   };
 
@@ -548,9 +851,27 @@ export default function ChatRoom() {
                 
                 {mcpBindings.filter((b) => b.status === 'active').length > 0 && (
                   <div className="flex items-center gap-2 text-sm">
-                    <Wrench className="w-4 h-4 text-green-500" />
-                    <Badge variant="outline" className="text-xs">
-                      {mcpBindings.filter((b) => b.status === 'active').length}개 도구 연결됨
+                    <div className="relative">
+                      <Wrench className="w-4 h-4 text-green-500" />
+                      <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    </div>
+                    <Badge variant="outline" className="text-xs border-green-200 bg-green-50 dark:bg-green-950/30">
+                      🔗 {mcpBindings.filter((b) => b.status === 'active').length}개 MCP 연결됨
+                    </Badge>
+                                         <span className="text-xs text-muted-foreground hidden lg:inline">
+                       (워크플로우 연동 가능)
+                     </span>
+                  </div>
+                )}
+                
+                {/* 🚀 활성 워크플로우 실행 상태 */}
+                {activeWorkflowExecutions.length > 0 && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="relative">
+                      <Workflow className="w-4 h-4 text-blue-500 animate-spin" />
+                    </div>
+                    <Badge variant="outline" className="text-xs border-blue-200 bg-blue-50 dark:bg-blue-950/30">
+                      ⚡ {activeWorkflowExecutions.length}개 워크플로우 실행중
                     </Badge>
                   </div>
                 )}
@@ -577,15 +898,17 @@ export default function ChatRoom() {
                 </Select>
               )}
               
-              {/* 워크플로우 버튼 */}
+              {/* 🔥 워크플로우 → MCP 연동 버튼 */}
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowWorkflowModal(true)}
-                className="gap-2"
+                className="gap-2 group"
+                title="워크플로우를 불러와서 MCP 서버를 자동 연결"
               >
-                <Workflow className="w-4 h-4" />
-                워크플로우
+                <Workflow className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                <span className="hidden sm:inline">MCP 연동</span>
+                <span className="sm:hidden">연동</span>
               </Button>
               
               <Button
@@ -629,6 +952,11 @@ export default function ChatRoom() {
                     <Button variant="outline" size="sm" onClick={() => sendMessage("코딩 도움이 필요해요")}>
                       💻 코딩 도움
                     </Button>
+                    {mcpBindings.filter((b) => b.status === 'active').length > 0 && (
+                      <Button variant="outline" size="sm" onClick={() => sendMessage("연결된 MCP 도구들을 사용해서 작업을 도와주세요")}>
+                        🔧 MCP 도구 활용
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -702,15 +1030,15 @@ export default function ChatRoom() {
         onDisconnectMCP={handleDisconnectMCP}
       />
 
-      {/* 워크플로우 모달 (로컬 클라이언트용만) */}
+      {/* 🔥 워크플로우 모달 (로컬 클라이언트용 + MCP 자동 연결) */}
       <WorkflowListModal
         isOpen={showWorkflowModal}
         onClose={() => setShowWorkflowModal(false)}
         onLoadWorkflow={handleLoadWorkflow}
         userId={userId}
         filterClientType="local"
-        title="로컬 워크플로우 불러오기"
-        description="채팅에서 실행할 로컬 환경용 워크플로우를 선택하세요"
+        title="🔧 워크플로우 → MCP 연동"
+        description="로컬 워크플로우를 불러와서 MCP 서버들을 자동으로 채팅에 연결합니다"
       />
     </div>
   );

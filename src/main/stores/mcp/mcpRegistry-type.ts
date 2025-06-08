@@ -64,7 +64,7 @@ export interface MCPRegistryState {
   promptCategories: string[];
 
   // Actions - Server Management
-  registerServer: (server: MCPServer) => void;
+  registerServer: (server: MCPServer) => boolean;
   unregisterServer: (serverId: string) => void;
   updateServerStatus: (serverId: string, status: MCPServer['status']) => void;
   initializeDefaultServers: () => void;

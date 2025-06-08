@@ -54,20 +54,32 @@ export const chatStore = createStore<ChatState>((set, get) => ({
       );
       
       if (selectedMcpTools.length > 0) {
-        tools = selectedMcpTools.map((tool) => ({
-          type: 'function' as const,
-          function: {
-            name: tool.name,
-            description: tool.description || `Execute ${tool.name} tool`,
-            parameters: tool.inputSchema || {
-              type: 'object',
-              properties: {},
-              additionalProperties: true
-            },
-          },
-        }));
+        // 🔥 OpenRouter 전송 전에 도구 이름 중복 체크 및 제거
+        const uniqueTools = new Map<string, any>();
         
-        console.log(`🎯 Selected ${selectedMcpTools.length} tools for AI:`, tools.map(t => t.function.name));
+        selectedMcpTools.forEach((tool) => {
+          const toolSpec = {
+            type: 'function' as const,
+            function: {
+              name: tool.name,
+              description: tool.description || `Execute ${tool.name} tool`,
+              parameters: tool.inputSchema || {
+                type: 'object',
+                properties: {},
+                additionalProperties: true
+              },
+            },
+          };
+          
+          if (!uniqueTools.has(tool.name)) {
+            uniqueTools.set(tool.name, toolSpec);
+          } else {
+            console.warn(`⚠️ [processSelectedTags] 중복된 도구 이름 발견, 건너뛰기: ${tool.name} (서버: ${tool.serverName})`);
+          }
+        });
+        
+        tools = Array.from(uniqueTools.values());
+        console.log(`🎯 Selected ${selectedMcpTools.length} tools, 중복 제거 후 ${tools.length} tools for AI:`, tools.map(t => t.function.name));
       }
     }
     
