@@ -43,7 +43,13 @@ export default function WorkflowListModal({
   const [editingNameValue, setEditingNameValue] = useState('');
   const { toast } = useToast();
 
-  // 🔥 Mutation Hook 사용
+  // 🚨 userId가 없으면 early return
+  if (!userId) {
+    console.warn('⚠️ [WorkflowListModal] userId가 필요합니다.');
+    return null;
+  }
+
+  // 🔥 Mutation Hook 사용 (userId 확인 후)
   const mutations = useWorkflowMutations(
     userId,
     (title: string, description: string) => toast({ title, description, variant: 'default' }),

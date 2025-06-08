@@ -1,6 +1,6 @@
 // components/ChatRoom.tsx
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
-import { useParams, useNavigate } from 'react-router';
+import { useParams, useNavigate, useOutletContext } from 'react-router';
 import { useStore, useDispatch } from '@/hooks/useStore';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -31,9 +31,8 @@ import MCPManager from '../components/MCPManager';
 import ChatSidebar from '../components/Chat/ChatSidebar';
 import WorkflowListModal from '../components/Flow/WorkflowListModal';
 import type { Tag } from '../components/Chat/TagInput';
+import type { ServerLayoutContext } from '../types/server-types';
 import { useChatScroll } from '@/hooks/use-chat-scroll';
-import { makeSSRClient } from '@/renderer/supa-client';
-import { getCurrentUserProfileId } from '@/renderer/features/products/queries';
 
 // 메시지 아이템을 memoized 컴포넌트로 분리
 const MessageItem = memo(function MessageItem({ message }: { message: any }) {
@@ -124,12 +123,14 @@ export default function ChatRoom() {
   const dispatch = useDispatch();
   const store = useStore();
 
+  // 🔥 useOutletContext로 userId 받기
+  const { servers, clients, userId } = useOutletContext<ServerLayoutContext>();
+
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
   const [showWorkflowModal, setShowWorkflowModal] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // console.log('🎬 ChatRoom rendered with sessionId:', sessionId);
 
@@ -153,22 +154,8 @@ export default function ChatRoom() {
     return () => clearTimeout(timeoutId);
   }, [messages.length, isStreaming, scrollToBottom]);
 
-  // 현재 사용자 ID 가져오기
-  useEffect(() => {
-    const fetchCurrentUser = async () => {
-      try {
-        const { client } = makeSSRClient();
-        const userId = await getCurrentUserProfileId(client);
-        setCurrentUserId(userId);
-        console.log('👤 [ChatRoom] 현재 사용자 ID:', userId);
-      } catch (error) {
-        console.warn('⚠️ [ChatRoom] 사용자 정보 가져오기 실패:', error);
-        setCurrentUserId(null);
-      }
-    };
-
-    fetchCurrentUser();
-  }, []);
+  // 🔥 이제 useOutletContext에서 userId를 직접 받으므로 별도 조회 불필요
+  console.log('👤 [ChatRoom] 현재 사용자 ID (context):', userId);
 
 
   // console.log('📊 Store 상태:', {
@@ -720,7 +707,7 @@ export default function ChatRoom() {
         isOpen={showWorkflowModal}
         onClose={() => setShowWorkflowModal(false)}
         onLoadWorkflow={handleLoadWorkflow}
-        userId={currentUserId || undefined}
+        userId={userId}
         filterClientType="local"
         title="로컬 워크플로우 불러오기"
         description="채팅에서 실행할 로컬 환경용 워크플로우를 선택하세요"
