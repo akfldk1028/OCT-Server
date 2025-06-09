@@ -8,8 +8,8 @@ import { preloadBridge } from '@zubridge/electron/preload';
 import { workflowAPI } from './preload-workflow';
 import { overlayAPI } from './preload-overlay';
 
-import type { AppState as OverlayState } from '../common/types/overlay-types';
-import type { AppState as AnthropicState } from '../common/types/action-types';
+// import type { AppState as OverlayState } from '../common/types/overlay-types';
+// import type { AppState as AnthropicState } from '../common/types/action-types';
 
 import {CombinedState} from "@/common/types/root-types";
 
@@ -49,7 +49,21 @@ export type Channels =
   | 'mcp-workflow:tool-call'
   // ...기존 채널
   | 'set-guide-window'
-  | 'reset-window';
+  | 'reset-window'
+  // 🔥 Window-Specific Overlay 채널들 추가
+  | 'get-screen-access'
+  | 'open-screen-security'
+  | 'refresh-available-windows'
+  | 'select-target-window'
+  | 'attach-to-window'
+  | 'detach-from-window'
+  | 'capture-target-window'
+  | 'update-attach-position'
+  | 'get-all-windows'
+  | 'find-window-by-title'
+  | 'toggle-window-mode'
+  | 'get-available-windows'
+  | 'select-window-by-id';
 
 const electronHandler = {
   ipcRenderer: {
@@ -72,6 +86,7 @@ const electronHandler = {
     //   ipcRenderer.invoke(channel, ...args),
     invoke: (channel: string, ...args: any[]) => {
       const validChannels = [
+        'window-at-point',
         'mcp:connect',
         'mcp:disconnect',
         'mcp:sendMessage',
@@ -86,7 +101,21 @@ const electronHandler = {
         'mcpRegistry:refreshTools',
         'mcpRegistry:executeTool',
         'mcp:connectServer',
-        'mcp:getStatus'
+        'mcp:getStatus',
+        // 🔥 Window-Specific Overlay IPC 채널들 추가
+        'get-screen-access',
+        'open-screen-security',
+        'refresh-available-windows',
+        'select-target-window',
+        'attach-to-window',
+        'detach-from-window',
+        'capture-target-window',
+        'update-attach-position',
+        'get-all-windows',
+        'find-window-by-title',
+        'toggle-window-mode',
+        'get-available-windows',
+        'select-window-by-id'
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
@@ -183,9 +212,14 @@ window.addEventListener('error', (event) => {
 
 // Electron API 정의
 const api = {
- 
+
   ...workflowAPI,
   workflow: workflowAPI,
+
+
+  getWindowAtPoint: (x: number, y: number) =>
+    ipcRenderer.invoke('window-at-point', {x, y}),
+
 
   // 오버레이 API 병합
   // overlay: overlayAPI,

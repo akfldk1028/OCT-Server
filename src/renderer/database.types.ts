@@ -1967,7 +1967,7 @@ export const Constants = {
         "past_due",
         "canceled",
         "unpaid",
-        "paused",
+        "paused",`1     `
       ],
       subscription_tier: ["free", "pro", "enterprise"],
     },

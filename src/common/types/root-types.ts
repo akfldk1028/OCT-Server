@@ -12,6 +12,7 @@ import type { MCPCoordinatorState } from '@/main/stores/integration/ai-mcp-coord
 import { InstallerState } from '@/main/stores/install/installer-types';
 import { AgentState } from '@/main/stores/orchestrator/agent-types';
 import { WorkflowState } from '@/renderer/features/server/types/server-types';
+import { WindowState } from '@/main/stores/window/windowStore';
 
 export interface CombinedState {
   // root: AppState;
@@ -28,5 +29,6 @@ export interface CombinedState {
   // agentOrchestrator: AgentState;
   workflow: WorkflowState; // 추가
   overlay: OverlayState;
+  window: WindowState;
   [key: string]: any; // 이 한 줄 추가!
 }

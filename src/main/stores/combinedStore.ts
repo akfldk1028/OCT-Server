@@ -16,6 +16,7 @@ import { installerStore } from './install/installerStore';
 import { agentOrchestratorStore } from './orchestrator/agentOrchestratorStore';
 import { workflowStore } from './workflow/workflowStore';
 import { overlayStore } from './overlay/overlayStore';
+import { windowStore } from './window/windowStore';
 
 export const combinedStore = createStore<CombinedState>((set, get) => ({
   // root: rootStore.getState(),
@@ -31,6 +32,7 @@ export const combinedStore = createStore<CombinedState>((set, get) => ({
   installer: installerStore.getState(),
   workflow: workflowStore.getState(),
   overlay: overlayStore.getState(),
+  window: windowStore.getState(),
   // agentOrchestrator: agentOrchestratorStore.getState(),
 }));
 
@@ -84,6 +86,9 @@ installerStore.subscribe((state) => {
 });
 workflowStore.subscribe((state) => {
   combinedStore.setState((prev) => ({ ...prev, workflow: state }));
+});
+windowStore.subscribe((state) => {
+  combinedStore.setState((prev) => ({ ...prev, window: state }));
 });
 // agentOrchestratorStore.subscribe((state) => {
 //   combinedStore.setState((prev) => ({ ...prev, agentOrchestrator: state }));

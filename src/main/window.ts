@@ -149,6 +149,9 @@ export async function createMainWindow(
     alwaysOnTop: windowOptions.alwaysOnTop,
     webPreferences: {
       preload: windowOptions.preloadPath,
+      devTools: true, // ✅ 개발자 도구 활성화 (F12 사용 가능)
+      nodeIntegration: false,
+      contextIsolation: true,
     },
   });
 

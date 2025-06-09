@@ -20,30 +20,8 @@ import {  IS_ELECTRON, IS_WEB } from './utils/environment';
 import Navigation from './common/components/navigation';
 import {ensureOverlayApi} from './utils/api'
 import {ShortcutHandlerMap, shortcutManager, SHORTCUTS} from '@/common/shortcut_action/shortcut'; // 경로는 실제 위치에 맞게 조정
-import Mousetrap from 'mousetrap';
 import { useDispatch, useStore } from '@/hooks/useStore';
 
-function matchShortcut(event, shortcut) {
-  // 예시: 'Control+Shift+G' → ctrlKey, shiftKey, key === 'g'
-  const keys = shortcut.key.toLowerCase().split('+');
-  const key = keys[keys.length - 1];
-  const requiredCtrl = keys.includes('control') || keys.includes('commandorcontrol');
-  const requiredShift = keys.includes('shift');
-  const requiredAlt = keys.includes('alt');
-  const requiredMeta = keys.includes('meta');
-
-  // modifier가 필요하면 true, 필요 없으면 false
-  if (requiredCtrl && !event.ctrlKey && !event.metaKey) return false;
-  if (!requiredCtrl && (event.ctrlKey || event.metaKey)) return false;
-  if (requiredShift && !event.shiftKey) return false;
-  if (!requiredShift && event.shiftKey) return false;
-  if (requiredAlt && !event.altKey) return false;
-  if (!requiredAlt && event.altKey) return false;
-  if (requiredMeta && !event.metaKey) return false;
-  if (!requiredMeta && event.metaKey) return false;
-
-  return event.key.toLowerCase() === key;
-}
 // loader 함수 정의
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const {
