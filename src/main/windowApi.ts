@@ -306,79 +306,49 @@ function enumerateAllWindows(): WinApiWindowInfo[] {
 }
 
 // 🔥 마우스 위치의 창 정확히 찾기
-export async function getWindowAtPoint(x: number, y: number): Promise<WinApiWindowInfo | null> {
-  console.log(`🔍 [windowApi] getWindowAtPoint 호출: (${x}, ${y})`);
-  
+export async function getWindowAtPoint(x: number, y: number): Promise<WinApiWindowInfo|null> {
+  console.log(`🔍 getWindowAtPoint 호출: (${x}, ${y})`);
+
+  // 1) WindowFromPoint 호출
+  let rawHwnd: any;
   try {
-    // Windows가 아닌 경우 폴백
-    if (process.platform !== 'win32' || !WindowFromPoint) {
-      return await getWindowAtPointFallback(x, y);
-    }
-
-    // 🔥 물리적 좌표 직접 사용 (DIP 변환 불필요)
-    console.log(`🎯 물리적 좌표 사용: (${x}, ${y})`);
-
-    console.log(`🔥 WindowFromPoint 사용`);
-    
-    // 🔥 WindowFromPoint 호출 방식 결정
-    let hwnd: any;
-    try {
-      // 방법 1: x, y 파라미터 방식 시도
-      if (WindowFromPoint.length === 2) {
-        hwnd = WindowFromPoint(x, y);
-        console.log(`✅ WindowFromPoint(x, y) 호출 성공`);
-      } else {
-        // 방법 2: int64 패킹 방식
-        const point = (BigInt(y) << 32n) | BigInt(x & 0xFFFFFFFF);
-        hwnd = WindowFromPoint(point);
-        console.log(`✅ WindowFromPoint(int64) 호출 성공`);
-      }
-    } catch (callError) {
-      console.error('❌ WindowFromPoint 호출 실패:', callError);
-      throw callError;
-    }
-    
-    if (!hwnd || hwnd === 0) {
-      console.log('❌ 해당 좌표에 창이 없습니다');
-      return null;
-    }
-
-    // 🔥 koffi에서 반환되는 hwnd 안전하게 처리
-    let hwndAddress: number;
-    if (typeof hwnd === 'number') {
-      hwndAddress = hwnd;
-    } else if (typeof hwnd === 'bigint') {
-      hwndAddress = Number(hwnd);
-    } else if (hwnd && typeof hwnd.toString === 'function') {
-      hwndAddress = parseInt(hwnd.toString());
-    } else {
-      // 최후의 수단: String() 사용
-      hwndAddress = parseInt(String(hwnd));
-    }
-    
-    console.log(`🔍 hwnd 타입: ${typeof hwnd}, 값: ${hwnd}, 변환된 주소: ${hwndAddress}`);
-    
-    // 캐시 확인
-    if (windowCache.has(hwndAddress) && (Date.now() - cacheUpdateTime) < CACHE_DURATION) {
-      const cached = windowCache.get(hwndAddress)!;
-      console.log(`✅ 캐시에서 창 발견: "${cached.name}"`);
-      return cached;
-    }
-
-    // 새로 정보 가져오기
-    const windowInfo = getWindowInfo(hwnd);
-    
-    if (windowInfo) {
-      console.log(`✅ 창 감지 성공: "${windowInfo.name}" (${windowInfo.width}x${windowInfo.height})`);
-      windowCache.set(hwndAddress, windowInfo);
-    }
-    
-    return windowInfo;
-    
-  } catch (error) {
-    console.error('❌ [windowApi] getWindowAtPoint 에러:', error);
+    rawHwnd = WindowFromPoint(x, y);
+    console.log('✅ WindowFromPoint 호출 결과:', rawHwnd);
+  } catch (e) {
+    console.error('❌ WindowFromPoint 에러:', e);
     return await getWindowAtPointFallback(x, y);
   }
+
+  // 2) NULL 체크
+  if (!rawHwnd) {
+    console.log('❌ 해당 좌표에 창이 없습니다');
+    return null;
+  }
+
+  // 3) koffi.address 로 포인터 주소(BigInt) 얻기 :contentReference[oaicite:0]{index=0}
+  let hwndAddrBig: bigint;
+  try {
+    hwndAddrBig = koffi.address(rawHwnd);
+  } catch (e) {
+    console.error('❌ koffi.address 실패:', e);
+    return await getWindowAtPointFallback(x, y);
+  }
+
+  // 4) BigInt → number 변환 (32/64비트 상관없이 안전) :contentReference[oaicite:1]{index=1}
+  const hwndAddress = Number(hwndAddrBig);
+  console.log(`🔍 hwndAddress: 0x${hwndAddress.toString(16)}`);
+
+  // 5) 캐시 확인
+  if (windowCache.has(hwndAddress) && (Date.now() - cacheUpdateTime) < CACHE_DURATION) {
+    return windowCache.get(hwndAddress)!;
+  }
+
+  // 6) 실제 창 정보 조회
+  const info = getWindowInfo(rawHwnd);
+  if (info) {
+    windowCache.set(hwndAddress, info);
+  }
+  return info;
 }
 
 // 🔥 모든 보이는 창 가져오기
