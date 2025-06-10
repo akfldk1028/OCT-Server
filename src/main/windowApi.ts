@@ -7,6 +7,7 @@ declare const __non_webpack_require__: NodeRequire;
 
 // 🔥 libwin32 + koffi 기반 Windows API
 let libwin32: any = null;
+let user32_win32: any = null; // <-- 이렇게 빈 변수로 선언만 해두세요.
 let koffi: any = null;
 let user32: any = null;
 
@@ -35,6 +36,8 @@ if (process.platform === 'win32') {
     // 🔥 방법 1: libwin32 사용 (간단한 방법)
     try {
       libwin32 = requireNode('libwin32');
+      user32_win32 = libwin32.user32;
+      console.log('✅ libwin32 및 user32_win32 로드 성공');
       console.log('✅ libwin32 로드 성공');
       
       // libwin32에서 지원하는 함수들 가져오기
@@ -158,98 +161,39 @@ function parseRect(buffer: Buffer): { left: number; top: number; right: number; 
 // 창 정보 가져오기
 function getWindowInfo(hwnd: any): WinApiWindowInfo | null {
   try {
-    // 창이 보이는지 확인
-    if (!IsWindowVisible || !IsWindowVisible(hwnd)) {
-      return null;
-    }
-
+    // 보이는 창만
+    if (!user32_win32.IsWindowVisible(hwnd)) return null;
     // 최소화된 창 제외
-    if (!IsIconic || IsIconic(hwnd)) {
-      return null;
-    }
+    if (user32_win32.IsIconic(hwnd)) return null;
 
-    // RECT 가져오기
-    const rectBuffer = Buffer.alloc(16);
-    if (!GetWindowRect || !GetWindowRect(hwnd, rectBuffer)) {
-      return null;
-    }
-
-    const rect = parseRect(rectBuffer);
-    
-    // 크기가 너무 작은 창 제외
-    const width = rect.right - rect.left;
+    // 위치/크기 얻기
+    const rect = user32_win32.GetWindowRect(hwnd);
+    const width  = rect.right  - rect.left;
     const height = rect.bottom - rect.top;
-    if (width < 10 || height < 10) {
-      return null;
-    }
+    if (width < 10 || height < 10) return null;
 
-    // 창 제목 가져오기
-    const titleBuffer = Buffer.alloc(512);
-    const titleLength = GetWindowTextW ? GetWindowTextW(hwnd, titleBuffer, 256) : 0;
-    const title = titleLength > 0 ? titleBuffer.toString('utf16le', 0, titleLength * 2) : '';
+    // 제목, 클래스, PID
+    const title     = user32_win32.GetWindowText(hwnd);
+    const className = user32_win32.GetClassName(hwnd);
+    const pid       = user32_win32.GetWindowThreadProcessId(hwnd);
 
-    // 빈 제목 창 제외 (일부 허용)
-    if (!title && width < 200) {
-      return null;
-    }
-
-    // 클래스 이름 가져오기
-    const classBuffer = Buffer.alloc(512);
-    const classLength = GetClassNameW ? GetClassNameW(hwnd, classBuffer, 256) : 0;
-    const className = classLength > 0 ? classBuffer.toString('utf16le', 0, classLength * 2) : '';
-
-    // 시스템 창 필터링
-    const excludedClasses = [
-      'Windows.UI.Core.CoreWindow',
-      'ApplicationFrameWindow',
-      'Progman',
-      'WorkerW',
-      'Shell_TrayWnd',
-      'Shell_SecondaryTrayWnd',
-      'DV2ControlHost',
-      'MsgrIMEWindowClass',
-      'SysShadow',
-      'Button',
-      '#32770' // 대화 상자
-    ];
-
-    if (excludedClasses.includes(className)) {
-      return null;
-    }
-
-    // 프로세스 ID 가져오기
-    const pidBuffer = Buffer.alloc(4);
-    const processId = GetWindowThreadProcessId ? GetWindowThreadProcessId(hwnd, pidBuffer) : 0;
-
-    // 🔥 koffi에서 반환되는 hwnd 안전하게 처리
-    let hwndAddress: number;
-    if (typeof hwnd === 'number') {
-      hwndAddress = hwnd;
-    } else if (typeof hwnd === 'bigint') {
-      hwndAddress = Number(hwnd);
-    } else if (hwnd && typeof hwnd.toString === 'function') {
-      hwndAddress = parseInt(hwnd.toString());
-    } else {
-      hwndAddress = parseInt(String(hwnd));
-    }
-    
     return {
-      id: `hwnd-${hwndAddress}`,
-      name: title || `Window (${className})`,
-      x: rect.left,
-      y: rect.top,
-      width: width,
-      height: height,
-      className: className,
-      hwnd: hwndAddress,
+      id:        `hwnd-${hwnd}`,
+      name:      title || `Window (${className})`,
+      x:         rect.left,
+      y:         rect.top,
+      width,
+      height,
+      className,
+      hwnd,
       isVisible: true,
-      processId: processId
+      processId: pid
     };
-
-  } catch (error) {
+  } catch {
     return null;
   }
 }
+
 
 // 🔥 모든 최상위 창 열거
 function enumerateAllWindows(): WinApiWindowInfo[] {
