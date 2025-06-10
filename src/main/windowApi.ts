@@ -122,18 +122,7 @@ function getWindowInfo(rawHwnd: any): WinApiWindowInfo | null {
     GetWindowThreadProcessId(ptr, pidArray);
     const pid = pidArray[0];
 
-    // 6) 데스크톱/배경 창 필터링
-    const isDesktopWindow = 
-      className === 'Progman' ||           // 프로그램 매니저 (데스크톱)
-      className === 'WorkerW' ||           // 워커 윈도우 (배경)
-      className === 'FolderView' ||        // 폴더 뷰 (탐색기 배경)
-      title === 'Program Manager' ||
-      (width > 3000 && height > 1000);     // 매우 큰 창 (멀티모니터 배경)
 
-    if (isDesktopWindow) {
-      console.log(`  ⚠️ 데스크톱 창 제외: "${title}" (${className})`);
-      return null;
-    }
 
     console.log(`  ✅ "${title}" @(${left},${top}) ${width}×${height} [${className}] PID:${pid}`);
     return {
