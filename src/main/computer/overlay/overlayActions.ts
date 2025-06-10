@@ -158,19 +158,118 @@ function autoLayout(steps: GuideStep[]): GuideStep[] {
 }
 
 
-// 오버레이 윈도우 생성
+// 🔥 Window-Specific 오버레이 윈도우 생성 (선택된 창 기준 위치)
 async function createOverlayWindow(options: { id: string; x: number; y: number; width: number; height: number; content: string; }): Promise<BrowserWindow> {
+  let finalX = options.x;
+  let finalY = options.y;
+  
+  try {
+    // 🎯 combinedStore에서 선택된 창 정보 가져오기
+    const { combinedStore } = require('../../stores/combinedStore');
+    const windowState = combinedStore.getState().window;
+    
+    if (windowState?.targetWindowInfo && windowState?.isAttachedMode) {
+      console.log('🎯 [createOverlayWindow] Window-Specific 위치 계산 시작:', windowState.targetWindowInfo.name);
+      
+      // 🔍 desktopCapturer로 현재 창 위치 정보 다시 가져오기
+      const { desktopCapturer, screen } = require('electron');
+      const sources = await desktopCapturer.getSources({
+        types: ['window'],
+        thumbnailSize: { width: 1, height: 1 } // 최소 크기로 성능 최적화
+      });
+      
+      const targetSource = sources.find((source: any) => source.id === windowState.targetWindowInfo?.id);
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+      
+      if (targetSource) {
+        // 🎯 선택된 창의 예상 위치 계산 (화면 크기 기준)
+        // desktopCapturer는 정확한 창 위치를 제공하지 않으므로 추정 방식 사용
+        
+        // 창 크기 비율로 위치 추정
+        const windowRatio = {
+          width: 0.6,  // 일반적인 창 너비 비율
+          height: 0.7  // 일반적인 창 높이 비율
+        };
+        
+        const estimatedWindowX = (screenWidth - screenWidth * windowRatio.width) / 2;
+        const estimatedWindowY = (screenHeight - screenHeight * windowRatio.height) / 2;
+        const estimatedWindowWidth = screenWidth * windowRatio.width;
+        const estimatedWindowHeight = screenHeight * windowRatio.height;
+        
+        // 🎯 오버레이를 창의 오른쪽 상단에 배치
+        const attachPosition = windowState.attachPosition || 'top-right';
+        const MARGIN = 20;
+        
+        switch (attachPosition) {
+          case 'top-right':
+            finalX = estimatedWindowX + estimatedWindowWidth - options.width - MARGIN;
+            finalY = estimatedWindowY + MARGIN;
+            break;
+          case 'top-left':
+            finalX = estimatedWindowX + MARGIN;
+            finalY = estimatedWindowY + MARGIN;
+            break;
+          case 'bottom-right':
+            finalX = estimatedWindowX + estimatedWindowWidth - options.width - MARGIN;
+            finalY = estimatedWindowY + estimatedWindowHeight - options.height - MARGIN;
+            break;
+          case 'bottom-left':
+            finalX = estimatedWindowX + MARGIN;
+            finalY = estimatedWindowY + estimatedWindowHeight - options.height - MARGIN;
+            break;
+          default:
+            // 기본값: 선택된 창 내부에서 상대적 위치
+            finalX = estimatedWindowX + (options.x % estimatedWindowWidth);
+            finalY = estimatedWindowY + (options.y % estimatedWindowHeight);
+        }
+        
+        // 화면 경계 내에 유지
+        finalX = Math.max(0, Math.min(finalX, screenWidth - options.width));
+        finalY = Math.max(0, Math.min(finalY, screenHeight - options.height));
+        
+        console.log('✅ [createOverlayWindow] Window-Specific 위치 계산 완료:', {
+          originalPos: { x: options.x, y: options.y },
+          calculatedPos: { x: finalX, y: finalY },
+          attachPosition,
+          targetWindow: windowState.targetWindowInfo.name
+        });
+        
+      } else {
+        console.warn('⚠️ [createOverlayWindow] 타겟 창을 찾을 수 없음, 기본 위치 사용');
+      }
+      
+    } else {
+      console.log('ℹ️ [createOverlayWindow] 선택된 창 없음, 기본 위치 사용');
+    }
+    
+  } catch (error) {
+    console.error('❌ [createOverlayWindow] Window-Specific 위치 계산 실패:', error);
+    console.log('🔄 [createOverlayWindow] 기본 위치로 폴백');
+  }
+  
   const overlay = new BrowserWindow({
-    width: options.width, height: options.height,
-    x: options.x, y: options.y,
-    frame: false, transparent: true, alwaysOnTop: true,
-    skipTaskbar: true, focusable: false, resizable: false,
-    movable: false, minimizable: false, maximizable: false,
+    width: options.width, 
+    height: options.height,
+    x: finalX, 
+    y: finalY,
+    frame: false, 
+    transparent: true, 
+    alwaysOnTop: true,
+    skipTaskbar: true, 
+    focusable: false, 
+    resizable: false,
+    movable: false, 
+    minimizable: false, 
+    maximizable: false,
     webPreferences: {
-      nodeIntegration: false, contextIsolation: true, devTools: false,
+      nodeIntegration: false, 
+      contextIsolation: true, 
+      devTools: false,
       preload: app.isPackaged ? path.join(__dirname,'preload.js') : path.join(__dirname,'../../.erb/dll/preload.js'),
     },
   });
+  
   overlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(options.content)}`);
   return overlay;
 }

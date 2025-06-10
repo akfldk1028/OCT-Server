@@ -285,7 +285,10 @@ function setupNewWindowIPCHandlers() {
 
 app.on('before-quit', async () => {});
 app.on('will-quit', () => {
-  globalShortcut.unregisterAll();
+  // 앱이 준비된 상태에서만 globalShortcut 해제
+  if (app.isReady()) {
+    globalShortcut.unregisterAll();
+  }
 });
 
 

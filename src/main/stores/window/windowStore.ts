@@ -1,9 +1,9 @@
-// main/stores/window/windowStore.ts - ShareX 스타일 실시간 창 하이라이트
+// main/stores/window/windowStore.ts - Win32 API 연동 ShareX 스타일 창 선택
 import { createStore } from 'zustand/vanilla';
 import { BrowserWindow, desktopCapturer, systemPreferences, screen, ipcMain, shell, app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { getWindowAtPoint as detectWindowAtPoint } from '../../windowApi'; // 🔥 로컬 함수 import
+import { getWindowAtPoint as detectWindowAtPoint, getAllVisibleWindows } from '../../windowApi';
 
 interface WindowInfo {
   id: string;
@@ -47,30 +47,8 @@ let trackingInterval: NodeJS.Timeout | null = null;
 let selectionWindow: BrowserWindow | null = null;
 let borderWindows: BrowserWindow[] = [];
 
-// 🔥 Windows API를 사용한 정확한 창 감지 함수
-interface WinApiWindowInfo {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-// 🔥 로컬 함수를 사용한 창 감지 (메인 프로세스용)
-async function getWindowAtPoint(x: number, y: number): Promise<WinApiWindowInfo | null> {
-  console.log(`🔍 [windowStore] getWindowAtPoint 호출: (${x}, ${y})`);
-  
-  try {
-    // windowApi.ts의 로컬 함수 사용
-    const result = detectWindowAtPoint(x, y);
-    console.log(`✅ [windowStore] 창 감지 결과:`, result);
-    return result;
-  } catch (error) {
-    console.error('❌ [windowStore] getWindowAtPoint 에러:', error);
-    return null;
-  }
-}
+// 🔥 Win32 API 사용 가능 여부 확인
+const isWin32Available = process.platform === 'win32';
 
 export const windowStore = createStore<WindowState>((set, get) => ({
   isAttachedMode: false,
@@ -168,11 +146,11 @@ export const windowStore = createStore<WindowState>((set, get) => ({
     }
   },
 
-  // 🔥 ShareX 스타일 창 선택 모드 - 실시간 호버 + 빨간 테두리
+  // 🔥 Win32 API를 사용한 정확한 ShareX 스타일 창 선택
   startWindowSelectionMode: async (): Promise<WindowInfo | null> => {
     return new Promise<WindowInfo | null>(async (resolve, reject) => {
       try {
-        console.log('🎯 [startWindowSelectionMode] ShareX 스타일 창 선택 모드 시작');
+        console.log('🎯 [startWindowSelectionMode] ShareX 스타일 창 선택 모드 시작 (Win32 API)');
         
         if (!mainWindowRef) {
           throw new Error('Main window not available');
@@ -184,7 +162,7 @@ export const windowStore = createStore<WindowState>((set, get) => ({
         
         set({ isWindowSelectionMode: true });
 
-        // 2. 🔥 ShareX 스타일 빨간 테두리를 위한 4개의 창 생성 (상, 하, 좌, 우)
+        // 2. 🔥 ShareX 스타일 빨간 테두리를 위한 4개의 창 생성
         const createBorderWindow = (): BrowserWindow => {
           const win = new BrowserWindow({
             x: 0,
@@ -199,7 +177,7 @@ export const windowStore = createStore<WindowState>((set, get) => ({
             movable: false,
             focusable: false,
             show: false,
-            backgroundColor: '#ff0000', // 빨간색 배경
+            backgroundColor: '#ff0000',
             hasShadow: false,
             webPreferences: {
               nodeIntegration: false,
@@ -207,7 +185,7 @@ export const windowStore = createStore<WindowState>((set, get) => ({
             }
           });
           
-          // 🔥 얇고 연한 빨간색 테두리 HTML (ShareX 스타일)
+          // ShareX 스타일 빨간색 테두리
           const redHTML = `
             <!DOCTYPE html>
             <html>
@@ -217,40 +195,8 @@ export const windowStore = createStore<WindowState>((set, get) => ({
                 html, body {
                   width: 100%;
                   height: 100%;
-                  background: rgba(255, 100, 100, 0.8) !important;
+                  background: #ff0000 !important;
                   overflow: hidden;
-                  animation: subtlePulse 2s ease-in-out infinite alternate;
-                }
-                
-                @keyframes subtlePulse {
-                  0% { 
-                    background: rgba(255, 100, 100, 0.7) !important; 
-                    opacity: 0.8;
-                  }
-                  100% { 
-                    background: rgba(255, 120, 120, 0.9) !important; 
-                    opacity: 1.0;
-                  }
-                }
-                
-                /* 부드러운 그라데이션 효과 */
-                body::before {
-                  content: '';
-                  position: absolute;
-                  top: 0;
-                  left: 0;
-                  right: 0;
-                  bottom: 0;
-                  background: linear-gradient(45deg, 
-                    rgba(255, 80, 80, 0.6) 0%, 
-                    rgba(255, 120, 120, 0.8) 50%, 
-                    rgba(255, 80, 80, 0.6) 100%);
-                  animation: gentleShift 3s ease-in-out infinite;
-                }
-                
-                @keyframes gentleShift {
-                  0%, 100% { opacity: 0.7; }
-                  50% { opacity: 0.9; }
                 }
               </style>
             </head>
@@ -259,9 +205,8 @@ export const windowStore = createStore<WindowState>((set, get) => ({
           `;
           
           win.loadURL(`data:text/html,${encodeURIComponent(redHTML)}`);
-          win.setIgnoreMouseEvents(true); // 마우스 이벤트 무시
+          win.setIgnoreMouseEvents(true);
           
-          console.log('🔴 ShareX 스타일 borderWindow 생성됨');
           return win;
         };
         
@@ -271,7 +216,7 @@ export const windowStore = createStore<WindowState>((set, get) => ({
           borderWindows.push(createBorderWindow());
         }
 
-        // 3. 투명한 전체 화면 오버레이 (마우스 추적용)
+        // 3. 투명한 전체 화면 오버레이
         const primaryDisplay = screen.getPrimaryDisplay();
         const { width, height } = primaryDisplay.size;
         
@@ -296,8 +241,8 @@ export const windowStore = createStore<WindowState>((set, get) => ({
           }
         });
 
-        // 4. 🔥 ShareX 스타일 개선된 오버레이 HTML
-        const tempHtmlPath = path.join(app.getPath('temp'), 'window-selection-hover.html');
+        // 4. ShareX 스타일 오버레이 HTML
+        const tempHtmlPath = path.join(app.getPath('temp'), 'window-selection-win32.html');
         const overlayHTML = `<!DOCTYPE html>
 <html>
 <head>
@@ -311,46 +256,40 @@ export const windowStore = createStore<WindowState>((set, get) => ({
       width: 100vw;
       height: 100vh;
       user-select: none;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      pointer-events: none; /* 🔥 오버레이 자체는 마우스 이벤트 무시 */
     }
     
-    /* 상단 안내 메시지 */
     .info {
       position: fixed;
       top: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background: linear-gradient(135deg, rgba(0, 0, 0, 0.95), rgba(30, 30, 30, 0.95));
+      background: rgba(0, 0, 0, 0.9);
       color: white;
-      padding: 20px 40px;
-      border-radius: 12px;
-      font-size: 18px;
-      font-weight: 500;
+      padding: 15px 30px;
+      border-radius: 8px;
+      font-size: 16px;
       z-index: 10000;
-      pointer-events: none;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-      border: 2px solid rgba(255, 255, 255, 0.1);
-      backdrop-filter: blur(10px);
-      animation: fadeInDown 0.5s ease-out;
+      pointer-events: auto; /* 🔥 UI 요소만 이벤트 허용 */
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      border: 2px solid rgba(255, 0, 0, 0.5);
     }
     
-    /* 현재 창 정보 표시 */
     #current-window {
       position: fixed;
       bottom: 30px;
       left: 50%;
       transform: translateX(-50%);
-      background: linear-gradient(135deg, #ff3333, #ff0000);
+      background: #ff0000;
       color: white;
-      padding: 15px 30px;
-      border-radius: 10px;
-      font-size: 16px;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 14px;
       font-weight: bold;
       display: none;
-      pointer-events: none;
-      box-shadow: 0 6px 24px rgba(255, 0, 0, 0.4);
-      border: 2px solid rgba(255, 255, 255, 0.2);
-      animation: slideInUp 0.3s ease-out;
+      pointer-events: auto; /* 🔥 UI 요소만 이벤트 허용 */
+      box-shadow: 0 4px 16px rgba(255, 0, 0, 0.4);
       max-width: 400px;
       text-align: center;
       white-space: nowrap;
@@ -358,39 +297,33 @@ export const windowStore = createStore<WindowState>((set, get) => ({
       text-overflow: ellipsis;
     }
     
-    /* 마우스 좌표 표시 */
-    #mouse-coords {
+    #window-details {
       position: fixed;
-      top: 20px;
+      top: 80px;
       right: 20px;
       background: rgba(0, 0, 0, 0.8);
       color: #00ff00;
       padding: 10px 15px;
       border-radius: 6px;
       font-size: 12px;
-      font-family: 'Courier New', monospace;
+      font-family: 'Consolas', monospace;
       z-index: 10000;
-      pointer-events: none;
+      pointer-events: auto; /* 🔥 UI 요소만 이벤트 허용 */
       border: 1px solid rgba(0, 255, 0, 0.3);
+      display: none;
     }
     
-    /* 키보드 단축키 안내 */
     .shortcuts {
       position: fixed;
       bottom: 20px;
       right: 20px;
       background: rgba(0, 0, 0, 0.8);
       color: white;
-      padding: 15px;
-      border-radius: 8px;
+      padding: 12px;
+      border-radius: 6px;
       font-size: 12px;
       z-index: 10000;
-      pointer-events: none;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    
-    .shortcuts div {
-      margin: 3px 0;
+      pointer-events: auto; /* 🔥 UI 요소만 이벤트 허용 */
     }
     
     .key {
@@ -399,231 +332,136 @@ export const windowStore = createStore<WindowState>((set, get) => ({
       border-radius: 3px;
       font-weight: bold;
     }
-    
-    /* 애니메이션 */
-    @keyframes fadeInDown {
-      from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(-20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-      }
-    }
-    
-    @keyframes slideInUp {
-      from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-      }
-    }
-    
-    /* 펄스 효과 */
-    .pulse {
-      animation: pulse 1.5s ease-in-out infinite;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { transform: translateX(-50%) scale(1); }
-      50% { transform: translateX(-50%) scale(1.05); }
-    }
   </style>
 </head>
 <body>
   <div class="info">
-    🎯 <strong>ShareX 스타일 창 선택</strong><br>
-    마우스를 창 위에 올려서 빨간 테두리 확인 후 클릭하세요
+    🎯 <strong>창 선택 모드</strong> - 마우스를 창 위에 올리고 클릭하세요
   </div>
   
   <div id="current-window"></div>
   
-  <div id="mouse-coords">
-    마우스: (0, 0)
-  </div>
+  <div id="window-details"></div>
   
   <div class="shortcuts">
     <div><span class="key">클릭</span> 창 선택</div>
     <div><span class="key">ESC</span> 취소</div>
-    <div><span class="key">마우스 이동</span> 창 감지</div>
   </div>
   
   <script>
     const { ipcRenderer } = require('electron');
     let currentWindow = null;
-    let mouseTracking = null;
     
-    // DOM 요소들
     const windowDiv = document.getElementById('current-window');
-    const coordsDiv = document.getElementById('mouse-coords');
-    const infoDiv = document.querySelector('.info');
+    const detailsDiv = document.getElementById('window-details');
     
-    // 마우스 추적 시작 (성능 최적화: 30ms 간격)
-    function startMouseTracking() {
-      mouseTracking = setInterval(() => {
-        // 실제 마우스 좌표는 메인 프로세스에서 가져옴
-        // 여기서는 화면 좌표 표시용
-        updateMouseCoords();
-      }, 30);
-    }
-    
-    // 마우스 좌표 업데이트
-    function updateMouseCoords() {
-      // 브라우저 내 좌표 (참고용)
-      document.addEventListener('mousemove', (e) => {
-        coordsDiv.textContent = \`마우스: (\${e.clientX}, \${e.clientY})\`;
-      });
-    }
-    
-    // 현재 창 정보 업데이트
+    // 창 정보 업데이트
     ipcRenderer.on('window-under-mouse', (event, windowInfo) => {
       if (windowInfo) {
         currentWindow = windowInfo;
-        windowDiv.textContent = \`🎯 \${windowInfo.name}\`;
+        windowDiv.textContent = windowInfo.name;
         windowDiv.style.display = 'block';
-        windowDiv.classList.add('pulse');
         
-        // 정보 메시지 업데이트
-        infoDiv.innerHTML = \`
-          🎯 <strong>창 감지됨!</strong><br>
-          "\${windowInfo.name}" 클릭하여 선택하세요
+        // 상세 정보 표시
+        detailsDiv.innerHTML = \`
+          <div>창: \${windowInfo.name}</div>
+          <div>위치: (\${windowInfo.x}, \${windowInfo.y})</div>
+          <div>크기: \${windowInfo.width} × \${windowInfo.height}</div>
+          \${windowInfo.className ? '<div>클래스: ' + windowInfo.className + '</div>' : ''}
         \`;
+        detailsDiv.style.display = 'block';
       } else {
         currentWindow = null;
         windowDiv.style.display = 'none';
-        windowDiv.classList.remove('pulse');
-        
-        // 기본 메시지로 복원
-        infoDiv.innerHTML = \`
-          🎯 <strong>ShareX 스타일 창 선택</strong><br>
-          마우스를 창 위에 올려서 빨간 테두리 확인 후 클릭하세요
-        \`;
+        detailsDiv.style.display = 'none';
       }
     });
     
-    // 클릭으로 선택
+    // 🔥 전역 클릭 이벤트 (오버레이를 통과해서 감지)
     document.addEventListener('click', (e) => {
       if (currentWindow) {
-        clearInterval(mouseTracking);
-        
-        // 성공 메시지 표시
-        infoDiv.innerHTML = \`✅ <strong>창 선택됨!</strong><br>"\${currentWindow.name}"\`;
-        infoDiv.style.background = 'linear-gradient(135deg, rgba(0, 150, 0, 0.95), rgba(0, 100, 0, 0.95))';
-        
-        setTimeout(() => {
-          ipcRenderer.send('window-selected', currentWindow);
-        }, 500);
+        ipcRenderer.send('window-selected', currentWindow);
       }
     });
     
     // ESC로 취소
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        clearInterval(mouseTracking);
-        
-        // 취소 메시지 표시
-        infoDiv.innerHTML = \`❌ <strong>취소됨</strong><br>창 선택이 취소되었습니다\`;
-        infoDiv.style.background = 'linear-gradient(135deg, rgba(150, 0, 0, 0.95), rgba(100, 0, 0, 0.95))';
-        
-        setTimeout(() => {
-          ipcRenderer.send('window-selection-cancelled');
-        }, 500);
+        ipcRenderer.send('window-selection-cancelled');
       }
     });
-    
-    // 마우스 추적 시작
-    startMouseTracking();
-    
-    // 초기 좌표 업데이트
-    updateMouseCoords();
   </script>
 </body>
 </html>`;
 
         await fs.promises.writeFile(tempHtmlPath, overlayHTML, 'utf8');
         
-        // 마우스 이벤트 통과하도록 설정
+        // 🔥 오버레이가 마우스 이벤트를 통과시키도록 설정
         selectionWindow.setIgnoreMouseEvents(true, { forward: true });
         await selectionWindow.loadFile(tempHtmlPath);
         selectionWindow.show();
 
-        // 5. 창 목록 미리 가져오기
+        // 5. 창 목록 가져오기
         const availableWindows = await get().refreshAvailableWindows();
-        let currentHighlightedId: string | null = null;
+        let currentHighlightedWindow: any = null;
 
-        // 6. 🔥 ShareX 스타일 빨간 테두리 표시 함수 (개선됨)
+        // 6. 🔥 정확한 빨간 테두리 표시 (Win32 API 좌표 사용)
         const showRedBorder = (x: number, y: number, width: number, height: number) => {
-          console.log(`🔴 showRedBorder 호출됨: borderWindows.length=${borderWindows.length}`);
-          console.log(`🔴 테두리 좌표: x=${x}, y=${y}, width=${width}, height=${height}`);
-          
-          if (borderWindows.length !== 4) {
-            console.error('❌ borderWindows가 4개가 아님:', borderWindows.length);
-            return;
-          }
+          if (borderWindows.length !== 4) return;
           
           try {
-            // 🔥 얇고 깔끔한 테두리 (4px)
-            const borderThickness = 4;
+            const borderThickness = 1; // ShareX 스타일의 얇은 테두리
             
-            // 화면 경계 체크 및 조정
-            const screenBounds = screen.getPrimaryDisplay().bounds;
-            const adjustedX = Math.max(0, Math.min(x, screenBounds.width - width));
-            const adjustedY = Math.max(0, Math.min(y, screenBounds.height - height));
-            const adjustedWidth = Math.min(width, screenBounds.width - adjustedX);
-            const adjustedHeight = Math.min(height, screenBounds.height - adjustedY);
+            console.log(`🔴 빨간 테두리 표시: (${x}, ${y}) ${width}x${height}`);
             
-            // 상단 테두리 (전체 너비)
-            console.log(`🔴 상단 테두리: x=${adjustedX}, y=${adjustedY}, w=${adjustedWidth}, h=${borderThickness}`);
+            // 🔥 멀티 모니터 환경에서 음수 좌표도 올바르게 처리
+            const safeX = x;
+            const safeY = y;
+            const safeWidth = Math.max(50, width); // 최소 크기 보장
+            const safeHeight = Math.max(50, height);
+            
+            // 상단
             borderWindows[0].setBounds({ 
-              x: adjustedX, 
-              y: adjustedY, 
-              width: adjustedWidth, 
+              x: safeX - borderThickness, 
+              y: safeY - borderThickness, 
+              width: safeWidth + (borderThickness * 2), 
               height: borderThickness 
             });
             borderWindows[0].setAlwaysOnTop(true, 'screen-saver');
             borderWindows[0].show();
             
-            // 하단 테두리 (전체 너비)
-            const bottomY = adjustedY + adjustedHeight - borderThickness;
-            console.log(`🔴 하단 테두리: x=${adjustedX}, y=${bottomY}, w=${adjustedWidth}, h=${borderThickness}`);
+            // 하단
             borderWindows[1].setBounds({ 
-              x: adjustedX, 
-              y: bottomY, 
-              width: adjustedWidth, 
+              x: safeX - borderThickness, 
+              y: safeY + safeHeight, 
+              width: safeWidth + (borderThickness * 2), 
               height: borderThickness 
             });
             borderWindows[1].setAlwaysOnTop(true, 'screen-saver');
             borderWindows[1].show();
             
-            // 좌측 테두리 (상하 테두리 제외한 높이)
-            const leftHeight = adjustedHeight - (borderThickness * 2);
-            console.log(`🔴 좌측 테두리: x=${adjustedX}, y=${adjustedY + borderThickness}, w=${borderThickness}, h=${leftHeight}`);
+            // 좌측
             borderWindows[2].setBounds({ 
-              x: adjustedX, 
-              y: adjustedY + borderThickness, 
+              x: safeX - borderThickness, 
+              y: safeY, 
               width: borderThickness, 
-              height: leftHeight 
+              height: safeHeight 
             });
             borderWindows[2].setAlwaysOnTop(true, 'screen-saver');
             borderWindows[2].show();
             
-            // 우측 테두리 (상하 테두리 제외한 높이)
-            const rightX = adjustedX + adjustedWidth - borderThickness;
-            console.log(`🔴 우측 테두리: x=${rightX}, y=${adjustedY + borderThickness}, w=${borderThickness}, h=${leftHeight}`);
+            // 우측
             borderWindows[3].setBounds({ 
-              x: rightX, 
-              y: adjustedY + borderThickness, 
+              x: safeX + safeWidth, 
+              y: safeY, 
               width: borderThickness, 
-              height: leftHeight 
+              height: safeHeight 
             });
             borderWindows[3].setAlwaysOnTop(true, 'screen-saver');
             borderWindows[3].show();
             
-            console.log('✅ ShareX 스타일 테두리 표시 완료 (12px 두께)');
+            console.log(`✅ 빨간 테두리 표시 완료: (${safeX}, ${safeY}) ${safeWidth}x${safeHeight}`);
+            
           } catch (error) {
             console.error('❌ showRedBorder 에러:', error);
           }
@@ -633,57 +471,105 @@ export const windowStore = createStore<WindowState>((set, get) => ({
           borderWindows.forEach(win => win.hide());
         };
 
-        // 7. 🔥 최적화된 마우스 추적 핸들러
+        // 7. 🔥 Win32 API를 사용한 정확한 마우스 추적 (libwin32/koffi 호환)
         let mouseTrackingInterval: NodeJS.Timeout | null = null;
-        let isTracking = false; // 중복 호출 방지
+        let isTracking = false;
         
         const trackMouse = async () => {
-          if (isTracking) return; // 이미 처리 중이면 스킵
+          if (isTracking) return;
           isTracking = true;
           
           try {
             const point = screen.getCursorScreenPoint();
             
-            // 🔥 async 함수를 제대로 await
-            const windowInfo = await getWindowAtPoint(point.x, point.y);
+            // 🔥 libwin32/koffi 기반 Win32 API로 정확한 창 정보 가져오기
+            const windowInfo = await detectWindowAtPoint(point.x, point.y);
             
-            if (windowInfo && windowInfo.id !== currentHighlightedId) {
-              currentHighlightedId = windowInfo.id;
+            if (windowInfo && (!currentHighlightedWindow || windowInfo.id !== currentHighlightedWindow.id)) {
+              currentHighlightedWindow = windowInfo;
               
-              console.log(`🎯 새 창 감지: "${windowInfo.name}" (${windowInfo.width}x${windowInfo.height})`);
+              console.log(`🎯 창 감지: "${windowInfo.name}" at (${windowInfo.x}, ${windowInfo.y}) ${windowInfo.width}x${windowInfo.height}`);
               
-              // 정확한 창 위치와 크기로 빨간 테두리 표시
+              // libwin32/koffi에서 가져온 정확한 좌표로 테두리 표시
               showRedBorder(windowInfo.x, windowInfo.y, windowInfo.width, windowInfo.height);
               
               // 창 정보 전송
-              selectionWindow?.webContents.send('window-under-mouse', {
-                id: windowInfo.id,
-                name: windowInfo.name
-              });
+              selectionWindow?.webContents.send('window-under-mouse', windowInfo);
               
-            } else if (!windowInfo && currentHighlightedId) {
-              console.log(`❌ 창 영역 벗어남`);
-              currentHighlightedId = null;
+            } else if (!windowInfo && currentHighlightedWindow) {
+              currentHighlightedWindow = null;
               hideRedBorder();
               selectionWindow?.webContents.send('window-under-mouse', null);
             }
           } catch (error) {
-            console.error('❌ trackMouse 에러:', error);
+            console.error('❌ trackMouse 에러 (libwin32/koffi):', error);
+            // 에러 발생 시 폴백: 기본 Electron API 사용
+            try {
+              const point = screen.getCursorScreenPoint();
+              console.log(`🔄 폴백 모드: 마우스 위치 (${point.x}, ${point.y})`);
+              // 폴백에서는 창 감지 없이 마우스 위치만 표시
+              if (currentHighlightedWindow) {
+                currentHighlightedWindow = null;
+                hideRedBorder();
+                selectionWindow?.webContents.send('window-under-mouse', null);
+              }
+            } catch (fallbackError) {
+              console.error('❌ 폴백 모드도 실패:', fallbackError);
+            }
           } finally {
             isTracking = false;
           }
         };
 
-        // 🔥 마우스 추적 시작 (최적화: 60ms 간격, 부드러운 추적)
-        mouseTrackingInterval = setInterval(trackMouse, 60);
+        // 마우스 추적 시작 (30ms 간격으로 빠르게)
+        mouseTrackingInterval = setInterval(trackMouse, 30);
 
         // 8. IPC 핸들러 설정
-        const handleWindowSelected = (_event: any, windowInfo: any) => {
+        const handleWindowSelected = async (_event: any, windowInfo: any) => {
           console.log('✅ 창 선택됨:', windowInfo.name);
           
           cleanup();
           
-          const selectedWindow = availableWindows.find(w => w.id === windowInfo.id) || windowInfo;
+          // desktopCapturer에서 해당 창 정보 가져오기
+          const sources = await desktopCapturer.getSources({
+            types: ['window'],
+            fetchWindowIcons: true,
+            thumbnailSize: { width: 192, height: 108 }
+          });
+          
+          // 창 이름으로 매칭
+          const matchedSource = sources.find(s => s.name === windowInfo.name);
+          
+          let selectedWindow: WindowInfo;
+          
+          if (matchedSource) {
+            selectedWindow = {
+              id: matchedSource.id,
+              name: matchedSource.name,
+              thumbnailURL: matchedSource.thumbnail.toDataURL(),
+              appIcon: matchedSource.appIcon?.toDataURL(),
+              display_id: matchedSource.display_id,
+              bounds: {
+                x: windowInfo.x,
+                y: windowInfo.y,
+                width: windowInfo.width,
+                height: windowInfo.height
+              }
+            };
+          } else {
+            // 매칭되지 않으면 기본 정보 사용
+            selectedWindow = {
+              id: windowInfo.id,
+              name: windowInfo.name,
+              thumbnailURL: '',
+              bounds: {
+                x: windowInfo.x,
+                y: windowInfo.y,
+                width: windowInfo.width,
+                height: windowInfo.height
+              }
+            };
+          }
           
           set({ 
             targetWindowInfo: selectedWindow,
@@ -802,34 +688,68 @@ export const windowStore = createStore<WindowState>((set, get) => ({
       const mainBounds = mainWindowRef.getBounds();
       const MARGIN = 20;
       
-      const primaryDisplay = screen.getPrimaryDisplay();
-      const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-      
-      let targetX = screenWidth - mainBounds.width - MARGIN;
-      let targetY = MARGIN;
-      
-      switch (attachPosition) {
-        case 'top-left':
-          targetX = MARGIN;
-          targetY = MARGIN;
-          break;
-        case 'bottom-right':
-          targetX = screenWidth - mainBounds.width - MARGIN;
-          targetY = screenHeight - mainBounds.height - MARGIN;
-          break;
-        case 'bottom-left':
-          targetX = MARGIN;
-          targetY = screenHeight - mainBounds.height - MARGIN;
-          break;
+      // 타겟 창의 정확한 위치 사용 (Win32 API에서 가져온 경우)
+      if (targetWindow.bounds) {
+        let targetX = targetWindow.bounds.x;
+        let targetY = targetWindow.bounds.y;
+        
+        switch (attachPosition) {
+          case 'top-right':
+            targetX = targetWindow.bounds.x + targetWindow.bounds.width - mainBounds.width - MARGIN;
+            targetY = targetWindow.bounds.y + MARGIN;
+            break;
+          case 'top-left':
+            targetX = targetWindow.bounds.x + MARGIN;
+            targetY = targetWindow.bounds.y + MARGIN;
+            break;
+          case 'bottom-right':
+            targetX = targetWindow.bounds.x + targetWindow.bounds.width - mainBounds.width - MARGIN;
+            targetY = targetWindow.bounds.y + targetWindow.bounds.height - mainBounds.height - MARGIN;
+            break;
+          case 'bottom-left':
+            targetX = targetWindow.bounds.x + MARGIN;
+            targetY = targetWindow.bounds.y + targetWindow.bounds.height - mainBounds.height - MARGIN;
+            break;
+        }
+        
+        mainWindowRef.setBounds({ 
+          x: targetX, 
+          y: targetY, 
+          width: mainBounds.width, 
+          height: mainBounds.height 
+        });
+      } else {
+        // 폴백: 화면 기준으로 배치
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+        
+        let targetX = screenWidth - mainBounds.width - MARGIN;
+        let targetY = MARGIN;
+        
+        switch (attachPosition) {
+          case 'top-left':
+            targetX = MARGIN;
+            targetY = MARGIN;
+            break;
+          case 'bottom-right':
+            targetX = screenWidth - mainBounds.width - MARGIN;
+            targetY = screenHeight - mainBounds.height - MARGIN;
+            break;
+          case 'bottom-left':
+            targetX = MARGIN;
+            targetY = screenHeight - mainBounds.height - MARGIN;
+            break;
+        }
+        
+        mainWindowRef.setBounds({ 
+          x: targetX, 
+          y: targetY, 
+          width: mainBounds.width, 
+          height: mainBounds.height 
+        });
       }
       
-      mainWindowRef.setBounds({ 
-        x: targetX, 
-        y: targetY, 
-        width: mainBounds.width, 
-        height: mainBounds.height 
-      });
-      
+      // 주기적으로 최상위 유지
       if (trackingInterval) {
         clearInterval(trackingInterval);
       }
@@ -889,7 +809,7 @@ export const windowStore = createStore<WindowState>((set, get) => ({
         thumbnailSize: { width: 1920, height: 1080 }
       });
 
-      const targetSource = sources.find(s => s.id === targetWindowInfo.id);
+      const targetSource = sources.find(s => s.id === targetWindowInfo.id || s.name === targetWindowInfo.name);
 
       if (!targetSource) {
         throw new Error('타겟 윈도우를 찾을 수 없습니다');

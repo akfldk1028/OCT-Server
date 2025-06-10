@@ -1,17 +1,131 @@
-// src/main/windowApi.ts
+// src/main/windowApi.ts - libwin32 + koffi 버전
 import { ipcMain, desktopCapturer, screen, BrowserWindow } from 'electron';
 import * as os from 'os';
 
-let windowsApi: typeof import('windows-api') | null = null;
+// webpack 우회를 위한 타입 정의
+declare const __non_webpack_require__: NodeRequire;
+
+// 🔥 libwin32 + koffi 기반 Windows API
+let libwin32: any = null;
+let koffi: any = null;
+let user32: any = null;
+
+// Win32 함수들
+let WindowFromPoint: any = null;
+let GetWindowRect: any = null;
+let GetWindowTextW: any = null;
+let IsWindowVisible: any = null;
+let GetClassNameW: any = null;
+let GetForegroundWindow: any = null;
+let GetWindowThreadProcessId: any = null;
+let IsIconic: any = null;
+let EnumWindows: any = null;
+let GetCursorPos: any = null;
+let FindWindowW: any = null;
+let FindWindowExW: any = null;
+
 if (process.platform === 'win32') {
   try {
-    windowsApi = require('windows-api');
-    console.log('✅ windows-api 패키지 로드 성공');
+    // 🔥 webpack 번들링 환경에서 안전한 동적 로딩
+    const requireNode: NodeRequire =
+      typeof __non_webpack_require__ === 'function'
+        ? __non_webpack_require__
+        : require;
+    
+    // 🔥 방법 1: libwin32 사용 (간단한 방법)
+    try {
+      libwin32 = requireNode('libwin32');
+      console.log('✅ libwin32 로드 성공');
+      
+      // libwin32에서 지원하는 함수들 가져오기
+      if (libwin32.FindWindow) FindWindowW = libwin32.FindWindow;
+      if (libwin32.FindWindowEx) FindWindowExW = libwin32.FindWindowEx;
+      if (libwin32.GetWindowText) GetWindowTextW = libwin32.GetWindowText;
+      if (libwin32.GetClassName) GetClassNameW = libwin32.GetClassName;
+      if (libwin32.EnumWindows) EnumWindows = libwin32.EnumWindows;
+      if (libwin32.GetCursorPos) GetCursorPos = libwin32.GetCursorPos;
+      
+      console.log('✅ libwin32 함수들 로드 완료');
+    } catch (libwin32Error) {
+      console.warn('⚠️ libwin32 로드 실패:', libwin32Error);
+    }
+    
+    // 🔥 방법 2: koffi로 직접 정의 (libwin32에 없는 함수들)
+    try {
+      koffi = requireNode('koffi');
+      user32 = koffi.load('user32.dll');
+      console.log('✅ koffi + user32.dll 로드 성공');
+      
+             // 🔥 WindowFromPoint 정의 (libwin32에 없음) - 더 안전한 방식
+       try {
+         // 방법 1: 두 개의 int32 파라미터로 시도
+         WindowFromPoint = user32.func('void* WindowFromPoint(int32_t x, int32_t y)');
+         console.log('✅ WindowFromPoint (x, y 방식) 정의 성공');
+       } catch (e1) {
+         try {
+           // 방법 2: POINT 구조체 방식
+           WindowFromPoint = user32.func('void* WindowFromPoint(int64_t point)');
+           console.log('✅ WindowFromPoint (int64 방식) 정의 성공');
+         } catch (e2) {
+           console.error('❌ WindowFromPoint 정의 실패:', e1, e2);
+           WindowFromPoint = null;
+         }
+       }
+      
+      // 🔥 다른 필요한 함수들도 koffi로 정의
+      if (!GetWindowRect) {
+        GetWindowRect = user32.func('bool GetWindowRect(void* hWnd, void* lpRect)');
+      }
+      if (!GetWindowTextW) {
+        GetWindowTextW = user32.func('int GetWindowTextW(void* hWnd, void* lpString, int nMaxCount)');
+      }
+      if (!IsWindowVisible) {
+        IsWindowVisible = user32.func('bool IsWindowVisible(void* hWnd)');
+      }
+      if (!GetClassNameW) {
+        GetClassNameW = user32.func('int GetClassNameW(void* hWnd, void* lpClassName, int nMaxCount)');
+      }
+      if (!GetForegroundWindow) {
+        GetForegroundWindow = user32.func('void* GetForegroundWindow()');
+      }
+      if (!GetWindowThreadProcessId) {
+        GetWindowThreadProcessId = user32.func('uint32_t GetWindowThreadProcessId(void* hWnd, void* lpdwProcessId)');
+      }
+      if (!IsIconic) {
+        IsIconic = user32.func('bool IsIconic(void* hWnd)');
+      }
+      if (!EnumWindows) {
+        EnumWindows = user32.func('bool EnumWindows(void* lpEnumFunc, intptr_t lParam)');
+      }
+      if (!GetCursorPos) {
+        GetCursorPos = user32.func('bool GetCursorPos(void* lpPoint)');
+      }
+      if (!FindWindowW) {
+        FindWindowW = user32.func('void* FindWindowW(const wchar_t* lpClassName, const wchar_t* lpWindowName)');
+      }
+      if (!FindWindowExW) {
+        FindWindowExW = user32.func('void* FindWindowExW(void* hWndParent, void* hWndChildAfter, const wchar_t* lpszClass, const wchar_t* lpszWindow)');
+      }
+      
+      console.log('✅ koffi Win32 함수들 정의 완료');
+      console.log('🔍 WindowFromPoint:', typeof WindowFromPoint);
+      
+    } catch (koffiError) {
+      console.error('❌ koffi 로드 실패:', koffiError);
+    }
+    
+    console.log('✅ libwin32 + koffi 패키지 로드 성공');
   } catch (error) {
-    console.warn('⚠️ windows-api 로드 실패:', error);
-    windowsApi = null;
+    console.error('❌ libwin32/koffi 로드 실패:', error);
+    console.log('💡 폴백 모드로 전환: Electron API만 사용');
+    libwin32 = null;
+    koffi = null;
+    user32 = null;
   }
 }
+
+
+
 
 export interface WinApiWindowInfo {
   id: string;
@@ -20,232 +134,418 @@ export interface WinApiWindowInfo {
   y: number;
   width: number;
   height: number;
+  className?: string;
+  hwnd?: number;
+  isVisible?: boolean;
+  processId?: number;
 }
 
-// 창 목록 캐시 (성능 최적화)
-let windowCache: Array<{
-  id: string;
-  name: string;
-  estimatedBounds: { x: number; y: number; width: number; height: number };
-  lastSeen: number;
-}> = [];
+// 창 정보 캐시
+const windowCache = new Map<number, WinApiWindowInfo>();
+let cacheUpdateTime = 0;
+const CACHE_DURATION = 500; // 0.5초
 
-let lastCacheUpdate = 0;
-const CACHE_DURATION = 2000; // 2초마다 캐시 업데이트
-
-// 🔥 실제 창 감지를 위한 고급 알고리즘
-async function updateWindowCache(): Promise<void> {
-  const now = Date.now();
-  if (now - lastCacheUpdate < CACHE_DURATION) {
-    return; // 캐시가 아직 유효함
-  }
-
-  try {
-    console.log('🔄 [windowApi] 창 목록 캐시 업데이트 중...');
-    
-    // 1. desktopCapturer로 모든 창 가져오기
-    const sources = await desktopCapturer.getSources({
-      types: ['window'],
-      fetchWindowIcons: false,
-      thumbnailSize: { width: 1, height: 1 } // 성능을 위해 최소 크기
-    });
-
-    // 2. 🔥 현재 화면에 보이는 창들만 필터링 (개선됨)
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const { x: screenX, y: screenY, width: screenWidth, height: screenHeight } = primaryDisplay.bounds;
-    
-    const validWindows = sources.filter(source => {
-      // 기본 필터링
-      if (source.name.includes('Electron') || 
-          source.name.includes('DevTools') ||
-          source.name.includes('Window Selection') ||
-          source.name.trim() === '' ||
-          source.name === 'Desktop' ||
-          source.name.includes('Screen') ||
-          source.name.includes('Task Switching') ||
-          source.name.includes('Program Manager') ||
-          source.name.includes('Windows Input Experience') ||
-          source.name.includes('Microsoft Text Input Application')) {
-        return false;
-      }
-      
-      // 🔥 숨겨진 창이나 최소화된 창 제외
-      if (source.name.includes('Hidden') || 
-          source.name.includes('Minimized') ||
-          source.name.length === 0) {
-        return false;
-      }
-      
-      return true;
-    });
-
-    // 3. Electron 창들의 정확한 위치 정보 가져오기
-    const electronWindows = BrowserWindow.getAllWindows();
-    const electronBoundsMap = new Map<string, Electron.Rectangle>();
-    
-    for (const win of electronWindows) {
-      if (!win.isDestroyed() && win.isVisible() && !win.isMinimized()) {
-        const title = win.getTitle();
-        const bounds = win.getBounds();
-        electronBoundsMap.set(title, bounds);
-      }
-    }
-
-    // 4. 🔥 창 위치 추정 (현재 화면 기준으로 개선됨)
-    windowCache = validWindows.map((window, index) => {
-      // Electron 창인 경우 정확한 위치 사용
-      const electronBounds = electronBoundsMap.get(window.name);
-      
-      if (electronBounds) {
-        return {
-          id: window.id,
-          name: window.name,
-          estimatedBounds: electronBounds,
-          lastSeen: now
-        };
-      }
-
-      // 일반 창들의 위치 추정 (현재 화면 내에서만)
-      const estimatedBounds = estimateWindowPositionOnScreen(window.name, index, screenX, screenY, screenWidth, screenHeight);
-      
-      return {
-        id: window.id,
-        name: window.name,
-        estimatedBounds,
-        lastSeen: now
-      };
-    });
-
-    lastCacheUpdate = now;
-    console.log(`✅ [windowApi] 창 캐시 업데이트 완료: ${windowCache.length}개 창 (화면 내 창만)`);
-    
-  } catch (error) {
-    console.error('❌ [windowApi] 창 캐시 업데이트 실패:', error);
-  }
-}
-
-// 🧠 현재 화면 기준 스마트한 창 위치 추정 알고리즘
-function estimateWindowPositionOnScreen(windowName: string, index: number, screenX: number, screenY: number, screenWidth: number, screenHeight: number) {
-  // 일반적인 창 크기 패턴 (더 현실적으로)
-  const commonSizes = [
-    { width: 1200, height: 800 },  // 대형 창 (브라우저, IDE)
-    { width: 900, height: 600 },   // 중형 창 (일반 앱)
-    { width: 600, height: 400 },   // 소형 창 (유틸리티)
-    { width: 300, height: 200 },   // 미니 창 (알림, 계산기)
-  ];
-
-  // 창 이름 기반 크기 추정 (더 정확하게)
-  let estimatedSize = commonSizes[1]; // 기본값: 중형
-  
-  if (windowName.includes('Chrome') || windowName.includes('Firefox') || windowName.includes('Edge') || windowName.includes('Safari')) {
-    estimatedSize = commonSizes[0]; // 브라우저는 대형
-  } else if (windowName.includes('Code') || windowName.includes('Studio') || windowName.includes('Visual')) {
-    estimatedSize = commonSizes[0]; // 개발 도구는 대형
-  } else if (windowName.includes('Notepad') || windowName.includes('Calculator') || windowName.includes('스티커')) {
-    estimatedSize = commonSizes[3]; // 간단한 앱은 미니
-  } else if (windowName.includes('Explorer') || windowName.includes('File') || windowName.includes('폴더')) {
-    estimatedSize = commonSizes[1]; // 파일 탐색기는 중형
-  }
-
-  // 🔥 현재 화면 내에서만 창들을 배치 (겹치지 않게)
-  const maxCols = Math.floor(screenWidth / estimatedSize.width);
-  const maxRows = Math.floor(screenHeight / estimatedSize.height);
-  
-  const col = index % maxCols;
-  const row = Math.floor(index / maxCols) % maxRows;
-  
-  // 화면 내 위치 계산
-  const x = screenX + col * estimatedSize.width;
-  const y = screenY + row * estimatedSize.height;
-  
-  // 화면 경계 체크
-  const finalX = Math.min(x, screenX + screenWidth - estimatedSize.width);
-  const finalY = Math.min(y, screenY + screenHeight - estimatedSize.height);
-  
+// RECT 구조체 파싱
+function parseRect(buffer: Buffer): { left: number; top: number; right: number; bottom: number } {
   return {
-    x: Math.max(screenX, finalX),
-    y: Math.max(screenY, finalY),
-    width: estimatedSize.width,
-    height: estimatedSize.height
+    left: buffer.readInt32LE(0),
+    top: buffer.readInt32LE(4),
+    right: buffer.readInt32LE(8),
+    bottom: buffer.readInt32LE(12)
   };
 }
 
-// 🔥 메인 프로세스에서 직접 사용할 수 있는 로컬 함수 (export)
-export async function getWindowAtPoint(x: number, y: number): Promise<WinApiWindowInfo | null> {
-  console.log(`🔍 [windowApi] getWindowAtPoint 호출: (${x}, ${y})`);
-  
+// 창 정보 가져오기
+function getWindowInfo(hwnd: any): WinApiWindowInfo | null {
   try {
-    // 캐시 업데이트
-    await updateWindowCache();
-    
-    if (windowCache.length === 0) {
-      console.warn('⚠️ [windowApi] 캐시된 창이 없음');
+    // 창이 보이는지 확인
+    if (!IsWindowVisible || !IsWindowVisible(hwnd)) {
       return null;
     }
 
-    // 마우스 위치에 가장 가까운 창 찾기
-    let bestMatch: WinApiWindowInfo | null = null;
-    let shortestDistance = Infinity;
-
-    for (const cachedWindow of windowCache) {
-      const bounds = cachedWindow.estimatedBounds;
-      
-      // 1. 마우스가 창 영역 안에 있는지 확인 (최우선)
-      if (x >= bounds.x && x <= bounds.x + bounds.width &&
-          y >= bounds.y && y <= bounds.y + bounds.height) {
-        console.log(`🎯 [windowApi] 정확히 창 안에 있음: "${cachedWindow.name}"`);
-        return {
-          id: cachedWindow.id,
-          name: cachedWindow.name,
-          x: bounds.x,
-          y: bounds.y,
-          width: bounds.width,
-          height: bounds.height
-        };
-      }
-
-      // 2. 창 중심점까지의 거리 계산
-      const centerX = bounds.x + bounds.width / 2;
-      const centerY = bounds.y + bounds.height / 2;
-      const distance = Math.sqrt(
-        Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2)
-      );
-
-      if (distance < shortestDistance) {
-        shortestDistance = distance;
-        bestMatch = {
-          id: cachedWindow.id,
-          name: cachedWindow.name,
-          x: bounds.x,
-          y: bounds.y,
-          width: bounds.width,
-          height: bounds.height
-        };
-      }
+    // 최소화된 창 제외
+    if (!IsIconic || IsIconic(hwnd)) {
+      return null;
     }
 
-    if (bestMatch) {
-      console.log(`✅ [windowApi] 가장 가까운 창: "${bestMatch.name}" (거리: ${Math.round(shortestDistance)}px)`);
-    } else {
-      console.log(`❌ [windowApi] 적합한 창을 찾을 수 없음`);
+    // RECT 가져오기
+    const rectBuffer = Buffer.alloc(16);
+    if (!GetWindowRect || !GetWindowRect(hwnd, rectBuffer)) {
+      return null;
     }
 
-    return bestMatch;
+    const rect = parseRect(rectBuffer);
     
+    // 크기가 너무 작은 창 제외
+    const width = rect.right - rect.left;
+    const height = rect.bottom - rect.top;
+    if (width < 10 || height < 10) {
+      return null;
+    }
+
+    // 창 제목 가져오기
+    const titleBuffer = Buffer.alloc(512);
+    const titleLength = GetWindowTextW ? GetWindowTextW(hwnd, titleBuffer, 256) : 0;
+    const title = titleLength > 0 ? titleBuffer.toString('utf16le', 0, titleLength * 2) : '';
+
+    // 빈 제목 창 제외 (일부 허용)
+    if (!title && width < 200) {
+      return null;
+    }
+
+    // 클래스 이름 가져오기
+    const classBuffer = Buffer.alloc(512);
+    const classLength = GetClassNameW ? GetClassNameW(hwnd, classBuffer, 256) : 0;
+    const className = classLength > 0 ? classBuffer.toString('utf16le', 0, classLength * 2) : '';
+
+    // 시스템 창 필터링
+    const excludedClasses = [
+      'Windows.UI.Core.CoreWindow',
+      'ApplicationFrameWindow',
+      'Progman',
+      'WorkerW',
+      'Shell_TrayWnd',
+      'Shell_SecondaryTrayWnd',
+      'DV2ControlHost',
+      'MsgrIMEWindowClass',
+      'SysShadow',
+      'Button',
+      '#32770' // 대화 상자
+    ];
+
+    if (excludedClasses.includes(className)) {
+      return null;
+    }
+
+    // 프로세스 ID 가져오기
+    const pidBuffer = Buffer.alloc(4);
+    const processId = GetWindowThreadProcessId ? GetWindowThreadProcessId(hwnd, pidBuffer) : 0;
+
+    // 🔥 koffi에서 반환되는 hwnd 안전하게 처리
+    let hwndAddress: number;
+    if (typeof hwnd === 'number') {
+      hwndAddress = hwnd;
+    } else if (typeof hwnd === 'bigint') {
+      hwndAddress = Number(hwnd);
+    } else if (hwnd && typeof hwnd.toString === 'function') {
+      hwndAddress = parseInt(hwnd.toString());
+    } else {
+      hwndAddress = parseInt(String(hwnd));
+    }
+    
+    return {
+      id: `hwnd-${hwndAddress}`,
+      name: title || `Window (${className})`,
+      x: rect.left,
+      y: rect.top,
+      width: width,
+      height: height,
+      className: className,
+      hwnd: hwndAddress,
+      isVisible: true,
+      processId: processId
+    };
+
   } catch (error) {
-    console.error('❌ [windowApi] getWindowAtPoint 에러:', error);
     return null;
   }
 }
 
-// 🔥 렌더러 프로세스용 IPC 핸들러 (window.api.getWindowAtPoint 용)
+// 🔥 모든 최상위 창 열거
+function enumerateAllWindows(): WinApiWindowInfo[] {
+  if (!EnumWindows || !koffi) return [];
+
+  const windows: WinApiWindowInfo[] = [];
+  const processedHandles = new Set<number>();
+
+  try {
+    // EnumWindows 콜백 정의 (koffi 방식)
+    const enumCallback = koffi.callback('bool', ['void*', 'intptr_t'], (hwnd: any, lParam: number) => {
+      try {
+        // 🔥 koffi에서 반환되는 hwnd 안전하게 처리
+        let hwndAddress: number;
+        if (typeof hwnd === 'number') {
+          hwndAddress = hwnd;
+        } else if (typeof hwnd === 'bigint') {
+          hwndAddress = Number(hwnd);
+        } else if (hwnd && typeof hwnd.toString === 'function') {
+          hwndAddress = parseInt(hwnd.toString());
+        } else {
+          hwndAddress = parseInt(String(hwnd));
+        }
+        
+        // 이미 처리한 핸들은 스킵
+        if (processedHandles.has(hwndAddress)) {
+          return true;
+        }
+        processedHandles.add(hwndAddress);
+
+        const info = getWindowInfo(hwnd);
+        if (info) {
+          windows.push(info);
+          windowCache.set(hwndAddress, info);
+        }
+      } catch (error) {
+        // 개별 창 처리 실패는 무시
+      }
+      return true; // 계속 열거
+    });
+
+    // 모든 최상위 창 열거
+    EnumWindows(enumCallback, 0);
+    
+    cacheUpdateTime = Date.now();
+    console.log(`✅ 총 ${windows.length}개의 창 감지됨`);
+    
+    return windows;
+
+  } catch (error) {
+    console.error('❌ enumerateAllWindows 에러:', error);
+    return windows;
+  }
+}
+
+// 🔥 마우스 위치의 창 정확히 찾기
+export async function getWindowAtPoint(x: number, y: number): Promise<WinApiWindowInfo | null> {
+  console.log(`🔍 [windowApi] getWindowAtPoint 호출: (${x}, ${y})`);
+  
+  try {
+    // Windows가 아닌 경우 폴백
+    if (process.platform !== 'win32' || !WindowFromPoint) {
+      return await getWindowAtPointFallback(x, y);
+    }
+
+    // 🔥 물리적 좌표 직접 사용 (DIP 변환 불필요)
+    console.log(`🎯 물리적 좌표 사용: (${x}, ${y})`);
+
+    console.log(`🔥 WindowFromPoint 사용`);
+    
+    // 🔥 WindowFromPoint 호출 방식 결정
+    let hwnd: any;
+    try {
+      // 방법 1: x, y 파라미터 방식 시도
+      if (WindowFromPoint.length === 2) {
+        hwnd = WindowFromPoint(x, y);
+        console.log(`✅ WindowFromPoint(x, y) 호출 성공`);
+      } else {
+        // 방법 2: int64 패킹 방식
+        const point = (BigInt(y) << 32n) | BigInt(x & 0xFFFFFFFF);
+        hwnd = WindowFromPoint(point);
+        console.log(`✅ WindowFromPoint(int64) 호출 성공`);
+      }
+    } catch (callError) {
+      console.error('❌ WindowFromPoint 호출 실패:', callError);
+      throw callError;
+    }
+    
+    if (!hwnd || hwnd === 0) {
+      console.log('❌ 해당 좌표에 창이 없습니다');
+      return null;
+    }
+
+    // 🔥 koffi에서 반환되는 hwnd 안전하게 처리
+    let hwndAddress: number;
+    if (typeof hwnd === 'number') {
+      hwndAddress = hwnd;
+    } else if (typeof hwnd === 'bigint') {
+      hwndAddress = Number(hwnd);
+    } else if (hwnd && typeof hwnd.toString === 'function') {
+      hwndAddress = parseInt(hwnd.toString());
+    } else {
+      // 최후의 수단: String() 사용
+      hwndAddress = parseInt(String(hwnd));
+    }
+    
+    console.log(`🔍 hwnd 타입: ${typeof hwnd}, 값: ${hwnd}, 변환된 주소: ${hwndAddress}`);
+    
+    // 캐시 확인
+    if (windowCache.has(hwndAddress) && (Date.now() - cacheUpdateTime) < CACHE_DURATION) {
+      const cached = windowCache.get(hwndAddress)!;
+      console.log(`✅ 캐시에서 창 발견: "${cached.name}"`);
+      return cached;
+    }
+
+    // 새로 정보 가져오기
+    const windowInfo = getWindowInfo(hwnd);
+    
+    if (windowInfo) {
+      console.log(`✅ 창 감지 성공: "${windowInfo.name}" (${windowInfo.width}x${windowInfo.height})`);
+      windowCache.set(hwndAddress, windowInfo);
+    }
+    
+    return windowInfo;
+    
+  } catch (error) {
+    console.error('❌ [windowApi] getWindowAtPoint 에러:', error);
+    return await getWindowAtPointFallback(x, y);
+  }
+}
+
+// 🔥 모든 보이는 창 가져오기
+export async function getAllVisibleWindows(): Promise<WinApiWindowInfo[]> {
+  if (process.platform !== 'win32' || !EnumWindows) {
+    return [];
+  }
+
+  try {
+    // 캐시가 유효하면 사용
+    if ((Date.now() - cacheUpdateTime) < CACHE_DURATION && windowCache.size > 0) {
+      return Array.from(windowCache.values());
+    }
+
+    // 모든 창 새로 열거
+    return enumerateAllWindows();
+    
+  } catch (error) {
+    console.error('❌ getAllVisibleWindows 에러:', error);
+    return [];
+  }
+}
+
+// 🔥 폴백: Electron API만 사용 (실제 창 위치 기반)
+async function getWindowAtPointFallback(x: number, y: number): Promise<WinApiWindowInfo | null> {
+  try {
+    console.log(`🔍 [폴백 모드] 좌표 (${x}, ${y})에서 창 찾기`);
+    
+    // 1. 🔥 Electron 창들의 실제 위치 먼저 확인
+    const electronWindows = BrowserWindow.getAllWindows();
+    
+    for (const win of electronWindows) {
+      if (!win.isDestroyed() && win.isVisible() && !win.isMinimized()) {
+        const bounds = win.getBounds();
+        
+        if (x >= bounds.x && x <= bounds.x + bounds.width &&
+            y >= bounds.y && y <= bounds.y + bounds.height) {
+          
+          console.log(`✅ [폴백] Electron 창 발견: "${win.getTitle()}" at (${bounds.x}, ${bounds.y})`);
+          
+          try {
+            const mediaSourceId = win.getMediaSourceId();
+            return {
+              id: mediaSourceId,
+              name: win.getTitle() || 'Electron Window',
+              x: bounds.x,
+              y: bounds.y,
+              width: bounds.width,
+              height: bounds.height,
+              isVisible: true
+            };
+          } catch (error) {
+            return {
+              id: `electron-${win.id}`,
+              name: win.getTitle() || 'Electron Window',
+              x: bounds.x,
+              y: bounds.y,
+              width: bounds.width,
+              height: bounds.height,
+              isVisible: true
+            };
+          }
+        }
+      }
+    }
+    
+    // 2. 🔥 다른 창들은... 사실 정확한 위치를 모른다
+    // desktopCapturer는 창 목록만 주고 위치는 안 줌
+    // 이 경우 "추정"이 아니라 "위치를 알 수 없다"고 해야 정확함
+    
+    console.log(`❌ [폴백] 해당 좌표의 창 위치를 정확히 알 수 없음 - Win32 API 필요`);
+    return null;
+    
+  } catch (error) {
+    console.error('❌ getWindowAtPointFallback 에러:', error);
+    return null;
+  }
+}
+
+
+
+// 🔥 특정 창 추적
+export async function trackWindow(windowId: string): Promise<WinApiWindowInfo | null> {
+  if (windowId.startsWith('hwnd-')) {
+    const hwndAddress = parseInt(windowId.replace('hwnd-', ''));
+    
+    if (windowCache.has(hwndAddress)) {
+      return windowCache.get(hwndAddress)!;
+    }
+  }
+  
+  // 전체 창 목록에서 찾기
+  const allWindows = await getAllVisibleWindows();
+  return allWindows.find(w => w.id === windowId) || null;
+}
+
+// 🔥 창 위치 실시간 업데이트
+export async function updateWindowPosition(windowId: string): Promise<WinApiWindowInfo | null> {
+  if (!windowId.startsWith('hwnd-') || !GetWindowRect) {
+    return null;
+  }
+
+  try {
+    const hwndAddress = parseInt(windowId.replace('hwnd-', ''));
+    
+    // koffi에서는 hwnd를 직접 숫자로 사용
+    const windowInfo = getWindowInfo(hwndAddress);
+    if (windowInfo) {
+      windowCache.set(hwndAddress, windowInfo);
+    }
+    
+    return windowInfo;
+    
+  } catch (error) {
+    console.error('❌ updateWindowPosition 에러:', error);
+    return null;
+  }
+}
+
+// 🔥 IPC 핸들러 등록
 export function registerWindowApi() {
   console.log('🔧 [windowApi] IPC 핸들러 등록 중...');
   
-  ipcMain.handle('window-at-point', async (_evt, { x, y }: { x: number; y: number }) => {
-    console.log(`🔍 [IPC] window-at-point 요청: (${x}, ${y})`);
-    return await getWindowAtPoint(x, y);
-  });
+  // 중복 등록 방지
+  try {
+    ipcMain.handle('window-at-point', async (_evt, { x, y }: { x: number; y: number }) => {
+      return await getWindowAtPoint(x, y);
+    });
+    console.log('✅ window-at-point 핸들러 등록');
+  } catch (error) {
+    console.log('⚠️ window-at-point 핸들러 이미 등록됨');
+  }
+  
+  try {
+    ipcMain.handle('get-all-windows', async () => {
+      return await getAllVisibleWindows();
+    });
+    console.log('✅ get-all-windows 핸들러 등록');
+  } catch (error) {
+    console.log('⚠️ get-all-windows 핸들러 이미 등록됨');
+  }
+  
+  try {
+    ipcMain.handle('track-window', async (_evt, { windowId }: { windowId: string }) => {
+      return await trackWindow(windowId);
+    });
+    console.log('✅ track-window 핸들러 등록');
+  } catch (error) {
+    console.log('⚠️ track-window 핸들러 이미 등록됨');
+  }
+  
+  try {
+    ipcMain.handle('update-window-position', async (_evt, { windowId }: { windowId: string }) => {
+      return await updateWindowPosition(windowId);
+    });
+    console.log('✅ update-window-position 핸들러 등록');
+  } catch (error) {
+    console.log('⚠️ update-window-position 핸들러 이미 등록됨');
+  }
   
   console.log('✅ [windowApi] IPC 핸들러 등록 완료');
 }
+
+// 정리
+process.on('exit', () => {
+  windowCache.clear();
+  if (libwin32) libwin32 = null;
+  if (koffi) koffi = null;
+  if (user32) user32 = null;
+});

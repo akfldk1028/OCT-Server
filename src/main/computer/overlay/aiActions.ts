@@ -4,7 +4,6 @@ import { BrowserWindow, desktopCapturer, screen } from 'electron';
 import { AppState, GuideStep } from '../../../common/types/overlay-types';
 import { anthropic } from '../antropic/anthropic';
 import { hideWindowBlock } from '../../window';
-import { RootState } from '@/common/types/root-types';
 
 // 스크린샷 관련 함수들 - runAgent.ts와 동일
 function getScreenDimensions(): { width: number; height: number } {
@@ -32,7 +31,48 @@ function getAiScaledScreenDimensions(): { width: number; height: number } {
   return { width: scaledWidth, height: scaledHeight };
 }
 
+// 🔥 Window-Specific 스크린샷 캡처 (overlayStore 사용으로 통합)
 const getScreenshot = async (): Promise<string> => {
+  try {
+    // 🎯 overlayStore의 TAKE_SCREENSHOT 사용 (overlayWindowIntegration에서 오버라이드됨)
+    const { overlayStore } = require('../../stores/overlay/overlayStore');
+    
+    console.log('📸 [getScreenshot] overlayStore.TAKE_SCREENSHOT 호출...');
+    
+    // 더미 hideWindow, showWindow 함수 (Window-Specific 모드에서는 사용되지 않음)
+    const dummyHideWindow = () => {};
+    const dummyShowWindow = () => {};
+    
+    const screenshotPath = await overlayStore.getState().TAKE_SCREENSHOT(dummyHideWindow, dummyShowWindow);
+    
+    if (screenshotPath) {
+      console.log('✅ [getScreenshot] overlayStore 캡처 완료:', screenshotPath);
+      
+      // 파일에서 base64 읽기
+      const fs = require('fs');
+      if (fs.existsSync(screenshotPath)) {
+        const base64Data = fs.readFileSync(screenshotPath, 'base64');
+        console.log('✅ [getScreenshot] 파일에서 base64 변환 완료');
+        return base64Data;
+      } else {
+        // screenshotPath가 이미 base64 문자열인 경우
+        return screenshotPath;
+      }
+    }
+    
+    // 폴백: 기존 전체 화면 캡처 방식
+    console.log('⚠️ [getScreenshot] overlayStore 실패, 전체 화면 캡처 폴백');
+    return await fallbackScreenshot();
+    
+  } catch (error) {
+    console.error('❌ [getScreenshot] overlayStore 사용 실패:', error);
+    console.log('🔄 [getScreenshot] 전체 화면 캡처 폴백');
+    return await fallbackScreenshot();
+  }
+};
+
+// 폴백 전체 화면 캡처 함수
+const fallbackScreenshot = async (): Promise<string> => {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.size;
   const aiDimensions = getAiScaledScreenDimensions();
@@ -42,13 +82,11 @@ const getScreenshot = async (): Promise<string> => {
       types: ['screen'],
       thumbnailSize: { width, height },
     });
-    const primarySource = sources[0]; // Assuming the first source is the primary display
+    const primarySource = sources[0];
 
     if (primarySource) {
       const screenshot = primarySource.thumbnail;
-      // Resize the screenshot to AI dimensions
       const resizedScreenshot = screenshot.resize(aiDimensions);
-      // Convert the resized screenshot to a base64-encoded PNG
       const base64Image = resizedScreenshot.toPNG().toString('base64');
       return base64Image;
     }
@@ -298,8 +336,8 @@ export const runAgent = async (
 
 
 export async function processGuide(
-  set: (state: Partial<RootState>) => void,
-  get: () => RootState,
+  set: (state: Partial<any>) => void,
+  get: () => any,
   payload: { software: string, question: string }
 ) {
   let { software, question } = payload;
@@ -322,22 +360,62 @@ export async function processGuide(
         const activeWindow = await get().DETECT_ACTIVE_SOFTWARE();
         software = activeWindow.software;
       }
-      const mainWindow = BrowserWindow.getFocusedWindow();
-      if (!mainWindow)
-        return { success: false, error: 'No main window available' };
-      const hideWindow = () => mainWindow.hide();
-      const showWindow = () => mainWindow.show();
-      const screenshotPath = await get().TAKE_SCREENSHOT(
-        hideWindow,
-        showWindow,
-      );
-      const screenshotData = await get().GET_IMAGE_PREVIEW(screenshotPath);
-      await get().SHOW_GUIDE({
-        software,
-        question,
-        steps: [],
-      });
-      return { success: true };
+      
+      // 🔥 Window-Specific 캡처 직접 사용 (TAKE_SCREENSHOT 대신)
+      console.log('🎯 [processGuide] Window-Specific 캡처 시작...');
+      
+      try {
+        // combinedStore에서 Window-Specific 캡처 사용
+        const { combinedStore } = require('../../stores/combinedStore');
+        const windowState = combinedStore.getState().window;
+        
+        let screenshotData: string;
+        
+        if (windowState?.targetWindowInfo && windowState?.isAttachedMode) {
+          console.log('✅ [processGuide] 선택된 창 캡처:', windowState.targetWindowInfo.name);
+          screenshotData = await windowState.captureTargetWindow();
+        } else {
+          console.log('⚠️ [processGuide] 선택된 창 없음, 기존 방식 사용');
+          const mainWindow = BrowserWindow.getFocusedWindow();
+          if (!mainWindow)
+            return { success: false, error: 'No main window available' };
+          const hideWindow = () => mainWindow.hide();
+          const showWindow = () => mainWindow.show();
+          const screenshotPath = await get().TAKE_SCREENSHOT(
+            hideWindow,
+            showWindow,
+          );
+          screenshotData = await get().GET_IMAGE_PREVIEW(screenshotPath);
+        }
+        
+        await get().SHOW_GUIDE({
+          software,
+          question,
+          steps: [],
+        });
+        return { success: true };
+        
+      } catch (captureError) {
+        console.error('❌ [processGuide] Window-Specific 캡처 실패, 기존 방식으로 폴백:', captureError);
+        
+        // 폴백: 기존 TAKE_SCREENSHOT 사용
+        const mainWindow = BrowserWindow.getFocusedWindow();
+        if (!mainWindow)
+          return { success: false, error: 'No main window available' };
+        const hideWindow = () => mainWindow.hide();
+        const showWindow = () => mainWindow.show();
+        const screenshotPath = await get().TAKE_SCREENSHOT(
+          hideWindow,
+          showWindow,
+        );
+        const screenshotData = await get().GET_IMAGE_PREVIEW(screenshotPath);
+        await get().SHOW_GUIDE({
+          software,
+          question,
+          steps: [],
+        });
+        return { success: true };
+      }
     }
   } catch (error: any) {
     console.error('Error processing guide in Overlay Store:', error);
