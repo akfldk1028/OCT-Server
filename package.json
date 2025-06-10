@@ -145,6 +145,8 @@
     "electron-updater": "^6.3.9",
     "electron-util": "^0.18.1",
     "elkjs": "^0.10.0",
+    "koffi": "^2.11.0",
+    "libwin32": "^0.7.0",
     "lucide-react": "^0.503.0",
     "luxon": "^3.6.1",
     "morgan": "^1.10.0",
