@@ -3,20 +3,22 @@ import { createStore } from 'zustand/vanilla';
 import { BrowserWindow, desktopCapturer, systemPreferences, screen, ipcMain, shell, app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { getWindowAtPoint as detectWindowAtPoint, getAllVisibleWindows } from '../../windowApi';
+import { getWindowAtPoint as detectWindowAtPoint, getAllWindows } from '../../windowApi';
 
 interface WindowInfo {
   id: string;
   name: string;
-  thumbnailURL: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  className?: string;
+  hwnd?: number;
+  isVisible?: boolean;
+  processId?: number;
+  thumbnailURL?: string;
   appIcon?: string;
   display_id?: string;
-  bounds?: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
 }
 
 interface WindowState {
@@ -86,31 +88,11 @@ export const windowStore = createStore<WindowState>((set, get) => ({
 
   refreshAvailableWindows: async (): Promise<WindowInfo[]> => {
     try {
-      const sources = await desktopCapturer.getSources({
-        types: ['window'],
-        fetchWindowIcons: true,
-        thumbnailSize: { width: 192, height: 108 }
-      });
-
-      const validWindows: WindowInfo[] = sources
-        .filter(source => 
-          !source.name.includes('Electron') && 
-          !source.name.includes('DevTools') &&
-          !source.name.includes('Window Selection') &&
-          source.name.trim() !== '' &&
-          source.name !== 'Desktop' &&
-          !source.name.includes('Screen')
-        )
-        .map(source => ({
-          id: source.id,
-          name: source.name,
-          thumbnailURL: source.thumbnail.toDataURL(),
-          appIcon: source.appIcon?.toDataURL(),
-          display_id: source.display_id
-        }));
-
-      set({ availableWindows: validWindows });
-      return validWindows;
+      // 🔥 Win32 API로 정확한 창 정보 가져오기
+      const win32Windows = await getAllWindows();
+      
+      set({ availableWindows: win32Windows });
+      return win32Windows;
     } catch (error) {
       console.error('❌ [refreshAvailableWindows] 실패:', error);
       return [];
@@ -119,22 +101,10 @@ export const windowStore = createStore<WindowState>((set, get) => ({
 
   selectWindowById: async (windowId: string): Promise<WindowInfo | null> => {
     try {
-      const sources = await desktopCapturer.getSources({
-        types: ['window'],
-        fetchWindowIcons: true,
-        thumbnailSize: { width: 192, height: 108 }
-      });
-
-      const source = sources.find(s => s.id === windowId);
-      if (source) {
-        const selectedWindow: WindowInfo = {
-          id: source.id,
-          name: source.name,
-          thumbnailURL: source.thumbnail.toDataURL(),
-          appIcon: source.appIcon?.toDataURL(),
-          display_id: source.display_id
-        };
-        
+      const windows = await getAllWindows();
+      const selectedWindow = windows.find(w => w.id === windowId);
+      
+      if (selectedWindow) {
         set({ targetWindowInfo: selectedWindow });
         return selectedWindow;
       }
@@ -162,59 +132,33 @@ export const windowStore = createStore<WindowState>((set, get) => ({
         
         set({ isWindowSelectionMode: true });
 
-        // 2. 🔥 ShareX 스타일 빨간 테두리를 위한 4개의 창 생성
-        const createBorderWindow = (): BrowserWindow => {
-          const win = new BrowserWindow({
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0,
-            frame: false,
-            transparent: false,
-            alwaysOnTop: true,
-            skipTaskbar: true,
-            resizable: false,
-            movable: false,
-            focusable: false,
-            show: false,
-            backgroundColor: '#ff0000',
-            hasShadow: false,
-            webPreferences: {
-              nodeIntegration: false,
-              contextIsolation: true
-            }
-          });
-          
-          // ShareX 스타일 빨간색 테두리
-          const redHTML = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <style>
-                * { margin: 0; padding: 0; }
-                html, body {
-                  width: 100%;
-                  height: 100%;
-                  background: #ff0000 !important;
-                  overflow: hidden;
-                }
-              </style>
-            </head>
-            <body></body>
-            </html>
-          `;
-          
-          win.loadURL(`data:text/html,${encodeURIComponent(redHTML)}`);
-          win.setIgnoreMouseEvents(true);
-          
-          return win;
-        };
+        // 2. 🔥 ShareX 스타일 전체 화면 오버레이 (반투명 빨간 배경 + 창 정보)
+        const display = screen.getPrimaryDisplay();
+        const { width: screenWidth, height: screenHeight } = display.size;
         
-        // 4개의 테두리 창 생성
-        borderWindows = [];
-        for (let i = 0; i < 4; i++) {
-          borderWindows.push(createBorderWindow());
-        }
+        // 단일 오버레이 창으로 변경
+        const overlayWindow = new BrowserWindow({
+          x: 0,
+          y: 0,
+          width: screenWidth,
+          height: screenHeight,
+          frame: false,
+          transparent: true,
+          alwaysOnTop: true,
+          skipTaskbar: true,
+          resizable: false,
+          movable: false,
+          focusable: false,
+          show: false,
+          hasShadow: false,
+          webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+            webSecurity: false
+          }
+        });
+        
+        borderWindows = [overlayWindow];
 
         // 3. 투명한 전체 화면 오버레이
         const primaryDisplay = screen.getPrimaryDisplay();
@@ -405,62 +349,181 @@ export const windowStore = createStore<WindowState>((set, get) => ({
         const availableWindows = await get().refreshAvailableWindows();
         let currentHighlightedWindow: any = null;
 
-        // 6. 🔥 정확한 빨간 테두리 표시 (Win32 API 좌표 사용)
-        const showRedBorder = (x: number, y: number, width: number, height: number) => {
-          if (borderWindows.length !== 4) return;
+        // 6. 🔥 ShareX 스타일 오버레이 표시 (반투명 배경 + 창 정보)
+        const showRedBorder = (x: number, y: number, width: number, height: number, windowName: string = '') => {
+          const overlayWindow = borderWindows[0];
+          if (!overlayWindow) return;
           
           try {
-            const borderThickness = 1; // ShareX 스타일의 얇은 테두리
+            console.log(`🔵 ShareX 스타일 오버레이 표시: "${windowName}" (${x}, ${y}) ${width}x${height}`);
             
-            console.log(`🔴 빨간 테두리 표시: (${x}, ${y}) ${width}x${height}`);
-            
-            // 🔥 멀티 모니터 환경에서 음수 좌표도 올바르게 처리
-            const safeX = x;
-            const safeY = y;
-            const safeWidth = Math.max(50, width); // 최소 크기 보장
+            // 안전한 좌표 처리
+            const safeX = Math.max(0, x);
+            const safeY = Math.max(0, y);
+            const safeWidth = Math.max(50, width);
             const safeHeight = Math.max(50, height);
             
-            // 상단
-            borderWindows[0].setBounds({ 
-              x: safeX - borderThickness, 
-              y: safeY - borderThickness, 
-              width: safeWidth + (borderThickness * 2), 
-              height: borderThickness 
-            });
-            borderWindows[0].setAlwaysOnTop(true, 'screen-saver');
-            borderWindows[0].show();
+            // 툴팁을 선택된 창의 중앙에 표시 (화면 밖으로 나가지 않도록 조정)
+            const tooltipWidth = 350;
+            const tooltipHeight = 100;
+            let tooltipX = safeX + (safeWidth - tooltipWidth) / 2; // 창의 가로 중앙
+            let tooltipY = safeY + (safeHeight - tooltipHeight) / 2; // 창의 세로 중앙
             
-            // 하단
-            borderWindows[1].setBounds({ 
-              x: safeX - borderThickness, 
-              y: safeY + safeHeight, 
-              width: safeWidth + (borderThickness * 2), 
-              height: borderThickness 
-            });
-            borderWindows[1].setAlwaysOnTop(true, 'screen-saver');
-            borderWindows[1].show();
+            // 화면 경계 체크 및 조정
+            if (tooltipX < 10) tooltipX = 10;
+            if (tooltipX + tooltipWidth > screenWidth - 10) tooltipX = screenWidth - tooltipWidth - 10;
+            if (tooltipY < 10) tooltipY = 10;
+            if (tooltipY + tooltipHeight > screenHeight - 10) tooltipY = screenHeight - tooltipHeight - 10;
             
-            // 좌측
-            borderWindows[2].setBounds({ 
-              x: safeX - borderThickness, 
-              y: safeY, 
-              width: borderThickness, 
-              height: safeHeight 
-            });
-            borderWindows[2].setAlwaysOnTop(true, 'screen-saver');
-            borderWindows[2].show();
+            // ShareX 스타일 HTML 생성
+            const overlayHTML = `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="UTF-8">
+                <style>
+                  * { margin: 0; padding: 0; box-sizing: border-box; }
+                  html, body {
+                    width: 100vw;
+                    height: 100vh;
+                    overflow: hidden;
+                    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+                    background: transparent;
+                    position: relative;
+                    cursor: crosshair;
+                  }
+                  
+                  .window-selection {
+                    position: absolute;
+                    left: ${safeX}px;
+                    top: ${safeY}px;
+                    width: ${safeWidth}px;
+                    height: ${safeHeight}px;
+                    background: transparent;
+                    border: 3px solid #007bff;
+                    border-radius: 6px;
+                    box-shadow: 
+                      0 0 0 1px rgba(255, 255, 255, 0.8),
+                      0 0 25px rgba(0, 123, 255, 0.5);
+                    z-index: 10;
+                    animation: borderGlow 2s ease-in-out infinite;
+                  }
+                  
+                  @keyframes borderGlow {
+                    0%, 100% { 
+                      border-color: #007bff;
+                      box-shadow: 
+                        0 0 0 1px rgba(255, 255, 255, 0.8),
+                        0 0 25px rgba(0, 123, 255, 0.5);
+                    }
+                    50% { 
+                      border-color: #0056b3;
+                      box-shadow: 
+                        0 0 0 2px rgba(255, 255, 255, 1),
+                        0 0 35px rgba(0, 123, 255, 0.7);
+                    }
+                  }
+                  
+                  .window-info {
+                    position: absolute;
+                    top: ${tooltipY}px;
+                    left: ${tooltipX}px;
+                    background: linear-gradient(145deg, rgba(0, 123, 255, 0.95), rgba(0, 86, 179, 0.95));
+                    color: white;
+                    padding: 18px 24px;
+                    border-radius: 16px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    white-space: nowrap;
+                    z-index: 20;
+                    box-shadow: 
+                      0 12px 40px rgba(0, 123, 255, 0.4),
+                      0 0 0 2px rgba(255, 255, 255, 0.3),
+                      inset 0 2px 0 rgba(255, 255, 255, 0.2),
+                      0 0 30px rgba(0, 123, 255, 0.6);
+                    backdrop-filter: blur(20px);
+                    border: 2px solid rgba(255, 255, 255, 0.3);
+                    min-width: 320px;
+                    text-align: center;
+                    animation: slideDown 0.3s ease-out, pulse 2s ease-in-out infinite;
+                  }
+                  
+                  @keyframes slideDown {
+                    from {
+                      opacity: 0;
+                      transform: translateY(-10px);
+                    }
+                    to {
+                      opacity: 1;
+                      transform: translateY(0);
+                    }
+                  }
+                  
+                  @keyframes pulse {
+                    0%, 100% {
+                      box-shadow: 
+                        0 12px 40px rgba(0, 123, 255, 0.4),
+                        0 0 0 2px rgba(255, 255, 255, 0.3),
+                        inset 0 2px 0 rgba(255, 255, 255, 0.2),
+                        0 0 30px rgba(0, 123, 255, 0.6);
+                    }
+                    50% {
+                      box-shadow: 
+                        0 16px 50px rgba(0, 123, 255, 0.6),
+                        0 0 0 3px rgba(255, 255, 255, 0.5),
+                        inset 0 3px 0 rgba(255, 255, 255, 0.3),
+                        0 0 50px rgba(0, 123, 255, 0.8);
+                    }
+                  }
+                  
+                  .window-name {
+                    display: block;
+                    color: #ffffff;
+                    font-weight: 700;
+                    font-size: 18px;
+                    margin-bottom: 10px;
+                    max-width: 280px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
+                    letter-spacing: 0.5px;
+                  }
+                  
+                  .size-info {
+                    color: #ffff00;
+                    font-weight: 700;
+                    font-size: 16px;
+                    margin-bottom: 6px;
+                    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+                    letter-spacing: 0.3px;
+                  }
+                  
+                  .position-info {
+                    color: #ffffff;
+                    font-weight: 600;
+                    font-size: 14px;
+                    opacity: 0.95;
+                    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+                    letter-spacing: 0.2px;
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="window-selection"></div>
+                <div class="window-info">
+                  <div class="window-name">${windowName || '창 선택'}</div>
+                  <div class="size-info">${safeWidth} × ${safeHeight} 픽셀</div>
+                  <div class="position-info">위치: (${safeX}, ${safeY})</div>
+                </div>
+              </body>
+              </html>
+            `;
             
-            // 우측
-            borderWindows[3].setBounds({ 
-              x: safeX + safeWidth, 
-              y: safeY, 
-              width: borderThickness, 
-              height: safeHeight 
-            });
-            borderWindows[3].setAlwaysOnTop(true, 'screen-saver');
-            borderWindows[3].show();
+            overlayWindow.loadURL(`data:text/html,${encodeURIComponent(overlayHTML)}`);
+            overlayWindow.setIgnoreMouseEvents(true);
+            overlayWindow.show();
             
-            console.log(`✅ 빨간 테두리 표시 완료: (${safeX}, ${safeY}) ${safeWidth}x${safeHeight}`);
+            console.log(`🔵 ShareX 스타일 오버레이 표시 완료: "${windowName}" (${safeX}, ${safeY}) ${safeWidth}x${safeHeight}`);
             
           } catch (error) {
             console.error('❌ showRedBorder 에러:', error);
@@ -490,8 +553,8 @@ export const windowStore = createStore<WindowState>((set, get) => ({
               
               console.log(`🎯 창 감지: "${windowInfo.name}" at (${windowInfo.x}, ${windowInfo.y}) ${windowInfo.width}x${windowInfo.height}`);
               
-              // libwin32/koffi에서 가져온 정확한 좌표로 테두리 표시
-              showRedBorder(windowInfo.x, windowInfo.y, windowInfo.width, windowInfo.height);
+              // libwin32/koffi에서 가져온 정확한 좌표로 ShareX 스타일 오버레이 표시
+              showRedBorder(windowInfo.x, windowInfo.y, windowInfo.width, windowInfo.height, windowInfo.name);
               
               // 창 정보 전송
               selectionWindow?.webContents.send('window-under-mouse', windowInfo);
@@ -546,28 +609,24 @@ export const windowStore = createStore<WindowState>((set, get) => ({
             selectedWindow = {
               id: matchedSource.id,
               name: matchedSource.name,
+              x: windowInfo.x,
+              y: windowInfo.y,
+              width: windowInfo.width,
+              height: windowInfo.height,
               thumbnailURL: matchedSource.thumbnail.toDataURL(),
               appIcon: matchedSource.appIcon?.toDataURL(),
-              display_id: matchedSource.display_id,
-              bounds: {
-                x: windowInfo.x,
-                y: windowInfo.y,
-                width: windowInfo.width,
-                height: windowInfo.height
-              }
+              display_id: matchedSource.display_id
             };
           } else {
             // 매칭되지 않으면 기본 정보 사용
             selectedWindow = {
               id: windowInfo.id,
               name: windowInfo.name,
-              thumbnailURL: '',
-              bounds: {
-                x: windowInfo.x,
-                y: windowInfo.y,
-                width: windowInfo.width,
-                height: windowInfo.height
-              }
+              x: windowInfo.x,
+              y: windowInfo.y,
+              width: windowInfo.width,
+              height: windowInfo.height,
+              thumbnailURL: ''
             };
           }
           
@@ -689,26 +748,26 @@ export const windowStore = createStore<WindowState>((set, get) => ({
       const MARGIN = 20;
       
       // 타겟 창의 정확한 위치 사용 (Win32 API에서 가져온 경우)
-      if (targetWindow.bounds) {
-        let targetX = targetWindow.bounds.x;
-        let targetY = targetWindow.bounds.y;
+      if (targetWindow.x !== undefined && targetWindow.y !== undefined) {
+        let targetX = targetWindow.x;
+        let targetY = targetWindow.y;
         
         switch (attachPosition) {
           case 'top-right':
-            targetX = targetWindow.bounds.x + targetWindow.bounds.width - mainBounds.width - MARGIN;
-            targetY = targetWindow.bounds.y + MARGIN;
+            targetX = targetWindow.x + targetWindow.width - mainBounds.width - MARGIN;
+            targetY = targetWindow.y + MARGIN;
             break;
           case 'top-left':
-            targetX = targetWindow.bounds.x + MARGIN;
-            targetY = targetWindow.bounds.y + MARGIN;
+            targetX = targetWindow.x + MARGIN;
+            targetY = targetWindow.y + MARGIN;
             break;
           case 'bottom-right':
-            targetX = targetWindow.bounds.x + targetWindow.bounds.width - mainBounds.width - MARGIN;
-            targetY = targetWindow.bounds.y + targetWindow.bounds.height - mainBounds.height - MARGIN;
+            targetX = targetWindow.x + targetWindow.width - mainBounds.width - MARGIN;
+            targetY = targetWindow.y + targetWindow.height - mainBounds.height - MARGIN;
             break;
           case 'bottom-left':
-            targetX = targetWindow.bounds.x + MARGIN;
-            targetY = targetWindow.bounds.y + targetWindow.bounds.height - mainBounds.height - MARGIN;
+            targetX = targetWindow.x + MARGIN;
+            targetY = targetWindow.y + targetWindow.height - mainBounds.height - MARGIN;
             break;
         }
         
