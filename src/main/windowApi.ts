@@ -177,42 +177,18 @@ function enumerateAllWindows(): WinApiWindowInfo[] {
 // ────────────── 좌표 위 윈도우 조회 ──────────────
 export async function getWindowAtPoint(x: number, y: number): Promise<WinApiWindowInfo | null> {
   console.log(`🔍 getWindowAtPoint(${x},${y})`);
-  
-  // 1) 먼저 WindowFromPoint로 직접 감지 시도
   if (WindowFromPoint) {
     const raw = WindowFromPoint(x, y);
-    if (raw) {
-      const { addr } = normalizeHwnd(raw);
-      if (windowCache.has(addr) && Date.now() - cacheUpdateTime < CACHE_DURATION) {
-        const cached = windowCache.get(addr)!;
-        if (cached.className !== 'FolderView') { // 데스크톱 창이 아니면 반환
-          return cached;
-        }
-      }
-      const info = getWindowInfo(raw);
-      if (info) {
-        windowCache.set(addr, info);
-        return info;
-      }
+    if (!raw) return null;
+    const { addr } = normalizeHwnd(raw);
+    if (windowCache.has(addr) && Date.now() - cacheUpdateTime < CACHE_DURATION) {
+      return windowCache.get(addr)!;
     }
+    const info = getWindowInfo(raw);
+    if (info) windowCache.set(addr, info);
+    return info;
   }
-
-  // 2) WindowFromPoint가 데스크톱 창을 반환했다면, 모든 윈도우를 확인하여 좌표가 포함된 창 찾기
-  console.log(`🔍 데스크톱 창 감지됨, 모든 윈도우에서 좌표 검색 중...`);
-  const allWindows = enumerateAllWindows();
-  
-  // 가장 작은 창부터 확인 (더 구체적인 창 우선)
-  const candidateWindows = allWindows
-    .filter(w => x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height)
-    .sort((a, b) => (a.width * a.height) - (b.width * b.height)); // 작은 창 우선
-
-  if (candidateWindows.length > 0) {
-    const bestMatch = candidateWindows[0];
-    console.log(`🎯 좌표 매칭 창 발견: "${bestMatch.name}" @(${bestMatch.x},${bestMatch.y}) ${bestMatch.width}×${bestMatch.height}`);
-    return bestMatch;
-  }
-
-  // 3) Electron BrowserWindow fallback
+  // Electron BrowserWindow fallback
   for (const w of BrowserWindow.getAllWindows()) {
     const b = w.getBounds();
     if (x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height) {
@@ -227,8 +203,6 @@ export async function getWindowAtPoint(x: number, y: number): Promise<WinApiWind
       };
     }
   }
-  
-  console.log(`❌ 좌표 (${x},${y})에서 적절한 윈도우를 찾을 수 없음`);
   return null;
 }
 
