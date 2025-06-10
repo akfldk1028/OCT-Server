@@ -447,6 +447,7 @@ export default function ChatRoom() {
         {/* Header */}
         <ChatHeader 
           roomName={room.name}
+          sessionId={sessionId!} // 🔥 sessionId prop 전달
           aiClientId={aiClientId}
           overlayClientId={overlayClientId}
           clientsStatus={clientsStatus}

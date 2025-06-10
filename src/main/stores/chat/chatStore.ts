@@ -994,12 +994,12 @@ ${resourceContents ? `추가 자료: ${resourceContents}` : ''}`;
             const overlayResult = await overlayState.RUN_AGENT_OVERLAY();
             console.log('✅ Overlay 가이드 실행 완료:', overlayResult);
             
-            // 🎉 성공 메시지로 업데이트
+            // 🎉 Overlay 클라이언트 성공 메시지로 업데이트 (협업 방식)
             const successMessage: ChatMessage = {
               id: startMessage.id, // 같은 ID로 업데이트
               sessionId,
               role: 'assistant',
-              content: '✨ **Overlay Vision • 화면 분석 완료**\n\n🎯 화면에 노란색 가이드가 표시되었습니다!\n👀 이거 봐봐! 여기 클릭해봐!',
+              content: '👁️ **Overlay Vision • 화면 분석 완료**\n\n✨ 화면 분석이 성공적으로 완료되었습니다!\n\n📊 **분석 결과:**\n• 🎯 화면에 노란색 가이드 표시됨\n• 🔍 UI 요소들이 식별되었습니다\n• 👆 클릭 가능한 영역들이 강조되었습니다\n\n💡 화면의 노란색 가이드를 확인해보세요! 원하는 작업을 계속 진행할 수 있습니다.',
               timestamp: new Date().toISOString(),
               metadata: {
                 type: 'overlay-success',

@@ -30,7 +30,12 @@ const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(
       <div ref={ref} className="h-full overflow-y-auto px-8 py-6">
         <div className="max-w-3xl mx-auto space-y-6">
           {messages.map((msg) => (
-            <MessageItem key={msg.id} message={msg} />
+            <MessageItem 
+              key={msg.id} 
+              message={msg} 
+              aiClientId={aiClientId}
+              overlayClientId={overlayClientId}
+            />
           ))}
           
           <LoadingStates

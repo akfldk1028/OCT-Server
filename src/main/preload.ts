@@ -115,7 +115,11 @@ const electronHandler = {
         'find-window-by-title',
         'toggle-window-mode',
         'get-available-windows',
-        'select-window-by-id'
+        'select-window-by-id',
+        // 🔥 새로운 창 선택 모드 채널들 추가
+        'window:start-selection-mode',
+        'window:attach-to-target',
+        'window:detach-from-target'
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
@@ -220,6 +224,15 @@ const api = {
   getWindowAtPoint: (x: number, y: number) =>
     ipcRenderer.invoke('window-at-point', {x, y}),
 
+  // 🔥 Window Selection API 추가
+  startWindowSelectionMode: () =>
+    ipcRenderer.invoke('window:start-selection-mode'),
+  
+  attachToTargetWindow: (windowInfo: any) =>
+    ipcRenderer.invoke('window:attach-to-target', windowInfo),
+  
+  detachFromTargetWindow: () =>
+    ipcRenderer.invoke('window:detach-from-target'),
 
   // 오버레이 API 병합
   // overlay: overlayAPI,

@@ -35,6 +35,7 @@ interface WindowState {
   openScreenSecurity: () => void;
   refreshAvailableWindows: () => Promise<WindowInfo[]>;
   selectWindowById: (windowId: string) => Promise<WindowInfo | null>;
+  getWindowAtPoint: (x: number, y: number) => Promise<WindowInfo | null>;
   startWindowSelectionMode: () => Promise<WindowInfo | null>;
   stopWindowSelectionMode: () => void;
   attachToTargetWindow: (targetWindow: WindowInfo) => Promise<void>;
@@ -112,6 +113,18 @@ export const windowStore = createStore<WindowState>((set, get) => ({
       return null;
     } catch (error) {
       console.error('❌ [selectWindowById] 실패:', error);
+      return null;
+    }
+  },
+
+  getWindowAtPoint: async (x: number, y: number): Promise<WindowInfo | null> => {
+    try {
+      console.log(`🔍 [windowStore.getWindowAtPoint] 호출: (${x}, ${y})`);
+      const windowInfo = await detectWindowAtPoint(x, y);
+      console.log('✅ [windowStore.getWindowAtPoint] 결과:', windowInfo);
+      return windowInfo;
+    } catch (error) {
+      console.error('❌ [windowStore.getWindowAtPoint] 실패:', error);
       return null;
     }
   },
@@ -201,7 +214,7 @@ export const windowStore = createStore<WindowState>((set, get) => ({
       height: 100vh;
       user-select: none;
       font-family: 'Segoe UI', Arial, sans-serif;
-      pointer-events: none; /* 🔥 오버레이 자체는 마우스 이벤트 무시 */
+      /* 🔥 pointer-events 제거 - 클릭을 받아야 함 */
     }
     
     .info {
@@ -321,16 +334,34 @@ export const windowStore = createStore<WindowState>((set, get) => ({
       }
     });
     
-    // 🔥 전역 클릭 이벤트 (오버레이를 통과해서 감지)
+    // 🔥 전역 클릭 이벤트 (더 확실한 방법)
     document.addEventListener('click', (e) => {
+      console.log('🖱️ 클릭 감지됨!', currentWindow);
       if (currentWindow) {
+        console.log('✅ 창 선택됨:', currentWindow.name);
         ipcRenderer.send('window-selected', currentWindow);
+      } else {
+        console.log('❌ 선택된 창이 없음');
+      }
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    
+    // 마우스다운도 추가로 감지
+    document.addEventListener('mousedown', (e) => {
+      console.log('🖱️ 마우스다운 감지됨!', currentWindow);
+      if (currentWindow) {
+        console.log('✅ 창 선택됨 (마우스다운):', currentWindow.name);
+        ipcRenderer.send('window-selected', currentWindow);
+        e.preventDefault();
+        e.stopPropagation();
       }
     });
     
     // ESC로 취소
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        console.log('🔄 ESC 키로 취소');
         ipcRenderer.send('window-selection-cancelled');
       }
     });
@@ -340,10 +371,22 @@ export const windowStore = createStore<WindowState>((set, get) => ({
 
         await fs.promises.writeFile(tempHtmlPath, overlayHTML, 'utf8');
         
-        // 🔥 오버레이가 마우스 이벤트를 통과시키도록 설정
-        selectionWindow.setIgnoreMouseEvents(true, { forward: true });
+        // 🔥 오버레이가 마우스 이벤트를 받도록 설정 (클릭 감지용)
+        selectionWindow.setIgnoreMouseEvents(false);
         await selectionWindow.loadFile(tempHtmlPath);
         selectionWindow.show();
+        
+        // 🔥 전역 클릭 이벤트 리스너 추가
+        selectionWindow.webContents.on('before-input-event', (event, input) => {
+          if (input.type === 'keyDown' && input.key === 'Escape') {
+            console.log('🔄 ESC 키로 창 선택 취소');
+            cleanup();
+            if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+              mainWindowRef.restore();
+            }
+            resolve(null);
+          }
+        });
 
         // 5. 창 목록 가져오기
         const availableWindows = await get().refreshAvailableWindows();
@@ -520,7 +563,7 @@ export const windowStore = createStore<WindowState>((set, get) => ({
             `;
             
             overlayWindow.loadURL(`data:text/html,${encodeURIComponent(overlayHTML)}`);
-            overlayWindow.setIgnoreMouseEvents(true);
+            overlayWindow.setIgnoreMouseEvents(true, { forward: true });
             overlayWindow.show();
             
             console.log(`🔵 ShareX 스타일 오버레이 표시 완료: "${windowName}" (${safeX}, ${safeY}) ${safeWidth}x${safeHeight}`);
@@ -589,51 +632,44 @@ export const windowStore = createStore<WindowState>((set, get) => ({
 
         // 8. IPC 핸들러 설정
         const handleWindowSelected = async (_event: any, windowInfo: any) => {
-          console.log('✅ 창 선택됨:', windowInfo.name);
+          console.log('✅ [windowStore] 창 선택됨:', windowInfo.name);
+          console.log('🔍 [windowStore] windowInfo 전체:', windowInfo);
           
           cleanup();
           
-          // desktopCapturer에서 해당 창 정보 가져오기
-          const sources = await desktopCapturer.getSources({
-            types: ['window'],
-            fetchWindowIcons: true,
-            thumbnailSize: { width: 192, height: 108 }
-          });
+          // 🔥 Win32 API에서 가져온 정확한 창 정보를 그대로 사용 (desktopCapturer 매칭 제거)
+          const selectedWindow: WindowInfo = {
+            id: windowInfo.id || `window-${Date.now()}`,
+            name: windowInfo.name,
+            x: windowInfo.x,
+            y: windowInfo.y,
+            width: windowInfo.width,
+            height: windowInfo.height,
+            className: windowInfo.className,
+            hwnd: windowInfo.hwnd,
+            isVisible: windowInfo.isVisible,
+            processId: windowInfo.processId,
+            thumbnailURL: '', // 나중에 필요하면 별도로 캡처
+            appIcon: '',
+            display_id: ''
+          };
           
-          // 창 이름으로 매칭
-          const matchedSource = sources.find(s => s.name === windowInfo.name);
-          
-          let selectedWindow: WindowInfo;
-          
-          if (matchedSource) {
-            selectedWindow = {
-              id: matchedSource.id,
-              name: matchedSource.name,
-              x: windowInfo.x,
-              y: windowInfo.y,
-              width: windowInfo.width,
-              height: windowInfo.height,
-              thumbnailURL: matchedSource.thumbnail.toDataURL(),
-              appIcon: matchedSource.appIcon?.toDataURL(),
-              display_id: matchedSource.display_id
-            };
-          } else {
-            // 매칭되지 않으면 기본 정보 사용
-            selectedWindow = {
-              id: windowInfo.id,
-              name: windowInfo.name,
-              x: windowInfo.x,
-              y: windowInfo.y,
-              width: windowInfo.width,
-              height: windowInfo.height,
-              thumbnailURL: ''
-            };
-          }
+          console.log('🎯 [windowStore] 최종 selectedWindow:', selectedWindow);
+          console.log('📍 [windowStore] 정확한 위치:', `(${selectedWindow.x}, ${selectedWindow.y}) ${selectedWindow.width}×${selectedWindow.height}`);
           
           set({ 
             targetWindowInfo: selectedWindow,
-            isWindowSelectionMode: false 
+            isWindowSelectionMode: false
           });
+          
+          // 🔥 창 선택 후 즉시 부착 실행
+          try {
+            console.log('📌 [windowStore] 창 부착 시작...');
+            await get().attachToTargetWindow(selectedWindow);
+            console.log('✅ [windowStore] 창 부착 완료');
+          } catch (attachError) {
+            console.error('❌ [windowStore] 창 부착 실패:', attachError);
+          }
           
           if (mainWindowRef && !mainWindowRef.isDestroyed()) {
             mainWindowRef.restore();
@@ -641,11 +677,12 @@ export const windowStore = createStore<WindowState>((set, get) => ({
           
           fs.promises.unlink(tempHtmlPath).catch(() => {});
           
+          console.log('🎯 [windowStore] selectedWindow resolve 직전:', selectedWindow);
           resolve(selectedWindow);
         };
 
         const handleCancelled = () => {
-          console.log('❌ 사용자가 취소함');
+          console.log('❌ [windowStore] 사용자가 취소함');
           cleanup();
           
           if (mainWindowRef && !mainWindowRef.isDestroyed()) {
@@ -654,6 +691,7 @@ export const windowStore = createStore<WindowState>((set, get) => ({
           
           fs.promises.unlink(tempHtmlPath).catch(() => {});
           
+          console.log('🔄 [windowStore] null resolve (취소됨)');
           resolve(null);
         };
 
@@ -735,6 +773,7 @@ export const windowStore = createStore<WindowState>((set, get) => ({
 
     try {
       console.log('📌 [attachToTargetWindow] 부착 시작:', targetWindow.name);
+      console.log('📍 타겟 창 위치:', `(${targetWindow.x}, ${targetWindow.y}) ${targetWindow.width}×${targetWindow.height}`);
       
       set({ 
         targetWindowInfo: targetWindow, 
@@ -754,22 +793,28 @@ export const windowStore = createStore<WindowState>((set, get) => ({
         
         switch (attachPosition) {
           case 'top-right':
-            targetX = targetWindow.x + targetWindow.width - mainBounds.width - MARGIN;
-            targetY = targetWindow.y + MARGIN;
+            // 🔥 오른쪽 상단 모서리가 정확히 일치하도록 겹치기 (거의 완전 겹침)
+            targetX = targetWindow.x + targetWindow.width - mainBounds.width;
+            targetY = targetWindow.y;
             break;
           case 'top-left':
-            targetX = targetWindow.x + MARGIN;
-            targetY = targetWindow.y + MARGIN;
+            // 🔥 왼쪽 상단 모서리가 정확히 일치하도록 겹치기
+            targetX = targetWindow.x;
+            targetY = targetWindow.y;
             break;
           case 'bottom-right':
-            targetX = targetWindow.x + targetWindow.width - mainBounds.width - MARGIN;
-            targetY = targetWindow.y + targetWindow.height - mainBounds.height - MARGIN;
+            // 🔥 오른쪽 하단 모서리가 정확히 일치하도록 겹치기
+            targetX = targetWindow.x + targetWindow.width - mainBounds.width;
+            targetY = targetWindow.y + targetWindow.height - mainBounds.height;
             break;
           case 'bottom-left':
-            targetX = targetWindow.x + MARGIN;
-            targetY = targetWindow.y + targetWindow.height - mainBounds.height - MARGIN;
+            // 🔥 왼쪽 하단 모서리가 정확히 일치하도록 겹치기
+            targetX = targetWindow.x;
+            targetY = targetWindow.y + targetWindow.height - mainBounds.height;
             break;
         }
+        
+        console.log('🎯 메인 창 이동:', `(${targetX}, ${targetY}) ${mainBounds.width}×${mainBounds.height}`);
         
         mainWindowRef.setBounds({ 
           x: targetX, 

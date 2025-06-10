@@ -242,7 +242,7 @@ function setupNewWindowIPCHandlers() {
   });
 
   // 창에 부착
-  ipcMain.handle('window:attach-to-window', async (_, windowInfo) => {
+  ipcMain.handle('window:attach-to-target', async (_, windowInfo) => {
     try {
       console.log('🔗 [IPC] 창 부착 요청:', windowInfo?.name);
       await combinedStore.getState().window.attachToTargetWindow(windowInfo);
@@ -255,7 +255,7 @@ function setupNewWindowIPCHandlers() {
   });
 
   // 창에서 분리
-  ipcMain.handle('window:detach-from-window', async () => {
+  ipcMain.handle('window:detach-from-target', async () => {
     try {
       console.log('🔄 [IPC] 창 분리 요청');
       combinedStore.getState().window.detachFromTargetWindow();
@@ -268,7 +268,7 @@ function setupNewWindowIPCHandlers() {
   });
 
   // 타겟 창 캡처
-  ipcMain.handle('window:capture-target-window', async () => {
+  ipcMain.handle('window:capture-target', async () => {
     try {
       console.log('📸 [IPC] 타겟 창 캡처 요청');
       const screenshot = await combinedStore.getState().window.captureTargetWindow();

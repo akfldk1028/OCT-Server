@@ -11,20 +11,27 @@ interface MessageItemProps {
     metadata?: {
       isCooperative?: boolean;
       avatar?: string;
-      type?: 'overlay-start' | 'overlay-success' | 'overlay-error';
+      clientId?: string;
+      type?: 'overlay-start' | 'overlay-success' | 'overlay-error' | 'window-connection' | 'window-disconnection';
       toolName?: string;
+      windowInfo?: any;
     };
   };
+  aiClientId?: string | null;
+  overlayClientId?: string | null;
 }
 
-const MessageItem = memo(function MessageItem({ message }: MessageItemProps) {
+const MessageItem = memo(function MessageItem({ message, aiClientId, overlayClientId }: MessageItemProps) {
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
   const isTool = message.role === 'tool';
   const isError = message.role === 'system';
   
-  // 🔥 협업 메시지 감지 (Overlay Vision) - 메타데이터 기반
-  const isCooperative = message.metadata?.isCooperative || message.metadata?.avatar === 'overlay';
+  // 🔥 클라이언트 ID 기반 협업 메시지 감지
+  const messageClientId = message.metadata?.clientId;
+  const isAIClient = messageClientId === aiClientId;
+  const isOverlayClient = messageClientId === overlayClientId;
+  const isCooperative = isAIClient || isOverlayClient || message.metadata?.isCooperative;
   const overlayType = message.metadata?.type;
 
   const formatTime = (timestamp: string) => {
@@ -48,7 +55,12 @@ const MessageItem = memo(function MessageItem({ message }: MessageItemProps) {
               <Bot className="w-5 h-5 text-white" />
             </div>
           )}
-          {isAssistant && isCooperative && (
+          {isAssistant && isAIClient && (
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+              <span className="text-sm font-bold text-white">🤖</span>
+            </div>
+          )}
+          {isAssistant && isOverlayClient && (
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-lg shadow-yellow-500/30">
               <span className="text-sm font-bold text-white">👁️</span>
             </div>
