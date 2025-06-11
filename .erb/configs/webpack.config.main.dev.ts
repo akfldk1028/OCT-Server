@@ -85,6 +85,10 @@ const configuration: webpack.Configuration = {
       'swagger-ui-express': 'commonjs swagger-ui-express',
       'swagger-jsdoc': 'commonjs swagger-jsdoc',
       'spawn-rx': 'commonjs spawn-rx',
+      'win32-api': 'commonjs win32-api',
+      'koffi': 'commonjs koffi',
+      'ref-napi': 'commonjs ref-napi',
+      'windows-api': 'commonjs windows-api',
     },
   ],
 };

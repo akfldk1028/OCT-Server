@@ -29,6 +29,10 @@ const excludePackages = [
   '@nut-tree-fork/libnut-win32',
   '@nut-tree-fork/libnut',
   '@nut-tree-fork/nut-js', // 만약 이 패키지도 사용 중이라면
+  'koffi',
+  'win32-api',
+  'ref-napi',
+  'windows-api',
   // 추가적으로 문제가 되는 패키지 여기에 추가
 ];
 
@@ -67,12 +71,28 @@ const configuration: webpack.Configuration = {
     'fsevents',
     'crypto-browserify',
     ...excludePackages, // 제외할 패키지들을 externals에도 추가
+    /\.node$/,              // ← 이 줄 추가
+
   ],
 
   /**
    * Use *`module`* from *`webpack.config.renderer.dev.js`*
    */
-  module: require('./webpack.config.renderer.dev').default.module,
+  // module: require('./webpack.config.renderer.dev').default.module,
+
+
+   module: {
+        rules: [
+          // 기존 renderer.dev의 모든 룰을 펼쳐 넣습니다
+          ...require('./webpack.config.renderer.dev').default.module.rules,
+    
+          // .node 파일은 node-loader로 처리
+          {
+            test: /\.node$/,
+            use: 'node-loader'
+          }
+        ]
+      },
 
   entry: {
     renderer: dllDependencies, // 필터링된 의존성 목록 사용
@@ -88,6 +108,8 @@ const configuration: webpack.Configuration = {
   },
 
   resolve: {
+    extensions: ['.js', '.ts', '.tsx', '.json', '.node'],  // ← '.node' 추가
+
     // 필요한 경우 fallback 추가
     fallback: {
       path: false,

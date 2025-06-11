@@ -44,44 +44,44 @@ const MessageItem = memo(function MessageItem({ message, aiClientId, overlayClie
   return (
     <div
       className={cn(
-        'group flex gap-3 px-4 py-3 hover:bg-muted/30 transition-colors',
+        'group flex gap-2 px-2 py-2 hover:bg-muted/30 transition-colors', // 🔥 간격 줄임: gap-3 px-4 py-3 → gap-2 px-2 py-2
         isUser && 'justify-end',
       )}
     >
       {!isUser && (
         <div className="flex-shrink-0">
           {isAssistant && !isCooperative && (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
-              <Bot className="w-5 h-5 text-white" />
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center"> {/* 🔥 크기 줄임: w-8 h-8 → w-6 h-6 */}
+              <Bot className="w-4 h-4 text-white" /> {/* 🔥 아이콘 크기 줄임: w-5 h-5 → w-4 h-4 */}
             </div>
           )}
           {isAssistant && isAIClient && (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-              <span className="text-sm font-bold text-white">🤖</span>
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30"> {/* 🔥 크기 줄임 */}
+              <span className="text-xs font-bold text-white">🤖</span> {/* 🔥 텍스트 크기 줄임: text-sm → text-xs */}
             </div>
           )}
           {isAssistant && isOverlayClient && (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-lg shadow-yellow-500/30">
-              <span className="text-sm font-bold text-white">👁️</span>
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-lg shadow-yellow-500/30"> {/* 🔥 크기 줄임 */}
+              <span className="text-xs font-bold text-white">👁️</span> {/* 🔥 텍스트 크기 줄임 */}
             </div>
           )}
           {isTool && (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center">
-              <Wrench className="w-5 h-5 text-white" />
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center"> {/* 🔥 크기 줄임 */}
+              <Wrench className="w-4 h-4 text-white" /> {/* 🔥 아이콘 크기 줄임 */}
             </div>
           )}
           {isError && (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-400 to-pink-500 flex items-center justify-center">
-              <AlertCircle className="w-5 h-5 text-white" />
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-red-400 to-pink-500 flex items-center justify-center"> {/* 🔥 크기 줄임 */}
+              <AlertCircle className="w-4 h-4 text-white" /> {/* 🔥 아이콘 크기 줄임 */}
             </div>
           )}
         </div>
       )}
       
-      <div className={cn('flex flex-col gap-1 max-w-[85%]', isUser && 'items-end')}>
+      <div className={cn('flex flex-col gap-1 max-w-[95%]', isUser && 'items-end')}> {/* 🔥 최대 너비 증가: max-w-[90%] → max-w-[95%] */}
         <div
           className={cn(
-            'rounded-2xl px-4 py-3 relative group-hover:shadow-sm transition-all',
+            'rounded-xl px-3 py-2 relative group-hover:shadow-sm transition-all', // 🔥 패딩 줄임: rounded-2xl px-4 py-3 → rounded-xl px-3 py-2
             isUser && 'bg-yellow-400 text-black rounded-br-md',
             isAssistant && !isCooperative && 'bg-muted/80 rounded-bl-md',
             isAssistant && isCooperative && 'bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-950/30 dark:to-amber-950/30 border-2 border-yellow-300 dark:border-yellow-600 rounded-bl-md shadow-lg shadow-yellow-500/20',
@@ -129,7 +129,7 @@ const MessageItem = memo(function MessageItem({ message, aiClientId, overlayClie
             </div>
           )}
           
-          <div className="whitespace-pre-wrap leading-relaxed">
+          <div className="whitespace-pre-wrap leading-snug text-sm"> {/* 🔥 줄 간격 줄이고 텍스트 크기 줄임: leading-relaxed → leading-snug, text-sm 추가 */}
             {message.content}
           </div>
           
@@ -145,8 +145,8 @@ const MessageItem = memo(function MessageItem({ message, aiClientId, overlayClie
       
       {isUser && (
         <div className="flex-shrink-0">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center">
-            <User className="w-5 h-5 text-white" />
+          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center"> {/* 🔥 크기 줄임: w-8 h-8 → w-6 h-6 */}
+            <User className="w-4 h-4 text-white" /> {/* 🔥 아이콘 크기 줄임: w-5 h-5 → w-4 h-4 */}
           </div>
         </div>
       )}

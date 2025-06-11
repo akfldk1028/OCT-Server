@@ -783,8 +783,19 @@ export const windowStore = createStore<WindowState>((set, get) => ({
       mainWindowRef.setAlwaysOnTop(true);
       
       const { attachPosition } = get();
-      const mainBounds = mainWindowRef.getBounds();
-      const MARGIN = 20;
+      
+      // 🎯 캡처된 창의 비율에 맞춰 메인 창 크기 계산
+      const calculateOptimalSize = (targetWindow: WindowInfo) => {
+        // 🔥 고정 크기 적용
+        const cardWidth = 500;
+        const cardHeight = 850;
+        
+        console.log('🎯 고정 크기 적용:', `${cardWidth}×${cardHeight}`);
+        return { width: cardWidth, height: cardHeight };
+      };
+      
+      const newSize = calculateOptimalSize(targetWindow);
+      const MARGIN = 10;
       
       // 타겟 창의 정확한 위치 사용 (Win32 API에서 가져온 경우)
       if (targetWindow.x !== undefined && targetWindow.y !== undefined) {
@@ -793,41 +804,61 @@ export const windowStore = createStore<WindowState>((set, get) => ({
         
         switch (attachPosition) {
           case 'top-right':
-            // 🔥 오른쪽 상단 모서리가 정확히 일치하도록 겹치기 (거의 완전 겹침)
-            targetX = targetWindow.x + targetWindow.width - mainBounds.width;
+            // 🔥 오른쪽 상단 모서리에 작은 크기로 부착
+            targetX = targetWindow.x + targetWindow.width - newSize.width;
             targetY = targetWindow.y;
             break;
           case 'top-left':
-            // 🔥 왼쪽 상단 모서리가 정확히 일치하도록 겹치기
+            // 🔥 왼쪽 상단 모서리에 작은 크기로 부착
             targetX = targetWindow.x;
             targetY = targetWindow.y;
             break;
           case 'bottom-right':
-            // 🔥 오른쪽 하단 모서리가 정확히 일치하도록 겹치기
-            targetX = targetWindow.x + targetWindow.width - mainBounds.width;
-            targetY = targetWindow.y + targetWindow.height - mainBounds.height;
+            // 🔥 오른쪽 하단 모서리에 작은 크기로 부착
+            targetX = targetWindow.x + targetWindow.width - newSize.width;
+            targetY = targetWindow.y + targetWindow.height - newSize.height;
             break;
           case 'bottom-left':
-            // 🔥 왼쪽 하단 모서리가 정확히 일치하도록 겹치기
+            // 🔥 왼쪽 하단 모서리에 작은 크기로 부착
             targetX = targetWindow.x;
-            targetY = targetWindow.y + targetWindow.height - mainBounds.height;
+            targetY = targetWindow.y + targetWindow.height - newSize.height;
             break;
         }
         
-        console.log('🎯 메인 창 이동:', `(${targetX}, ${targetY}) ${mainBounds.width}×${mainBounds.height}`);
+        console.log('🎯 메인 창 크기 및 위치 조정:', `(${targetX}, ${targetY}) ${newSize.width}×${newSize.height}`);
         
-        mainWindowRef.setBounds({ 
-          x: targetX, 
-          y: targetY, 
-          width: mainBounds.width, 
-          height: mainBounds.height 
-        });
+        // 🔥 setBounds 대신 setPosition과 setSize 분리 호출
+        console.log('🔥 [setPosition] 위치 설정:', targetX, targetY);
+        mainWindowRef.setPosition(targetX, targetY);
+        
+        console.log('🔥 [setSize] 크기 설정:', newSize.width, newSize.height);
+        mainWindowRef.setSize(newSize.width, newSize.height);
+        
+        // 🔥 실제 적용된 위치 확인
+        setTimeout(() => {
+          if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+            const actualBounds = mainWindowRef.getBounds();
+            console.log('🔍 [실제 위치 확인]:', actualBounds);
+            console.log('🔍 [목표 위치]:', { x: targetX, y: targetY, width: newSize.width, height: newSize.height });
+            
+            // 위치가 다르면 다시 시도
+            if (actualBounds.x !== targetX || actualBounds.y !== targetY) {
+              console.log('🔄 [위치 재설정] 다시 시도...');
+              mainWindowRef.setBounds({ 
+                x: targetX, 
+                y: targetY, 
+                width: newSize.width, 
+                height: newSize.height 
+              });
+            }
+          }
+        }, 100);
       } else {
         // 폴백: 화면 기준으로 배치
         const primaryDisplay = screen.getPrimaryDisplay();
         const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
         
-        let targetX = screenWidth - mainBounds.width - MARGIN;
+        let targetX = screenWidth - newSize.width - MARGIN;
         let targetY = MARGIN;
         
         switch (attachPosition) {
@@ -836,20 +867,20 @@ export const windowStore = createStore<WindowState>((set, get) => ({
             targetY = MARGIN;
             break;
           case 'bottom-right':
-            targetX = screenWidth - mainBounds.width - MARGIN;
-            targetY = screenHeight - mainBounds.height - MARGIN;
+            targetX = screenWidth - newSize.width - MARGIN;
+            targetY = screenHeight - newSize.height - MARGIN;
             break;
           case 'bottom-left':
             targetX = MARGIN;
-            targetY = screenHeight - mainBounds.height - MARGIN;
+            targetY = screenHeight - newSize.height - MARGIN;
             break;
         }
         
         mainWindowRef.setBounds({ 
           x: targetX, 
           y: targetY, 
-          width: mainBounds.width, 
-          height: mainBounds.height 
+          width: newSize.width, 
+          height: newSize.height 
         });
       }
       
@@ -908,18 +939,61 @@ export const windowStore = createStore<WindowState>((set, get) => ({
     }
 
     try {
+      console.log('🔍 [captureTargetWindow] 타겟 창 정보:', targetWindowInfo);
+      
       const sources = await desktopCapturer.getSources({
         types: ['window'],
         thumbnailSize: { width: 1920, height: 1080 }
       });
 
-      const targetSource = sources.find(s => s.id === targetWindowInfo.id || s.name === targetWindowInfo.name);
+      console.log('🔍 [captureTargetWindow] 사용 가능한 창 목록:');
+      sources.forEach((source, index) => {
+        console.log(`  ${index}: id="${source.id}", name="${source.name}"`);
+      });
+
+      // 🔥 여러 방법으로 매칭 시도
+      let targetSource = null;
+      
+      // 1. ID로 매칭
+      targetSource = sources.find(s => s.id === targetWindowInfo.id);
+      if (targetSource) {
+        console.log('✅ [captureTargetWindow] ID로 매칭 성공:', targetSource.id);
+      } else {
+        console.log('⚠️ [captureTargetWindow] ID 매칭 실패, 이름으로 시도...');
+        
+        // 2. 정확한 이름으로 매칭
+        targetSource = sources.find(s => s.name === targetWindowInfo.name);
+        if (targetSource) {
+          console.log('✅ [captureTargetWindow] 정확한 이름으로 매칭 성공:', targetSource.name);
+        } else {
+          console.log('⚠️ [captureTargetWindow] 정확한 이름 매칭 실패, 부분 매칭 시도...');
+          
+          // 3. 부분 이름으로 매칭
+          targetSource = sources.find(s => 
+            s.name.toLowerCase().includes(targetWindowInfo.name.toLowerCase()) ||
+            targetWindowInfo.name.toLowerCase().includes(s.name.toLowerCase())
+          );
+          if (targetSource) {
+            console.log('✅ [captureTargetWindow] 부분 이름으로 매칭 성공:', targetSource.name);
+          } else {
+            console.log('❌ [captureTargetWindow] 모든 매칭 방법 실패');
+            
+            // 4. 첫 번째 창으로 폴백 (임시)
+            if (sources.length > 0) {
+              targetSource = sources[0];
+              console.log('🔄 [captureTargetWindow] 첫 번째 창으로 폴백:', targetSource.name);
+            }
+          }
+        }
+      }
 
       if (!targetSource) {
         throw new Error('타겟 윈도우를 찾을 수 없습니다');
       }
 
+      console.log('📸 [captureTargetWindow] 캡처할 창:', targetSource.name);
       const screenshot = targetSource.thumbnail.toPNG().toString('base64');
+      console.log('✅ [captureTargetWindow] 캡처 완료, 크기:', screenshot.length);
       return screenshot;
       
     } catch (error) {

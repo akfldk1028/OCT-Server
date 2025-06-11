@@ -68,7 +68,7 @@ export default function Sidebar({
   collapsed: collapsedProp,
   isChatView = false,
 }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(collapsedProp ?? false);
+  const [collapsed, setCollapsed] = useState(collapsedProp ?? true); // 🔥 기본값을 true로 변경 (ChatGPT/Claude 스타일)
   const [theme, setTheme] = useTheme();
   const navigate = useNavigate();
   const store = useStore();
@@ -179,6 +179,34 @@ export default function Sidebar({
   useEffect(() => {
     if (collapsedProp !== undefined) setCollapsed(collapsedProp);
   }, [collapsedProp]);
+
+  // 🔥 창 크기 변화 감지해서 사이드바 자동 제어
+  useEffect(() => {
+    const handleResize = () => {
+      const windowWidth = window.innerWidth;
+      
+      // 창이 작아지면 (600px 이하) 사이드바 자동 닫기
+      if (windowWidth <= 600) {
+        console.log('📥 [Sidebar] 창이 작아짐 - 사이드바 닫기 (width:', windowWidth, ')');
+        setCollapsed(true);
+      }
+      // 창이 커지면 (800px 이상) 사이드바 자동 열기
+      else if (windowWidth >= 800) {
+        console.log('📥 [Sidebar] 창이 커짐 - 사이드바 열기 (width:', windowWidth, ')');
+        setCollapsed(false);
+      }
+    };
+
+    // 초기 크기 체크
+    handleResize();
+    
+    // 리사이즈 이벤트 리스너 등록
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
   // ChatGPT 스타일 뷰
   if (isChatView) {

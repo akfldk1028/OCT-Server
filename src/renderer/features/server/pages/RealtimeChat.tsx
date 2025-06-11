@@ -443,7 +443,7 @@ export default function ChatRoom() {
   return (
     <div className="min-h-screen w-full flex">
       {/* Main Chat Container */}
-      <div className="flex-1 max-w-5xl mx-auto flex flex-col h-screen">
+      <div className="flex-1 w-full flex flex-col h-screen"> {/* 🔥 max-w-5xl mx-auto 제거하고 w-full로 전체 너비 사용 */}
         {/* Header */}
         <ChatHeader 
           roomName={room.name}
@@ -494,8 +494,8 @@ export default function ChatRoom() {
         </div>
 
         {/* Chat Input */}
-        <div className="border-t border-border p-6">
-          <div className="max-w-3xl mx-auto">
+        <div className="border-t border-border p-2"> {/* 🔥 패딩 줄임: p-6 → p-2 */}
+          <div className="w-full px-2"> {/* 🔥 mx-auto 제거하고 px-2로 좌우 패딩만 추가 */}
             <ChatInput 
               onSend={sendMessage} 
               isStreaming={isStreaming} 

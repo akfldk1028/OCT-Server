@@ -1,11 +1,11 @@
 // src/main/store/aiActions.ts
 import { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta/messages/messages';
 import { BrowserWindow, desktopCapturer, screen } from 'electron';
-import { AppState, GuideStep } from '../../../common/types/overlay-types';
+import { OverlayState, GuideStep } from '../../stores/overlay/overlay-types';
 import { anthropic } from '../antropic/anthropic';
 import { hideWindowBlock } from '../../window';
 
-// 스크린샷 관련 함수들 - runAgent.ts와 동일
+// 스크린샷 관련 함수들
 function getScreenDimensions(): { width: number; height: number } {
   const primaryDisplay = screen.getPrimaryDisplay();
   return primaryDisplay.size;
@@ -18,60 +18,57 @@ function getAiScaledScreenDimensions(): { width: number; height: number } {
   let scaledWidth: number;
   let scaledHeight: number;
 
-  if (aspectRatio > 1280 / 800) {
-    // Width is the limiting factor
-    scaledWidth = 1280;
-    scaledHeight = Math.round(1280 / aspectRatio);
+  // 🔥 성능 최적화: 이미지 크기를 더 작게 조정 (1280x800 → 960x600)
+  if (aspectRatio > 960 / 600) {
+    scaledWidth = 960;
+    scaledHeight = Math.round(960 / aspectRatio);
   } else {
-    // Height is the limiting factor
-    scaledHeight = 800;
-    scaledWidth = Math.round(800 * aspectRatio);
+    scaledHeight = 600;
+    scaledWidth = Math.round(600 * aspectRatio);
   }
+
+  console.log('📏 [getAiScaledScreenDimensions] 최적화된 크기:', { 
+    original: { width, height }, 
+    scaled: { width: scaledWidth, height: scaledHeight },
+    reduction: `${Math.round((1 - (scaledWidth * scaledHeight) / (width * height)) * 100)}%`
+  });
 
   return { width: scaledWidth, height: scaledHeight };
 }
 
-// 🔥 Window-Specific 스크린샷 캡처 (overlayStore 사용으로 통합)
-const getScreenshot = async (): Promise<string> => {
+// 🔥 Window-Specific 스크린샷 캡처 + 창 정보 반환
+const getScreenshotWithWindowInfo = async (): Promise<{ 
+  screenshot: string; 
+  windowInfo?: any 
+}> => {
   try {
-    // 🎯 overlayStore의 TAKE_SCREENSHOT 사용 (overlayWindowIntegration에서 오버라이드됨)
-    const { overlayStore } = require('../../stores/overlay/overlayStore');
+    const { combinedStore } = require('../../stores/combinedStore');
+    const windowState = combinedStore.getState().window;
+    const targetWindow = windowState?.targetWindowInfo;
     
-    console.log('📸 [getScreenshot] overlayStore.TAKE_SCREENSHOT 호출...');
+    console.log('📸 [getScreenshotWithWindowInfo] 창 정보:', targetWindow?.name);
     
-    // 더미 hideWindow, showWindow 함수 (Window-Specific 모드에서는 사용되지 않음)
-    const dummyHideWindow = () => {};
-    const dummyShowWindow = () => {};
-    
-    const screenshotPath = await overlayStore.getState().TAKE_SCREENSHOT(dummyHideWindow, dummyShowWindow);
-    
-    if (screenshotPath) {
-      console.log('✅ [getScreenshot] overlayStore 캡처 완료:', screenshotPath);
-      
-      // 파일에서 base64 읽기
-      const fs = require('fs');
-      if (fs.existsSync(screenshotPath)) {
-        const base64Data = fs.readFileSync(screenshotPath, 'base64');
-        console.log('✅ [getScreenshot] 파일에서 base64 변환 완료');
-        return base64Data;
-      } else {
-        // screenshotPath가 이미 base64 문자열인 경우
-        return screenshotPath;
-      }
+    if (targetWindow && windowState?.captureTargetWindow) {
+      // 선택된 창만 캡처
+      const screenshot = await windowState.captureTargetWindow();
+      return { 
+        screenshot, 
+        windowInfo: targetWindow 
+      };
     }
     
-    // 폴백: 기존 전체 화면 캡처 방식
-    console.log('⚠️ [getScreenshot] overlayStore 실패, 전체 화면 캡처 폴백');
-    return await fallbackScreenshot();
+    // 폴백: 전체 화면 캡처
+    const screenshot = await fallbackScreenshot();
+    return { screenshot };
     
   } catch (error) {
-    console.error('❌ [getScreenshot] overlayStore 사용 실패:', error);
-    console.log('🔄 [getScreenshot] 전체 화면 캡처 폴백');
-    return await fallbackScreenshot();
+    console.error('❌ [getScreenshotWithWindowInfo] 실패:', error);
+    const screenshot = await fallbackScreenshot();
+    return { screenshot };
   }
 };
 
-// 폴백 전체 화면 캡처 함수
+// 폴백 전체 화면 캡처
 const fallbackScreenshot = async (): Promise<string> => {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.size;
@@ -94,14 +91,41 @@ const fallbackScreenshot = async (): Promise<string> => {
   });
 };
 
-// Claude API를 사용하여 가이드 생성
-const promptForGuide = async (
+// 🔥 창 정보를 포함한 프롬프트 생성
+const promptForGuideWithWindow = async (
   runHistory: BetaMessageParam[],
   screenshotData: string,
+  targetWindow?: any
 ): Promise<BetaMessageParam> => {
-  // 이미지 포함 없이 모든 히스토리 메시지 보존
+  
+  const windowContext = targetWindow && targetWindow.width && targetWindow.height ? `
+🎯 현재 분석 중인 창 정보:
+- 창 이름: ${targetWindow.name || '알 수 없음'}
+- 창 크기: ${targetWindow.width} x ${targetWindow.height} 픽셀
+
+⚠️ 매우 중요한 좌표 규칙:
+1. 스크린샷은 이 창만 캡처된 것입니다 (전체 화면이 아님!)
+2. 스크린샷에서 보이는 UI 요소의 위치를 정확히 파악하세요
+3. x, y 좌표는 스크린샷의 왼쪽 상단을 (0, 0)으로 하는 픽셀 좌표입니다
+4. 가이드는 사용자가 클릭해야 하는 버튼이나 UI 요소 바로 옆에 배치하세요
+5. 가이드 크기는 340x200 픽셀이므로 창 밖으로 나가지 않게 주의하세요
+
+📏 좌표 예시:
+- 창 크기: ${targetWindow.width} x ${targetWindow.height}
+- 왼쪽 상단 영역: x: 20-150, y: 20-100
+- 오른쪽 상단 영역: x: ${Math.max(150, targetWindow.width-400)}-${targetWindow.width-50}, y: 20-100
+- 중앙 영역: x: ${Math.floor(targetWindow.width/2)-170}-${Math.floor(targetWindow.width/2)+170}, y: ${Math.floor(targetWindow.height/2)-100}-${Math.floor(targetWindow.height/2)+100}
+
+🔍 분석 방법:
+1. 스크린샷에서 사용자가 상호작용해야 할 UI 요소를 찾으세요
+2. 그 요소의 정확한 픽셀 위치를 측정하세요
+3. 가이드를 그 요소 근처(위, 아래, 옆)에 배치하세요
+4. 여러 단계가 있으면 순서대로 배치하되 겹치지 않게 하세요
+` : '스크린샷 전체를 기준으로 절대 좌표를 사용하세요.';
+
+  // 히스토리에서 이미지 제외
   const historyWithoutImages = runHistory.map((msg, index) => {
-    if (index === runHistory.length - 1) return msg; // Keep the last message intact
+    if (index === runHistory.length - 1) return msg;
     if (Array.isArray(msg.content)) {
       return {
         ...msg,
@@ -119,7 +143,7 @@ const promptForGuide = async (
     return msg;
   });
 
-  // 마지막 사용자 메시지에 스크린샷 추가
+  // 마지막 메시지에 스크린샷 추가
   const lastUserMessageIndex = historyWithoutImages.length - 1;
   if (lastUserMessageIndex >= 0 && historyWithoutImages[lastUserMessageIndex].role === 'user') {
     const userQuestion = historyWithoutImages[lastUserMessageIndex].content;
@@ -142,47 +166,107 @@ const promptForGuide = async (
     };
   }
 
-  // Claude API 호출
   const message = await anthropic.beta.messages.create({
     model: 'claude-3-5-sonnet-20241022',
     max_tokens: 1024,
-    system: `당신은 소프트웨어 인터페이스 가이드 생성 전문가입니다. 사용자가 제공한 스크린샷을 분석하고 인터페이스 사용 방법에 대한 단계별 가이드를 제공하세요.
+    system: `당신은 소프트웨어 인터페이스 가이드 생성 전문가입니다.
 
-다음 JSON 형식으로 응답해 주세요:
+${windowContext}
+
+다음 JSON 형식으로 단계별 가이드를 제공하세요:
 \`\`\`json
 {
   "steps": [
     {
       "stepNumber": "1",
       "title": "단계 제목",
-      "description": "자세한 설명",
-      "x": 100,
-      "y": 100,
-      "arrowPosition": "top"
-    },
-    // 추가 단계...
+      "description": "자세한 설명 (마크다운 지원)",
+      "x": 100,     // 상대 좌표 (창 기준) 또는 절대 좌표
+      "y": 100,     // 상대 좌표 (창 기준) 또는 절대 좌표
+      "width": 300,
+      "height": 200,
+      "arrowPosition": "top"  // top, bottom, left, right
+    }
   ]
 }
 \`\`\`
 
-각 단계에 대해:
-1. stepNumber: 단계 번호를 명확하게 표시해 주세요 (1, 2, 3 등).
-2. title: 간결한 제목을 제공하세요.
-3. description: 자세한 설명을 제공하세요. 코드나 명령어가 포함된 경우 \`코드\` 형식으로 표시할 수 있습니다.
-4. x, y: 말풍선의 화면 좌표를 지정하세요. 관련 UI 요소 근처에 배치하세요.
-5. arrowPosition: "top", "bottom", "left", "right" 중 하나로 지정하세요. 이는 말풍선의 화살표가 가리키는 방향입니다.
-
-항상 JSON 응답을 제공하고, 불필요한 설명은 생략하세요.`,
+가이드 작성 규칙:
+1. 사용자가 클릭하거나 상호작용해야 하는 UI 요소 근처에 가이드를 배치하세요.
+2. 여러 단계가 있다면 순서대로 진행하기 쉽게 배치하세요.
+3. 가이드가 서로 겹치지 않도록 적절히 간격을 두세요.
+4. 설명은 명확하고 간결하게 작성하세요.`,
     messages: historyWithoutImages,
   });
 
   return { content: message.content, role: message.role };
 };
 
-// 응답에서 단계 추출
+// 🔥 AI 좌표 검증 및 디버깅 강화
+function adjustStepsForWindow(steps: GuideStep[], targetWindow?: any): GuideStep[] {
+  if (!targetWindow) {
+    console.log('⚠️ [adjustStepsForWindow] 창 정보 없음, 원본 좌표 사용');
+    return steps;
+  }
+  
+  console.log('🎯 [adjustStepsForWindow] AI 좌표 검증 시작:', {
+    windowName: targetWindow.name,
+    windowSize: { width: targetWindow.width, height: targetWindow.height },
+    steps: steps.length,
+    aiSteps: steps.map(s => ({ id: s.id, x: s.x, y: s.y, title: s.title }))
+  });
+  
+  return steps.map((step, index) => {
+    const originalX = step.x;
+    const originalY = step.y;
+    
+    // 🔥 AI가 제공한 좌표 검증
+    let x = typeof step.x === 'number' ? step.x : 50;
+    let y = typeof step.y === 'number' ? step.y : 50;
+    
+    const overlayWidth = step.width || 340;
+    const overlayHeight = step.height || 200;
+    
+    // 🔥 좌표 유효성 검사
+    const isValidX = x >= 0 && x <= targetWindow.width - 50;
+    const isValidY = y >= 0 && y <= targetWindow.height - 50;
+    
+    if (!isValidX || !isValidY) {
+      console.warn(`⚠️ [Step ${step.id}] 좌표가 창 범위를 벗어남:`, {
+        original: { x: originalX, y: originalY },
+        windowSize: { width: targetWindow.width, height: targetWindow.height },
+        isValidX,
+        isValidY
+      });
+      
+      // 안전한 위치로 이동
+      if (!isValidX) x = Math.max(20, Math.min(x, targetWindow.width - overlayWidth - 20));
+      if (!isValidY) y = Math.max(20, Math.min(y, targetWindow.height - overlayHeight - 20));
+    }
+    
+    // 음수 방지
+    x = Math.max(0, x);
+    y = Math.max(0, y);
+    
+    console.log(`📍 [Step ${step.id}] 좌표 검증 완료:`, {
+      title: step.title,
+      original: { x: originalX, y: originalY },
+      final: { x, y },
+      adjusted: originalX !== x || originalY !== y
+    });
+    
+    return {
+      ...step,
+      x,
+      y,
+      width: overlayWidth,
+      height: overlayHeight
+    };
+  });
+}
 
+// 응답에서 단계 추출 (기존 함수 유지)
 export function extractStepsFromResponse(message: BetaMessage): GuideStep[] {
-  // 1. 메시지에서 텍스트로 변환
   const content = message.content;
   const contentText = typeof content === 'string'
     ? content
@@ -190,7 +274,6 @@ export function extractStepsFromResponse(message: BetaMessage): GuideStep[] {
       ? content.filter(item => item.type === 'text').map(item => item.text).join('\n')
       : '';
 
-  // 2. ```json``` 블록 우선 추출
   const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)```/i;
   const jsonMatch = contentText.match(jsonBlockRegex);
 
@@ -198,20 +281,17 @@ export function extractStepsFromResponse(message: BetaMessage): GuideStep[] {
 
   try {
     if (jsonMatch && jsonMatch[1]) {
-      // JSON 블록 파싱
       parsed = JSON.parse(jsonMatch[1].trim());
     } else {
-      // 블록이 없으면 순수 JSON 전체 찾기 시도
       const inlineJsonMatch = contentText.match(/\{\s*"steps"[\s\S]*\}$/m);
       if (inlineJsonMatch) {
         parsed = JSON.parse(inlineJsonMatch[0]);
       }
     }
   } catch (e) {
-    console.warn('⚠️ JSON 파싱 실패, fallback으로 기본 구조 사용:', e);
+    console.warn('⚠️ JSON 파싱 실패:', e);
   }
 
-  // 3. parsed가 없거나 steps가 배열이 아니면 기본 steps 생성
   if (!parsed || !Array.isArray(parsed.steps)) {
     console.warn('⚠️ steps 배열을 찾지 못해 기본 단계로 대체합니다.');
     return [
@@ -226,14 +306,13 @@ export function extractStepsFromResponse(message: BetaMessage): GuideStep[] {
         height: 200,
         type: 'tooltip',
         arrowPosition: 'top',
-        shortcut: undefined,
       },
     ];
   }
 
   let steps: any[] = parsed.steps;
 
-  // 4. 중첩 JSON 해제: steps가 한 개이고, description이 JSON 문자열이면 inner.steps 사용
+  // 중첩 JSON 해제
   if (
     steps.length === 1 &&
     typeof steps[0].description === 'string' &&
@@ -245,11 +324,10 @@ export function extractStepsFromResponse(message: BetaMessage): GuideStep[] {
         steps = innerParsed.steps;
       }
     } catch {
-      // inner 파싱 실패 시 무시
+      // 무시
     }
   }
 
-  // 5. GuideStep 타입에 맞춰 매핑 & 디폴트 값 채우기
   return steps.map((step, idx) => ({
     id: step.id?.toString() ?? (idx + 1).toString(),
     stepNumber: step.stepNumber?.toString() ?? (idx + 1).toString(),
@@ -265,11 +343,25 @@ export function extractStepsFromResponse(message: BetaMessage): GuideStep[] {
   }));
 }
 
+// 🔥 메인 실행 함수 - 성능 최적화 및 메모리 모니터링 추가
 export const runAgent = async (
-  setState: (state: AppState) => void,
-  getState: () => AppState,
+  setState: (state: OverlayState) => void,
+  getState: () => OverlayState,
 ) => {
-  // 1) 실행 시작
+  // 🔥 성능 모니터링 시작
+  const startTime = Date.now();
+  const initialMemory = process.memoryUsage();
+  
+  console.log('🚀 [runAgent] 시작 - 성능 모니터링:', {
+    software: getState().activeSoftware,
+    question: getState().instructions,
+    initialMemory: {
+      rss: `${Math.round(initialMemory.rss / 1024 / 1024)}MB`,
+      heapUsed: `${Math.round(initialMemory.heapUsed / 1024 / 1024)}MB`,
+      heapTotal: `${Math.round(initialMemory.heapTotal / 1024 / 1024)}MB`
+    }
+  });
+
   setState({
     ...getState(),
     running: true,
@@ -277,149 +369,188 @@ export const runAgent = async (
     error: null,
   });
 
-  console.log(
-    '🤖 [메인 Overlay Store] RUN_AGENT 호출됨!',
-    {
-      software: getState().activeSoftware,
-      question: getState().instructions,
-      pid: process.pid,
-      time: new Date().toISOString(),
-    }
-  );
+  let screenshot: string | null = null;
+  let windowInfo: any = null;
 
   try {
-    // 2) AI에게 가이드 요청
-    const message = await promptForGuide(
+    // 🔥 1단계: 스크린샷 캡처 (메모리 효율적으로)
+    console.log('📸 [runAgent] 스크린샷 캡처 시작...');
+    const captureStartTime = Date.now();
+    
+    try {
+      // 기존 TAKE_SCREENSHOT 액션 사용
+      const screenshotPath = await getState().TAKE_SCREENSHOT(() => {}, () => {});
+      
+      if (screenshotPath && typeof screenshotPath === 'string') {
+        // 🔥 비동기 파일 읽기로 안전하게 처리
+        const fs = require('fs').promises;
+        const screenshotBuffer = await fs.readFile(screenshotPath);
+        screenshot = screenshotBuffer.toString('base64');
+        
+        // 🔥 임시 파일 정리 (메모리 절약)
+        try {
+          await fs.unlink(screenshotPath);
+        } catch (unlinkError) {
+          console.warn('⚠️ 임시 파일 삭제 실패:', unlinkError);
+        }
+      } else {
+        throw new Error('스크린샷 경로가 유효하지 않음');
+      }
+    } catch (screenshotError) {
+      console.warn('⚠️ [runAgent] TAKE_SCREENSHOT 실패, 폴백 사용:', screenshotError);
+      // 폴백: 기존 방식 사용
+      const fallbackResult = await getScreenshotWithWindowInfo();
+      screenshot = fallbackResult.screenshot;
+      windowInfo = fallbackResult.windowInfo;
+    }
+    
+    const captureTime = Date.now() - captureStartTime;
+    const captureMemory = process.memoryUsage();
+    
+    console.log('📸 [runAgent] 캡처 완료:', {
+      captureTime: `${captureTime}ms`,
+      screenshotSize: screenshot ? `${Math.round(screenshot.length / 1024)}KB` : '0KB',
+      memoryAfterCapture: `${Math.round(captureMemory.heapUsed / 1024 / 1024)}MB`
+    });
+
+    // 🔥 2단계: 창 정보 가져오기
+    if (!windowInfo) {
+      try {
+        const { combinedStore } = require('../../stores/combinedStore');
+        const windowState = combinedStore.getState().window;
+        windowInfo = windowState?.targetWindowInfo;
+      } catch (windowError) {
+        console.warn('⚠️ [runAgent] 창 정보 가져오기 실패:', windowError);
+      }
+    }
+
+    // 🔥 3단계: AI 분석 (메모리 사용량 모니터링)
+    console.log('🤖 [runAgent] AI 분석 시작...');
+    const aiStartTime = Date.now();
+    
+    const message = await promptForGuideWithWindow(
       getState().runHistory,
-      await getScreenshot()
+      screenshot!,
+      windowInfo
     );
 
-    // 3) 히스토리 업데이트
+    const aiTime = Date.now() - aiStartTime;
+    const aiMemory = process.memoryUsage();
+    
+    console.log('🤖 [runAgent] AI 분석 완료:', {
+      aiTime: `${aiTime}ms`,
+      memoryAfterAI: `${Math.round(aiMemory.heapUsed / 1024 / 1024)}MB`
+    });
+
+    // 🔥 스크린샷 메모리 해제 (더 이상 필요 없음)
+    screenshot = null;
+
     setState({
       ...getState(),
       runHistory: [...getState().runHistory, message],
     });
 
-    // 4) 응답에서 steps 파싱
+    // 🔥 4단계: 응답 파싱 및 좌표 조정
     const steps = extractStepsFromResponse(message as BetaMessage);
+    const adjustedSteps = windowInfo ? 
+      adjustStepsForWindow(steps, windowInfo) : 
+      steps;
 
-    // 5) 상태에 guideSteps 저장 & running 끄기
     setState({
       ...getState(),
-      guideSteps: steps,
+      guideSteps: adjustedSteps,
       running: false,
     });
 
-    console.log('🤖 [메인 Overlay Store] RUN_AGENT 결과:', steps);
-    console.log('🔍 [디버깅] SHOW_GUIDE 함수:', getState().SHOW_GUIDE);
-    console.log('🔍 [디버깅] isGuideMode 상태:', getState().isGuideMode);
-
-    // 6) 전체 오버레이 한 번에 띄우기
+    // 🔥 5단계: 가이드 표시
     await getState().SHOW_GUIDE({
       software: getState().activeSoftware,
-      steps,
+      steps: adjustedSteps,
     });
-    // (선택) 바로 다음 단계로 강조하고 싶다면
-    // await getState().NEXT_STEP();
+
+    // 🔥 성능 모니터링 완료
+    const totalTime = Date.now() - startTime;
+    const finalMemory = process.memoryUsage();
+    
+    console.log('✅ [runAgent] 완료 - 성능 리포트:', {
+      totalTime: `${totalTime}ms`,
+      stepCount: adjustedSteps.length,
+      windowAdjusted: !!windowInfo,
+      memoryUsage: {
+        initial: `${Math.round(initialMemory.heapUsed / 1024 / 1024)}MB`,
+        final: `${Math.round(finalMemory.heapUsed / 1024 / 1024)}MB`,
+        peak: `${Math.round(Math.max(captureMemory.heapUsed, aiMemory.heapUsed, finalMemory.heapUsed) / 1024 / 1024)}MB`
+      }
+    });
+
+    // 🔥 가비지 컬렉션 강제 실행 (메모리 정리)
+    if (global.gc) {
+      global.gc();
+      console.log('🧹 [runAgent] 가비지 컬렉션 실행됨');
+    }
 
   } catch (error: unknown) {
+    console.error('❌ [runAgent] 실행 실패:', error);
+    
+    // 🔥 에러 시에도 메모리 정리
+    screenshot = null;
+    if (global.gc) {
+      global.gc();
+    }
+    
     setState({
       ...getState(),
-      error:
-        error instanceof Error
-          ? error.message
-          : 'An unknown error occurred',
+      error: error instanceof Error ? error.message : 'An unknown error occurred',
       running: false,
     });
   }
 };
 
-
+// 🔥 processGuide 함수도 수정
 export async function processGuide(
   set: (state: Partial<any>) => void,
   get: () => any,
   payload: { software: string, question: string }
 ) {
   let { software, question } = payload;
-  console.log('🤖 [메인 Overlay Store] PROCESS_GUIDE 호출됨!', { software, question, pid: process.pid, time: new Date().toISOString() });
+  console.log('🤖 [processGuide] 호출됨:', { software, question });
+  
   try {
     set({
       instructions: question,
       fullyAuto: !get().isGuideMode
     });
+    
     if (get().fullyAuto) {
-      console.log('🤖 [메인 Overlay Store] 자동 모드에서 RUN_AGENT 호출 시도');
+      console.log('🤖 [processGuide] 자동 모드에서 RUN_AGENT_OVERLAY 호출');
       const runAgentResult = await get().RUN_AGENT_OVERLAY();
-      console.log('🤖 [메인 Overlay Store] RUN_AGENT 결과:', runAgentResult);
       return { success: true, result: runAgentResult };
     } else {
       if (!get().isGuideMode) {
         return { success: false, error: 'Guide mode is disabled' };
       }
+      
+      // 소프트웨어 자동 감지
       if (!software || software === 'unknown') {
         const activeWindow = await get().DETECT_ACTIVE_SOFTWARE();
         software = activeWindow.software;
       }
       
-      // 🔥 Window-Specific 캡처 직접 사용 (TAKE_SCREENSHOT 대신)
-      console.log('🎯 [processGuide] Window-Specific 캡처 시작...');
+      // 🔥 가이드 생성은 runAgent에서 처리하므로 여기서는 기본 가이드만 표시
+      await get().SHOW_GUIDE({
+        software,
+        question,
+        steps: [], // runAgent에서 채워짐
+      });
       
-      try {
-        // combinedStore에서 Window-Specific 캡처 사용
-        const { combinedStore } = require('../../stores/combinedStore');
-        const windowState = combinedStore.getState().window;
-        
-        let screenshotData: string;
-        
-        if (windowState?.targetWindowInfo && windowState?.isAttachedMode) {
-          console.log('✅ [processGuide] 선택된 창 캡처:', windowState.targetWindowInfo.name);
-          screenshotData = await windowState.captureTargetWindow();
-        } else {
-          console.log('⚠️ [processGuide] 선택된 창 없음, 기존 방식 사용');
-          const mainWindow = BrowserWindow.getFocusedWindow();
-          if (!mainWindow)
-            return { success: false, error: 'No main window available' };
-          const hideWindow = () => mainWindow.hide();
-          const showWindow = () => mainWindow.show();
-          const screenshotPath = await get().TAKE_SCREENSHOT(
-            hideWindow,
-            showWindow,
-          );
-          screenshotData = await get().GET_IMAGE_PREVIEW(screenshotPath);
-        }
-        
-        await get().SHOW_GUIDE({
-          software,
-          question,
-          steps: [],
-        });
-        return { success: true };
-        
-      } catch (captureError) {
-        console.error('❌ [processGuide] Window-Specific 캡처 실패, 기존 방식으로 폴백:', captureError);
-        
-        // 폴백: 기존 TAKE_SCREENSHOT 사용
-        const mainWindow = BrowserWindow.getFocusedWindow();
-        if (!mainWindow)
-          return { success: false, error: 'No main window available' };
-        const hideWindow = () => mainWindow.hide();
-        const showWindow = () => mainWindow.show();
-        const screenshotPath = await get().TAKE_SCREENSHOT(
-          hideWindow,
-          showWindow,
-        );
-        const screenshotData = await get().GET_IMAGE_PREVIEW(screenshotPath);
-        await get().SHOW_GUIDE({
-          software,
-          question,
-          steps: [],
-        });
-        return { success: true };
-      }
+      // runAgent 호출
+      await runAgent(set, get);
+      
+      return { success: true };
     }
   } catch (error: any) {
-    console.error('Error processing guide in Overlay Store:', error);
-    set({ error: `가이드 처리 오류 (Overlay): ${error.message}` });
+    console.error('❌ [processGuide] 오류:', error);
+    set({ error: `가이드 처리 오류: ${error.message}` });
     return { success: false, error: error.message };
   }
 }

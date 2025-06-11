@@ -1,3 +1,4 @@
+// components/ChatHeader.tsx
 import { cn } from '@/lib/utils';
 import { Bot, Settings, Workflow, MessageCircle, Eye, Target, Monitor, RotateCcw, X } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
@@ -9,10 +10,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { 
+  sendChatMessage, 
+  createWindowConnectedMessage, 
+  createWindowDisconnectedMessage,
+  createWindowSelectionStartMessage,
+  createWindowChangingMessage 
+} from './utils/chatMessages';
 
 interface ChatHeaderProps {
   roomName: string;
-  sessionId: string; // 🔥 sessionId prop 추가
+  sessionId: string;
   aiClientId: string | null;
   overlayClientId: string | null;
   clientsStatus: {
@@ -32,7 +40,7 @@ interface ChatHeaderProps {
 
 export default function ChatHeader({
   roomName,
-  sessionId, // 🔥 sessionId prop 받기
+  sessionId,
   aiClientId,
   overlayClientId,
   clientsStatus,
@@ -49,57 +57,21 @@ export default function ChatHeader({
   const store = useStore();
   const dispatch = useDispatch();
   
-  // 🔥 현재 선택된 창 정보 가져오기 (사용자 친화적!)
   const currentTargetWindow = store?.window?.targetWindowInfo;
   const isAttachedMode = store?.window?.isAttachedMode;
   
-  // 🎯 창 선택 상태
   const [isSelectingWindow, setIsSelectingWindow] = useState(false);
   const previousTargetWindow = useRef(currentTargetWindow);
   const isWaitingForSelection = useRef(false);
   
-  // 🔍 디버깅: 상태 확인
-  console.log('🔍 [ChatHeader] 상태 확인:', {
-    currentTargetWindow: typeof currentTargetWindow === 'string' ? currentTargetWindow : currentTargetWindow?.name,
-    isAttachedMode,
-    hasTargetWindow: !!currentTargetWindow,
-    windowType: typeof currentTargetWindow,
-    overlayMode,
-    sessionId,
-    aiClientId,
-    isSelectingWindow
-  });
-
-  // 🔥 창 선택 완료 감지 (dispatch 방식)
+  // 🔥 창 선택 완료 감지
   useEffect(() => {
-    console.log('🔍 [ChatHeader] useEffect 트리거됨:', {
-      isWaitingForSelection: isWaitingForSelection.current,
-      currentTargetWindow: currentTargetWindow?.name || currentTargetWindow,
-      previousTargetWindow: previousTargetWindow.current?.name || previousTargetWindow.current,
-      hasCurrentWindow: !!currentTargetWindow,
-      isDifferent: currentTargetWindow !== previousTargetWindow.current
-    });
-    
     if (isWaitingForSelection.current && currentTargetWindow) {
-      // 🔥 창 이름으로 비교 (더 안전함)
       const currentWindowName = typeof currentTargetWindow === 'string' ? currentTargetWindow : currentTargetWindow.name;
       const previousWindowName = typeof previousTargetWindow.current === 'string' ? previousTargetWindow.current : previousTargetWindow.current?.name;
       
-      console.log('🔍 [ChatHeader] 창 이름 비교:', {
-        currentWindowName,
-        previousWindowName,
-        isDifferent: currentWindowName !== previousWindowName
-      });
-      
       if (currentWindowName !== previousWindowName) {
-        console.log('🎉 [ChatHeader] 창 선택 완료 감지!');
-        console.log('🔄 [ChatHeader] 이전 창:', previousWindowName);
-        console.log('✅ [ChatHeader] 새로운 창:', currentWindowName);
-        
-        // 창 선택 완료 처리
         handleWindowSelectionComplete(currentTargetWindow);
-        
-        // 상태 초기화
         isWaitingForSelection.current = false;
         setIsSelectingWindow(false);
         previousTargetWindow.current = currentTargetWindow;
@@ -107,54 +79,24 @@ export default function ChatHeader({
     }
   }, [currentTargetWindow]);
 
-  // 🔥 창 선택 완료 처리 함수
+  // 🔥 창 선택 완료 처리 함수 (유틸리티 함수 사용)
   const handleWindowSelectionComplete = async (selectedWindow: any) => {
     try {
       const windowName = typeof selectedWindow === 'string' ? selectedWindow : selectedWindow.name;
       console.log('✅ [ChatHeader] 창 선택 완료:', windowName);
-      console.log('🔍 [ChatHeader] selectedWindow 전체 정보:', selectedWindow);
 
-      // 선택된 창에 부착 (dispatch 사용)
       await dispatch({
         type: 'window.attachToTargetWindow',
         payload: selectedWindow
       });
       
-      console.log('🔗 [ChatHeader] 창 부착 완료');
-      
-      // 🔥 AI 클라이언트가 창 선택을 알려주도록 협업 메시지 전송
       if (sessionId) {
-        console.log('📝 [ChatHeader] 창 연결 완료 메시지 전송...');
-        
         try {
-          // 🤖 AI 클라이언트 메시지 (협업 방식)
-          const successPayload = {
-            type: 'chat.addMessage',
-            payload: {
-              sessionId,
-              message: {
-                id: `ai-window-notification-${Date.now()}`,
-                content: `🤖 **AI Assistant • 창 연결 완료**\n\n🎯 **${windowName}** 창이 성공적으로 연결되었습니다!\n\n📊 **창 정보:**\n• 📍 위치: ${typeof selectedWindow === 'object' ? `(${selectedWindow.x}, ${selectedWindow.y})` : '정보 없음'}\n• 📏 크기: ${typeof selectedWindow === 'object' ? `${selectedWindow.width} × ${selectedWindow.height} 픽셀` : '정보 없음'}\n• 🔗 상태: 실시간 연결됨\n\n💡 이제 이 창과 관련된 모든 작업을 도와드릴 수 있습니다! 무엇을 도와드릴까요?`,
-                role: 'assistant',
-                timestamp: new Date().toISOString(),
-                metadata: {
-                  type: 'window-connection',
-                  windowInfo: selectedWindow,
-                  isCooperative: true,
-                  avatar: 'ai',
-                  clientId: aiClientId
-                }
-              }
-            }
-          };
-          
-          console.log('📦 [ChatHeader] 성공 메시지 페이로드:', successPayload);
-          const successResult = await dispatch(successPayload);
-          console.log('📨 [ChatHeader] 성공 메시지 dispatch 결과:', successResult);
+          const message = createWindowConnectedMessage(selectedWindow, aiClientId);
+          await sendChatMessage(dispatch, { sessionId, message });
           console.log('✅ [ChatHeader] AI 클라이언트 창 연결 알림 완료');
         } catch (messageError) {
           console.error('❌ [ChatHeader] 채팅 메시지 전송 실패:', messageError);
-          console.error('❌ [ChatHeader] 에러 스택:', messageError instanceof Error ? messageError.stack : 'No stack');
         }
       }
     } catch (error) {
@@ -162,86 +104,44 @@ export default function ChatHeader({
     }
   };
 
-  // 🔥 **새로운 방식**: dispatch만 사용하고 useEffect로 상태 변화 감지
+  // 🔥 창 선택 시작 (유틸리티 함수 사용)
   const handleStartWindowSelection = async () => {
     try {
       console.log('🖱️ [ChatHeader] 마우스 창 선택 모드 시작');
-      console.log('🔍 [ChatHeader] 함수 호출됨! 버튼 클릭 이벤트 정상 작동');
       
-      // 🔥 이전 창 정보 저장 (변화 감지용)
       previousTargetWindow.current = currentTargetWindow;
       isWaitingForSelection.current = true;
       setIsSelectingWindow(true);
 
-      // 🔥 "변경" 버튼 로직: 기존 창이 있으면 변경 중 메시지 표시
-      if (currentTargetWindow && isAttachedMode) {
+      // 기존 창이 있으면 변경 중 메시지 표시
+      if (currentTargetWindow && isAttachedMode && sessionId) {
         const windowName = typeof currentTargetWindow === 'string' ? currentTargetWindow : currentTargetWindow.name;
-        console.log('🔄 [ChatHeader] 기존 창 변경 모드:', windowName);
-        
-        if (sessionId) {
-          await dispatch({
-            type: 'chat.addMessage',
-            payload: {
-              sessionId,
-              message: {
-                id: `ai-window-changing-${Date.now()}`,
-                content: `🤖 **AI Assistant • 창 변경 중**\n\n🔄 현재 **${windowName}** 창에서 다른 창으로 변경하고 있습니다...\n\n📋 **진행 상황:**\n• 🎯 새로운 창 선택 대기 중\n• 🖱️ 마우스로 원하는 창을 클릭해주세요\n• ⌨️ ESC 키로 취소 가능\n\n💡 새로운 창을 선택하면 자동으로 연결됩니다!`,
-                role: 'assistant',
-                timestamp: new Date().toISOString(),
-                metadata: {
-                  type: 'window-changing',
-                  previousWindowInfo: currentTargetWindow,
-                  isCooperative: true,
-                  avatar: 'ai',
-                  clientId: aiClientId
-                }
-              }
-            }
-          });
-          console.log('🔄 [ChatHeader] 창 변경 중 메시지 전송 완료');
-        }
+        const message = createWindowChangingMessage(windowName, currentTargetWindow, aiClientId);
+        await sendChatMessage(dispatch, { sessionId, message });
       }
 
-      // 🔥 창 선택 시작 메시지 전송
+      // 창 선택 시작 메시지
       if (sessionId) {
-        console.log('📝 [ChatHeader] 창 선택 시작 메시지 전송...');
-        
         try {
-          const messagePayload = {
-            type: 'chat.addMessage',
-            payload: {
-              sessionId,
-              message: {
-                id: `ai-window-selection-start-${Date.now()}`,
-                content: `🤖 **AI Assistant • 창 선택 모드**\n\n🎯 창 선택 모드가 시작되었습니다!\n\n📋 **사용법:**\n• 🖱️ 마우스로 원하는 창을 클릭해주세요\n• ⌨️ ESC 키로 취소 가능\n• 🔄 창이 선택되면 자동으로 연결됩니다\n\n💡 잠시만 기다려주세요...`,
-                role: 'assistant',
-                timestamp: new Date().toISOString(),
-                metadata: {
-                  type: 'window-selection-start',
-                  isCooperative: true,
-                  avatar: 'ai',
-                  clientId: aiClientId
-                }
-              }
-            }
-          };
-          
-          console.log('📦 [ChatHeader] 메시지 페이로드:', messagePayload);
-          const result = await dispatch(messagePayload);
-          console.log('📨 [ChatHeader] dispatch 결과:', result);
+          const message = createWindowSelectionStartMessage(aiClientId);
+          await sendChatMessage(dispatch, { sessionId, message });
           console.log('✅ [ChatHeader] 창 선택 시작 메시지 전송 완료');
         } catch (messageError) {
           console.error('❌ [ChatHeader] 창 선택 시작 메시지 전송 실패:', messageError);
         }
       }
       
-      // 🔥 dispatch로 창 선택 모드 시작 (Promise 기대하지 않음)
-      console.log('📤 [ChatHeader] 창 선택 모드 시작 dispatch...');
-      dispatch({
+      const result = await dispatch({
         type: 'window.startWindowSelectionMode',
         payload: {}
       });
-      console.log('✅ [ChatHeader] 창 선택 모드 시작 완료 - useEffect가 상태 변화를 감지할 것임');
+      
+      // 🔥 창 선택 모드 시작 실패 시 상태 초기화
+      if (!result) {
+        console.warn('⚠️ [ChatHeader] 창 선택 모드 시작 실패');
+        setIsSelectingWindow(false);
+        isWaitingForSelection.current = false;
+      }
       
     } catch (error) {
       console.error('❌ [ChatHeader] 창 선택 실패:', error);
@@ -250,12 +150,15 @@ export default function ChatHeader({
     }
   };
 
-  // 🔥 창 선택 해제
+  // 🔥 창 선택 해제 (유틸리티 함수 사용)
   const handleClearWindow = async () => {
     try {
-      const currentWindow = currentTargetWindow; // 해제 전에 창 정보 저장
+      const currentWindow = currentTargetWindow;
       
-      // 🔥 dispatch를 통해 창 분리
+      // 🔥 상태 초기화 먼저 실행
+      setIsSelectingWindow(false);
+      isWaitingForSelection.current = false;
+      
       await dispatch({
         type: 'window.detachFromTargetWindow',
         payload: {}
@@ -263,42 +166,24 @@ export default function ChatHeader({
       
       console.log('🔄 [ChatHeader] 창 선택 해제 완료');
       
-      // 🔥 AI 클라이언트가 창 해제를 알려주도록 협업 메시지 전송
       if (sessionId && currentWindow) {
-        const windowName = typeof currentWindow === 'string' ? currentWindow : currentWindow.name;
-        // 🤖 AI 클라이언트 메시지 (협업 방식)
-        await dispatch({
-          type: 'chat.addMessage',
-          payload: {
-            sessionId,
-            message: {
-              id: `ai-window-disconnect-${Date.now()}`,
-              content: `🤖 **AI Assistant • 창 연결 해제**\n\n🔄 **${windowName}** 창과의 연결이 해제되었습니다.\n\n📋 **변경사항:**\n• 🔗 창 연결: 해제됨\n• 💬 모드: 일반 채팅으로 전환\n• 🎯 상태: 대기 중\n\n💡 언제든지 다시 창을 선택하여 연결할 수 있습니다!`,
-              role: 'assistant',
-              timestamp: new Date().toISOString(),
-              metadata: {
-                type: 'window-disconnection',
-                previousWindowInfo: currentWindow,
-                isCooperative: true,
-                avatar: 'ai',
-                clientId: aiClientId
-              }
-            }
-          }
-        });
+        const message = createWindowDisconnectedMessage(currentWindow, aiClientId);
+        await sendChatMessage(dispatch, { sessionId, message });
         console.log('🤖 [ChatHeader] AI 클라이언트 창 해제 알림 완료');
       }
     } catch (error) {
       console.error('❌ [ChatHeader] 창 해제 실패:', error);
+      // 🔥 에러 발생 시에도 상태 초기화
+      setIsSelectingWindow(false);
+      isWaitingForSelection.current = false;
     }
   };
 
-  // 🔥 테스트용: dispatch를 통한 getWindowAtPoint 호출
+  // 테스트용 함수
   const handleTestWindowApi = async () => {
     try {
       console.log('🧪 [ChatHeader] dispatch getWindowAtPoint 테스트 시작');
       
-      // 현재 마우스 위치 가져오기 (임의로 설정)
       const testX = 500;
       const testY = 300;
       
@@ -315,19 +200,19 @@ export default function ChatHeader({
       alert('dispatch 테스트 실패: ' + error);
     }
   };
+
   return (
-    <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
-      <div className="flex items-center gap-4">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-          <Bot className="w-5 h-5 text-white" />
+    <div className="flex items-center justify-between p-2 border-b border-gray-100 dark:border-gray-800"> {/* 🔥 패딩 줄임: p-6 → p-2 */}
+      <div className="flex items-center gap-2"> {/* 🔥 간격 줄임: gap-4 → gap-2 */}
+        <div className="w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center"> {/* 🔥 크기 줄임: w-10 h-10 → w-6 h-6 */}
+          <Bot className="w-3 h-3 text-white" /> {/* 🔥 아이콘 크기 줄임: w-5 h-5 → w-3 h-3 */}
         </div>
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{roomName}</h1>
-          <div className="flex items-center gap-2 mt-1">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <span className="text-sm text-gray-500">Live</span>
+          <h1 className="text-sm font-semibold text-gray-900 dark:text-white">{roomName}</h1> {/* 🔥 제목 크기 줄임: text-xl → text-sm */}
+          <div className="flex items-center gap-1"> {/* 🔥 간격 줄임: gap-2 → gap-1, mt-1 제거 */}
+            <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div> {/* 🔥 점 크기 줄임: w-2 h-2 → w-1.5 h-1.5 */}
+            <span className="text-xs text-gray-500">Live</span> {/* 🔥 텍스트 크기 줄임: text-sm → text-xs */}
             
-            {/* 🤖👁️ 협업 클라이언트 상태 표시 */}
             {aiClientId && (
               <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
                 • 🤖 AI
@@ -358,7 +243,7 @@ export default function ChatHeader({
       </div>
 
       <div className="flex items-center gap-3">
-        {/* 🔥 Overlay Mode Toggle - 모던한 노란색 스타일 */}
+        {/* Overlay Mode Toggle */}
         <div className="relative">
           <div className="flex items-center bg-yellow-50 dark:bg-yellow-950/20 rounded-full p-1 border-2 border-yellow-200 dark:border-yellow-800/50">
             <button
@@ -378,7 +263,6 @@ export default function ChatHeader({
               onClick={() => {
                 console.log('👁️ [ChatHeader] 오버레이 모드로 전환');
                 setOverlayMode('overlay');
-                // 오버레이 모드로 전환 시 즉시 가이드 트리거 (더 안전하게)
                 try {
                   setTimeout(() => {
                     console.log('👁️ [ChatHeader] 오버레이 가이드 트리거');
@@ -401,7 +285,6 @@ export default function ChatHeader({
             </button>
           </div>
           
-          {/* Mode Indicator */}
           <div className="absolute -top-2 -right-2">
             <div className={cn(
               'w-3 h-3 rounded-full border-2 border-white dark:border-gray-900',
@@ -411,10 +294,9 @@ export default function ChatHeader({
           </div>
         </div>
 
-        {/* 🎯 창 정보 + 변경 버튼 - 오버레이 모드일 때만 표시 */}
+        {/* 창 정보 + 버튼들 - 오버레이 모드일 때만 표시 */}
         {overlayMode === 'overlay' && (
           <div className="flex items-center gap-2">
-            {/* 현재 선택된 창 정보 표시 */}
             {currentTargetWindow ? (
               <div className={cn(
                 "flex items-center gap-2 px-3 py-2 rounded-full border-2",
@@ -450,7 +332,6 @@ export default function ChatHeader({
               </div>
             )}
             
-            {/* 🖱️ 마우스 창 선택 버튼 */}
             <button
               onClick={handleStartWindowSelection}
               disabled={isSelectingWindow}
@@ -480,7 +361,6 @@ export default function ChatHeader({
               )}
             </button>
             
-            {/* 🔄 창 선택 해제 버튼 */}
             {currentTargetWindow && (
               <button
                 onClick={handleClearWindow}
@@ -528,7 +408,6 @@ export default function ChatHeader({
           <Settings className="w-5 h-5 text-gray-600 dark:text-gray-400" />
         </button>
         
-        {/* 🧪 테스트 버튼 - dispatch getWindowAtPoint */}
         <button
           onClick={handleTestWindowApi}
           className="px-3 py-1 text-xs bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-full border border-orange-300 transition-colors"
@@ -537,7 +416,6 @@ export default function ChatHeader({
           🧪 Dispatch 테스트
         </button>
       </div>
-
     </div>
   );
-} 
+}

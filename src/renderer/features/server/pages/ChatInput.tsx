@@ -58,13 +58,13 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({ onSend, isStreaming, a
         </div>
       )}
       
-      <div className={`flex gap-3 p-4 bg-background border rounded-xl transition-all duration-200 ${
+      <div className={`flex gap-2 p-2 bg-background border rounded-lg transition-all duration-200 ${ // 🔥 간격과 패딩 줄임: gap-3 p-4 → gap-2 p-2, rounded-xl → rounded-lg
         isFocused ? 'ring-2 ring-yellow-400/20 border-yellow-400/30' : 'border-border'
       } ${isStreaming ? 'opacity-75' : ''}`}>
         
         {/* 메시지 아이콘 */}
-        <div className="flex-shrink-0 mt-2">
-          <MessageSquare className={`w-5 h-5 transition-colors ${
+        <div className="flex-shrink-0 mt-1"> {/* 🔥 마진 줄임: mt-2 → mt-1 */}
+          <MessageSquare className={`w-4 h-4 transition-colors ${ // 🔥 아이콘 크기 줄임: w-5 h-5 → w-4 h-4
             isFocused ? 'text-yellow-400' : 'text-muted-foreground'
           }`} />
         </div>
@@ -84,7 +84,7 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({ onSend, isStreaming, a
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             placeholder={getPlaceholderText()}
-            className="min-h-[50px] max-h-[150px] resize-none border-0 p-0 focus-visible:ring-0 bg-transparent placeholder:text-muted-foreground/60"
+            className="min-h-[40px] max-h-[100px] resize-none border-0 p-0 focus-visible:ring-0 bg-transparent placeholder:text-muted-foreground/60" // 🔥 높이 줄임: min-h-[50px] → min-h-[40px], max-h-[150px] → max-h-[100px]
             disabled={isStreaming}
             rows={1}
           />
@@ -104,7 +104,7 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({ onSend, isStreaming, a
             onClick={handleSend}
             disabled={!input.trim() || isStreaming}
             size="icon"
-            className={`h-10 w-10 rounded-lg transition-all duration-200 ${
+            className={`h-8 w-8 rounded-md transition-all duration-200 ${ // 🔥 버튼 크기 줄임: h-10 w-10 → h-8 w-8, rounded-lg → rounded-md
               input.trim() && !isStreaming 
                 ? 'bg-yellow-400 hover:bg-yellow-500 text-black shadow-lg hover:shadow-xl' 
                 : ''

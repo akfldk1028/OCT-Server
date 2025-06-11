@@ -50,11 +50,22 @@ export function addScreenshotActions(
 
       let screenshotPath = '';
       try {
-        // 플랫폼별 스크린샷 캡처
+        // 🔥 선택된 창 정보 가져오기
+        const { combinedStore } = require('../../stores/combinedStore');
+        const windowState = combinedStore.getState().window;
+        const targetWindow = windowState?.targetWindowInfo;
+
+        console.log('📸 [TAKE_SCREENSHOT] 캡처 모드:', {
+          hasTargetWindow: !!targetWindow,
+          windowName: targetWindow?.name,
+          bounds: targetWindow ? { x: targetWindow.x, y: targetWindow.y, width: targetWindow.width, height: targetWindow.height } : null
+        });
+
+        // 플랫폼별 스크린샷 캡처 (선택된 창 기준)
         const screenshotBuffer =
           process.platform === 'darwin'
-            ? await captureScreenshotMac()
-            : await captureScreenshotWindows();
+            ? await captureScreenshotMac(targetWindow)
+            : await captureScreenshotWindows(targetWindow);
 
         // 현재 뷰에 따라 스크린샷 저장 경로 결정
         const state = get();
@@ -173,28 +184,57 @@ export function addScreenshotActions(
   };
 }
 
-// 플랫폼별 스크린샷 캡처 구현
-async function captureScreenshotMac(): Promise<Buffer> {
+// 플랫폼별 스크린샷 캡처 구현 (선택된 창 기준)
+async function captureScreenshotMac(targetWindow?: any): Promise<Buffer> {
   const tmpPath = path.join(app.getPath('temp'), `${uuidv4()}.png`);
-  await execFileAsync('screencapture', ['-x', tmpPath]);
+  
+  if (targetWindow) {
+    // 🔥 선택된 창 영역만 캡처
+    const { x, y, width, height } = targetWindow;
+    await execFileAsync('screencapture', ['-x', '-R', `${x},${y},${width},${height}`, tmpPath]);
+  } else {
+    // 전체 화면 캡처 (fallback)
+    await execFileAsync('screencapture', ['-x', tmpPath]);
+  }
+  
   const buffer = await fs.promises.readFile(tmpPath);
   await fs.promises.unlink(tmpPath);
   return buffer;
 }
 
-async function captureScreenshotWindows(): Promise<Buffer> {
+async function captureScreenshotWindows(targetWindow?: any): Promise<Buffer> {
   const tmpPath = path.join(app.getPath('temp'), `${uuidv4()}.png`);
-  const script = `
-    Add-Type -AssemblyName System.Windows.Forms
-    Add-Type -AssemblyName System.Drawing
-    $screen = [System.Windows.Forms.Screen]::PrimaryScreen
-    $bitmap = New-Object System.Drawing.Bitmap $screen.Bounds.Width, $screen.Bounds.Height
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    $graphics.CopyFromScreen($screen.Bounds.X, $screen.Bounds.Y, 0, 0, $bitmap.Size)
-    $bitmap.Save('${tmpPath.replace(/\\/g, '\\\\')}')
-    $graphics.Dispose()
-    $bitmap.Dispose()
-  `;
+  
+  let script: string;
+  
+  if (targetWindow) {
+    // 🔥 선택된 창 영역만 캡처
+    const { x, y, width, height } = targetWindow;
+    script = `
+      Add-Type -AssemblyName System.Windows.Forms
+      Add-Type -AssemblyName System.Drawing
+      $bitmap = New-Object System.Drawing.Bitmap ${width}, ${height}
+      $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+      $graphics.CopyFromScreen(${x}, ${y}, 0, 0, $bitmap.Size)
+      $bitmap.Save('${tmpPath.replace(/\\/g, '\\\\')}')
+      $graphics.Dispose()
+      $bitmap.Dispose()
+    `;
+  } else {
+    // 전체 화면 캡처 (fallback)
+    script = `
+      Add-Type -AssemblyName System.Windows.Forms
+      Add-Type -AssemblyName System.Drawing
+      $screen = [System.Windows.Forms.Screen]::PrimaryScreen
+      $bitmap = New-Object System.Drawing.Bitmap $screen.Bounds.Width, $screen.Bounds.Height
+      $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+      $graphics.CopyFromScreen($screen.Bounds.X, $screen.Bounds.Y, 0, 0, $bitmap.Size)
+      $bitmap.Save('${tmpPath.replace(/\\/g, '\\\\')}')
+      $graphics.Dispose()
+      $bitmap.Dispose()
+    `;
+  }
+  
   await execFileAsync('powershell', ['-command', script]);
   const buffer = await fs.promises.readFile(tmpPath);
   await fs.promises.unlink(tmpPath);

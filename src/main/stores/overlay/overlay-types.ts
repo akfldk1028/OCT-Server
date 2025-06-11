@@ -108,4 +108,15 @@ export interface GuideStep {
   type: string;
   shortcut?: string;
   arrowPosition?: 'top' | 'bottom' | 'left' | 'right';
+  metadata?: {
+    targetWindow?: string;
+    relativeX?: number;
+    relativeY?: number;
+    windowX?: number;
+    windowY?: number;
+    windowWidth?: number;
+    windowHeight?: number;
+    isWindowBased?: boolean;
+    [key: string]: any;
+  };
 }
