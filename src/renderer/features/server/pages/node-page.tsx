@@ -48,6 +48,8 @@ import { useOutletContext } from 'react-router';
 import type { ServerLayoutContext } from '../types/server-types';
 import { config } from 'process';
 import FlowToolbar from '../components/Flow/FlowToolbar';
+// 🔥 DnDProvider 추가
+import { DnDProvider } from '../hook/DnDContext';
 
 // ResizeObserver 에러 무시 (ReactFlow의 알려진 무해한 에러)
 const suppressResizeObserverError = () => {
@@ -178,8 +180,8 @@ export default function NodePage() {
     { id: '1', type: 'trigger', data: { label: 'START TRIGGER' }, position: { x: 100, y: 50 } },
     clients && clients.length > 0 ?
       { id: '2', type: 'service', data: { config: clients[0] }, position: { x: 300, y: 50 } } : null,
-    servers && servers.allServers && servers.allServers.length > 0 ?
-      { id: '3', type: 'server', data: servers.allServers[0], position: { x: 500, y: 50 } } : null,
+    servers && servers.length > 0 ?
+      { id: '3', type: 'server', data: servers[0], position: { x: 500, y: 50 } } : null,
   ].filter(Boolean) as MyNode[];
 
   const dynamicInitEdges: Edge[] = [
@@ -201,14 +203,12 @@ export default function NodePage() {
     right?: number;
     bottom?: number;
   } | null>(null);
-
-  // 사이드바 토글 상태 추가
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  
+  // 🔥 노드 드래그 훅 사용 (ChannelSidebar와 연동)
+  const { onDrop, onDragOver } = useDragAndDrop();
 
   const {
-    events,
     onReconnectStart,
-    onConnectStart,
     onConnect,
     onReconnect,
     onConnectEnd,
@@ -216,194 +216,124 @@ export default function NodePage() {
     resetEvents,
   } = useFlow();
 
-  const { onDragOver, onDrop } = useDragAndDrop();
   const hideContextMenu = useCallback(() => setMenu(null), []);
   useKeyboardShortcuts(nodes, edges, setNodes, setEdges, hideContextMenu);
 
-  useEffect(() => {
-    if (!events.onReconnectEnd && !events.onConnectEnd) return;
+  // 🔥 onDrop 핸들러를 setNodes와 함께 래핑
+  const handleDrop = useCallback((event: React.DragEvent) => {
+    onDrop(event, setNodes);
+  }, [onDrop, setNodes]);
 
-    const timer = setTimeout(() => {
-      resetEvents();
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [events.onReconnectEnd, events.onConnectEnd, resetEvents]);
-
-  const onConnectHandler: OnConnect = useCallback(
-    (conn) => {
-      // 새 연결에 애니메이션과 스타일 적용
-      setEdges((eds) => addEdge({
-        ...conn,
-        animated: true, 
-        // @ts-ignore - style 속성은 실제로 작동하지만 타입 정의가 안되어 있음
-        style: { strokeWidth: 2 },
-        type: 'smoothstep'
-      }, eds));
-      onConnect();
-    },
-    [setEdges, onConnect],
+  const onConnectCallback: OnConnect = useCallback(
+    (params) => setEdges((eds) => addEdge(params, eds)),
+    [setEdges],
   );
 
-  const handleDrop = useCallback(
-    (event: React.DragEvent) => {
-      onDrop(event, setNodes);
-    },
-    [onDrop, setNodes],
-  );
-
-  const onNodeContextMenu = useCallback(
-    (event: React.MouseEvent, node: Node) => {
-      event.preventDefault();
-
-      const pane = reactFlowWrapper.current?.getBoundingClientRect();
-      if (!pane) return;
-
-      setMenu({
-        id: node.id,
-        top: event.clientY < pane.height - 200 ? event.clientY : undefined,
-        left: event.clientX < pane.width - 200 ? event.clientX : undefined,
-        right:
-          event.clientX >= pane.width - 200
-            ? pane.width - event.clientX
-            : undefined,
-        bottom:
-          event.clientY >= pane.height - 200
-            ? pane.height - event.clientY
-            : undefined,
-      });
-    },
-    [setMenu],
-  );
-
-  const onPaneClick = useCallback(() => setMenu(null), [setMenu]);
-
-  const applyLayout = useCallback(
-    async (direction: 'DOWN' | 'RIGHT' = 'DOWN') => {
-      try {
-        const { nodes: ln, edges: le } = await getLayoutedElements(
-          nodes,
-          edges,
-          {
-            ...elkOptions,
-            'elk.direction': direction,
-          },
-        );
-        setNodes(ln);
-        setEdges(le);
-        setTimeout(() => {
-          fitView({
-            padding: 0.1,
-            duration: 300,
-          });
-        }, 150);
-      } catch (error) {
-        console.error('Layout application error:', error);
-      }
-    },
-    [nodes, edges, setNodes, setEdges, fitView],
-  );
-
-  useLayoutEffect(() => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        applyLayout('DOWN');
-      });
-    });
-  }, []);
-
+  // 🔥 DnDProvider로 전체 컴포넌트 감싸기
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden" ref={reactFlowWrapper}>
-      {/* Toolbar 추가 */}
-      <FlowToolbar />
-      
-      {/* 메인 Flow 영역 */}
-      <div className="flex-1 h-full bg-background text-foreground relative transition-all duration-300 flex flex-row">
-        <div className="flex-1 h-full bg-background text-foreground relative transition-all duration-300">
-          <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnectHandler}
-          onConnectStart={onConnectStart}
-          onConnectEnd={onConnectEnd}
-          onReconnectStart={onReconnectStart}
-          onReconnect={onReconnect}
-          onReconnectEnd={onReconnectEnd}
-          onDrop={handleDrop}
-          onDragOver={onDragOver}
-          onNodeContextMenu={onNodeContextMenu}
-          onPaneClick={onPaneClick}
-          nodeTypes={nodeTypes}
-          defaultEdgeOptions={defaultEdgeOptions}
-          connectionLineType={ConnectionLineType.SmoothStep}
-          connectionLineStyle={{ strokeWidth: 2, stroke: 'hsl(var(--primary))' }}
-          fitView
-          fitViewOptions={{ padding: 0.1, minZoom: 0.5, maxZoom: 2 }}
-          style={{ backgroundColor: 'hsl(var(--background))', paddingRight: sidebarOpen ? 320 : 0 }}
-          attributionPosition="bottom-right"
-          edgesReconnectable
-        >
-          <Panel position="top-left" >
-            <div className="flex gap-2 ">
-              <button
-                className="bg-card border border-border rounded px-4 py-2 cursor-pointer text-sm font-medium text-card-foreground transition-all duration-150 hover:bg-accent hover:border-accent active:bg-muted"
-                onClick={() => applyLayout('DOWN')}
-              >
-                Vertical
-              </button>
-              <button
-                className="bg-card border border-border rounded px-4 py-2 cursor-pointer text-sm font-medium text-card-foreground transition-all duration-150 hover:bg-accent hover:border-accent active:bg-muted"
-                onClick={() => applyLayout('RIGHT')}
-              >
-                Horizontal
-              </button>
-              {/* 사이드바 토글 버튼 */}
-              <button
-                className="bg-card border border-border rounded px-4 py-2 cursor-pointer text-sm font-medium text-card-foreground transition-all duration-150 hover:bg-accent hover:border-accent active:bg-muted"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-              >
-                {sidebarOpen ? '◀ Hide' : '▶ Show'}
-              </button>
-            </div>
-          </Panel>
-          <Controls />
-          <Background />
-          {menu && <ContextMenu onClick={onPaneClick} {...menu} />}
-        </ReactFlow>
-
-
-        {/* 키보드 단축키 안내 */}
-        <div className="absolute bottom-2.5 left-12 bg-card text-card-foreground border border-border p-2.5 rounded-lg shadow-md text-xs opacity-80 z-10">
-          <div className="font-semibold">
-            Keyboard Shortcuts:
-          </div>
-          <div>Delete/Backspace: Delete selected</div>
-          <div>Ctrl+S: Save (coming soon)</div>
-          <div>Ctrl+Z: Undo (coming soon)</div>
-          <div>Esc: Close menu/deselect</div>
-        </div>
-
-        {/* 오른쪽 사이드바 */}
-        {sidebarOpen && (
-          <div
-            className="absolute top-1 right-12 h-[calc(100%)] z-30"
-            style={{
-              width: sidebarOpen ? 350 : 64,
-              minWidth: sidebarOpen ? 350 : 64,
-              maxWidth: sidebarOpen ? 350 : 64,
-              transition: 'width 0.3s',
-            }}
-          >
-            <aside
+    <DnDProvider>
+        <div className="w-full h-full relative bg-background">
+          <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%' }}>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnectCallback}
+              nodeTypes={nodeTypes}
+              connectionLineType={ConnectionLineType.SmoothStep}
+              defaultEdgeOptions={defaultEdgeOptions}
+              onReconnectStart={onReconnectStart}
+              onReconnect={onReconnect}
+              onReconnectEnd={onReconnectEnd}
+              onConnectStart={onReconnectStart}
+              onConnectEnd={onConnectEnd}
+              onPaneClick={hideContextMenu}
+              onNodeContextMenu={(event, node) => {
+                event.preventDefault();
+                setMenu({
+                  id: node.id,
+                  top: event.clientY,
+                  left: event.clientX,
+                });
+              }}
+              // 🔥 드래그앤드롭 핸들러 설정
+              onDrop={handleDrop}
+              onDragOver={onDragOver}
+              fitView
+              fitViewOptions={{ padding: 0.1, minZoom: 0.5, maxZoom: 2 }}
+              style={{ backgroundColor: 'hsl(var(--background))', paddingRight: 0 }}
+              attributionPosition="bottom-right"
+              edgesReconnectable
+              reconnectRadius={20}
+              proOptions={{ hideAttribution: true }}
             >
-              <Sidebar onClose={() => setSidebarOpen(false)} />
-            </aside>
+              <Background />
+              <Controls position="bottom-left" />
+              <Panel position="top-right">
+                <FlowToolbar />
+              </Panel>
+              <Panel position="top-left">
+                <div className="flex flex-col gap-2 p-2 bg-card border border-border rounded-lg shadow-sm">
+                  <button
+                    className="bg-card border border-border rounded px-4 py-2 cursor-pointer text-sm font-medium text-card-foreground transition-all duration-150 hover:bg-accent hover:border-accent active:bg-muted"
+                    onClick={async () => {
+                      const { nodes: layoutedNodes, edges: layoutedEdges } =
+                        await getLayoutedElements(nodes, edges, {
+                          ...elkOptions,
+                          'elk.direction': 'DOWN',
+                        });
+                      setNodes(layoutedNodes as any);
+                      setEdges(layoutedEdges as any);
+                    }}
+                  >
+                    Vertical
+                  </button>
+                  <button
+                    className="bg-card border border-border rounded px-4 py-2 cursor-pointer text-sm font-medium text-card-foreground transition-all duration-150 hover:bg-accent hover:border-accent active:bg-muted"
+                    onClick={async () => {
+                      const { nodes: layoutedNodes, edges: layoutedEdges } =
+                        await getLayoutedElements(nodes, edges, {
+                          ...elkOptions,
+                          'elk.direction': 'RIGHT',
+                        });
+                      setNodes(layoutedNodes as any);
+                      setEdges(layoutedEdges as any);
+                    }}
+                  >
+                    Horizontal
+                  </button>
+                </div>
+              </Panel>
+            </ReactFlow>
+
+            {menu && (
+              <ContextMenu
+                onClick={hideContextMenu}
+                onDelete={(id) => {
+                  setNodes((nodes) => nodes.filter((node) => node.id !== id));
+                  setEdges((edges) =>
+                    edges.filter((edge) => edge.source !== id && edge.target !== id),
+                  );
+                  setMenu(null);
+                }}
+                id={menu.id}
+                top={menu.top}
+                left={menu.left}
+                right={menu.right}
+                bottom={menu.bottom}
+              />
+            )}
           </div>
-        )}
-        </div>
-      </div>
-    </div>
-  );
+
+          {/* 단축키 안내 */}
+          <div className="absolute bottom-4 left-4 text-xs text-muted-foreground bg-card/80 p-3 rounded-lg border shadow-sm">
+            <div>Shift+D: Duplicate selected nodes</div>
+            <div>Delete: Remove selected items</div>
+            <div>Ctrl+A: Select all</div>
+            <div>Esc: Close menu/deselect</div>
+          </div>
+                 </div>
+     </DnDProvider>
+   );
 }

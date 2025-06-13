@@ -9,7 +9,7 @@ import {
   useNavigate
 } from 'react-router';
 import { Settings } from 'luxon';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from './lib/utils';
 import useTheme from '@/lib/useTheme';
@@ -21,17 +21,69 @@ import Navigation from './common/components/navigation';
 import {ensureOverlayApi} from './utils/api'
 import {ShortcutHandlerMap, shortcutManager, SHORTCUTS} from '@/common/shortcut_action/shortcut'; // 경로는 실제 위치에 맞게 조정
 import { useDispatch, useStore } from '@/hooks/useStore';
+import ChannelSidebar from './common/components/ChannelSidebar';
+import CustomTitleBar from './common/components/CustomTitleBar';
+import { DnDProvider } from './features/server/hook/DnDContext';
+import { getClients } from './features/server/queries';
+import { getUserInstalledServers } from './features/products/queries';
+import { getMcpConfigsByServerId } from './features/products/queries';
 
 // loader 함수 정의
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  
   if (user && user.id) {
     const [profile] = await Promise.all([getUserById(supabase as any, {id: user.id})]);
-    return { user, profile };
+    
+    // 🔥 서버/클라이언트 데이터도 가져오기 (server-layout.tsx에서 이동)
+    try {
+
+      // 클라이언트 데이터 가져오기
+      const clients = await getClients(supabase as any, { limit: 100 });
+      
+      // 설치된 서버 데이터 가져오기
+      const installedServers = await getUserInstalledServers(supabase as any, {
+        profile_id: user.id,
+      });
+      
+      // 각 서버의 설정들 병렬로 가져오기
+      const servers = await Promise.all(
+        installedServers.map(async (server) => {
+          try {
+            const configs = await getMcpConfigsByServerId(supabase as any, {
+              original_server_id: server.original_server_id
+            });
+            
+            return {
+              ...server,
+              mcp_configs: configs
+            };
+          } catch (configError) {
+            console.warn(`⚠️ [root loader] 서버 ${server.original_server_id} 설정 로드 실패:`, configError);
+            return {
+              ...server,
+              mcp_configs: []
+            };
+          }
+        })
+      );
+      
+      console.log('✅ [root loader] 서버+클라이언트 데이터 로드 완료:', {
+        servers: servers.length,
+        clients: clients.length
+      });
+      
+      return { user, profile, servers, clients };
+      
+    } catch (error) {
+      console.error('❌ [root loader] 서버/클라이언트 데이터 로드 실패:', error);
+      return { user, profile, servers: [], clients: [] };
+    }
   }
-  return { user: null, profile: null };
+  
+  return { user: null, profile: null, servers: [], clients: [] };
 };
 
 // 로더 데이터 타입 정의
@@ -43,6 +95,8 @@ type LoaderData = {
     username: string;
     avatar: string | null;
   } | null;
+  servers: any[];
+  clients: any[];
 };
 
 // 이 타입은 Route.LoaderArgs를 대체합니다
@@ -50,7 +104,7 @@ type LoaderData = {
 export function Root() {
   const loaderData = useLoaderData() as LoaderData | undefined;
 
-  const { user, profile} = loaderData ?? { user: null, profile: null };  const { pathname } = useLocation();
+  const { user, profile, servers = [], clients = [] } = loaderData ?? { user: null, profile: null, servers: [], clients: [] };  const { pathname } = useLocation();
   const navigation = useNavigation();
   const navigate = useNavigate(); // 훅은 컴포넌트 최상단에서 호출
 
@@ -59,6 +113,9 @@ export function Root() {
 
   const dispatch = useDispatch();
   const store = useStore();
+  
+  // 🔥 선택된 메뉴 상태 관리 (Slack 스타일)
+  const [selectedMenu, setSelectedMenu] = useState<string | null>(null);
 
   Settings.defaultLocale = 'ko';
   Settings.defaultZone = 'utc';
@@ -135,6 +192,8 @@ export function Root() {
             username: profile?.username,
             avatar: profile?.avatar,
             email: user?.email,
+            servers,
+            clients,
           }}
         />
       </div>
@@ -143,44 +202,77 @@ export function Root() {
 
   // Electron 환경 (기존)
   return (
-    <div className="flex h-screen overflow-hidden">
+    <DnDProvider>
+      <div className="relative flex flex-col h-screen overflow-hidden">
+      {/* 🌲 커스텀 타이틀바 - Electron에서만 표시 */}
       {!pathname.includes('/auth') && (
-        <Sidebar
-          isLoggedIn={isLoggedIn}
-          username={profile?.username || ""}
-          avatar={profile?.avatar || null}
-          name={profile?.name || ""}
-          hasNotifications={false}
-          hasMessages={false}
-          collapsed={pathname.includes('/jobs/node') || pathname === '/overlay'} // 추가!
-          />
-      )}
-      <main
-        className={cn(
-          'flex-1 h-full',
-          {
-            'overflow-y-auto py-20 md:py-40 px-5 md:px-20': (!pathname.startsWith('/chat') && !pathname.includes('/auth/') && !pathname.includes('/server/node-page') && !(typeof window !== 'undefined' && (window as any).IS_ELECTRON && pathname === '/')),
-            'overflow-hidden  py-0 md:py-0 px-0 md:px-0': pathname.includes('/jobs/node'),
-            'overflow-hidden  py-10 md:py-10 px-5 md:px-10': pathname.includes('/jobs/inspector'),
-            'overflow-y-auto py-10 md:py-20 px-5 md:px-20': IS_ELECTRON && pathname === '/',
-            'overflow-y-auto  py-0 px-5 md:py-0 min-h-screen bg-background': pathname.includes('/chat/'),
-
-            'transition-opacity animate-pulse': isLoading,
-          }
-        )}
-      >
-        <Outlet
-          context={{
-            isLoggedIn,
-            name: profile?.name || "",
-            userId: user?.id || "",
-            username: profile?.username || "",
-            avatar: profile?.avatar || null,
-            email: user?.email || "",
-          }}
+        <CustomTitleBar 
+          title="OCT Server"
+          showMenuButton={true}
         />
-      </main>
+      )}
+      
+      {/* 🌲 타이틀바 높이(32px)만큼 여백 추가 */}
+      <div className={cn(
+        "flex flex-1 overflow-hidden",
+        {
+          "pt-8": !pathname.includes('/auth'), // 32px (h-8) 여백 추가
+        }
+      )}>
+        {!pathname.includes('/auth') && (
+          <>
+            <Sidebar
+              isLoggedIn={isLoggedIn}
+              username={profile?.username || ""}
+              avatar={profile?.avatar || null}
+              name={profile?.name || ""}
+              hasNotifications={false}
+              hasMessages={false}
+              collapsed={true} // 🔥 Slack 스타일: 항상 아이콘만 표시
+              onMenuSelect={setSelectedMenu} // 🔥 메뉴 선택 핸들러
+              />
+            {/* 🔥 ChannelSidebar 항상 표시 - Slack 스타일 */}
+            <ChannelSidebar 
+              selectedMenu={selectedMenu}
+              servers={servers}
+              clients={clients}
+              onNodeDragStart={(event, nodeType) => {
+                // 🔥 노드 드래그 시작 - React Flow로 전달
+                event.dataTransfer.setData('application/node-type', nodeType);
+                event.dataTransfer.effectAllowed = 'move';
+              }}
+            />
+          </>
+        )}
+        <main
+          className={cn(
+            'flex-1 h-full',
+            {
+              'overflow-y-auto py-20 md:py-40 px-5 md:px-20': (!pathname.startsWith('/chat') && !pathname.includes('/auth/') && !pathname.includes('/server/node-page') && !(typeof window !== 'undefined' && (window as any).IS_ELECTRON && pathname === '/')),
+              'overflow-hidden py-0 md:py-0 px-0 md:px-0': pathname.includes('/jobs/node'),
+              'overflow-hidden py-10 md:py-10 px-5 md:px-10': pathname.includes('/jobs/inspector'),
+              'overflow-y-auto py-10 md:py-20 px-5 md:px-20': IS_ELECTRON && pathname === '/',
+              'overflow-y-auto py-0 px-5 md:py-0 min-h-screen bg-background': pathname.includes('/chat/'),
+              'transition-opacity animate-pulse': isLoading,
+            }
+          )}
+        >
+          <Outlet
+            context={{
+              isLoggedIn,
+              name: profile?.name || "",
+              userId: user?.id || "",
+              username: profile?.username || "",
+              avatar: profile?.avatar || null,
+              email: user?.email || "",
+              servers,
+              clients,
+            }}
+          />
+        </main>
+      </div>
     </div>
+    </DnDProvider>
   );
 }
 

@@ -121,6 +121,12 @@ export async function createMainWindow(
     transparent?: boolean;
     frame?: boolean;
     alwaysOnTop?: boolean;
+    titleBarStyle?: 'default' | 'hidden' | 'hiddenInset' | 'customButtonsOnHover';
+    titleBarOverlay?: {
+      color?: string;
+      symbolColor?: string;
+      height?: number;
+    } | false;
   } = {}
 ): Promise<BrowserWindow> {
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -131,9 +137,11 @@ export async function createMainWindow(
   const windowOptions = {
     width: options.width || 1024,
     height: options.height || 728,
-    transparent: false,  // 투명 설정을 false로 변경
-    frame: true,        // 프레임 없는 설정 유지
-    alwaysOnTop: false,
+    transparent: options.transparent ?? false,  // 투명 설정을 false로 기본값
+    frame: options.frame ?? (process.platform === 'win32' ? false : true), // 🌲 Windows에서는 프레임 완전 제거
+    alwaysOnTop: options.alwaysOnTop ?? false,
+    titleBarStyle: options.titleBarStyle || 'hidden', // 🌲 완전히 숨김 (모든 플랫폼)
+    titleBarOverlay: options.titleBarOverlay !== undefined ? options.titleBarOverlay : false, // 🌲 커스텀 타이틀바 사용하므로 오버레이 비활성화
     preloadPath: options.preloadPath || (app.isPackaged
       ? path.join(__dirname, 'preload.js')
       : path.join(__dirname, '../../.erb/dll/preload.js')),
@@ -145,8 +153,11 @@ export async function createMainWindow(
     height: windowOptions.height,
     icon: getAssetPath('icon.png'),
     transparent: windowOptions.transparent,
-    frame: windowOptions.frame,
+    frame: windowOptions.frame, // 🌲 Windows에서는 false로 설정됨
     alwaysOnTop: windowOptions.alwaysOnTop,
+    backgroundColor: '#264A2B', // 🌲 Forest Green 배경색
+    titleBarStyle: windowOptions.titleBarStyle, // 🌲 hidden으로 설정됨
+    titleBarOverlay: windowOptions.titleBarOverlay, // 🌲 false로 설정됨 (커스텀 타이틀바 사용)
     webPreferences: {
       preload: windowOptions.preloadPath,
       devTools: true, // ✅ 개발자 도구 활성화 (F12 사용 가능)
@@ -161,6 +172,7 @@ export async function createMainWindow(
     if (!mainWindow) {
       throw new Error('"mainWindow" is not defined');
     }
+    
     if (process.env.START_MINIMIZED) {
       mainWindow.minimize();
     } else {

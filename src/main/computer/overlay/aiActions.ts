@@ -5,6 +5,29 @@ import { OverlayState, GuideStep } from '../../stores/overlay/overlay-types';
 import { anthropic } from '../antropic/anthropic';
 import { hideWindowBlock } from '../../window';
 
+// 🔥 메모리 효율적인 스크린샷 캐시 시스템
+const screenshotCache = new Map<string, { data: string; timestamp: number }>();
+const CACHE_DURATION = 2000; // 2초 캐시
+const MAX_CACHE_SIZE = 3; // 최대 3개 캐시
+
+// 🔥 캐시 정리 함수
+const cleanupCache = () => {
+  const now = Date.now();
+  for (const [key, value] of screenshotCache.entries()) {
+    if (now - value.timestamp > CACHE_DURATION) {
+      screenshotCache.delete(key);
+    }
+  }
+  
+  // 크기 제한
+  if (screenshotCache.size > MAX_CACHE_SIZE) {
+    const oldestKey = screenshotCache.keys().next().value;
+    if (oldestKey) {
+      screenshotCache.delete(oldestKey);
+    }
+  }
+};
+
 // 스크린샷 관련 함수들
 function getScreenDimensions(): { width: number; height: number } {
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -18,20 +41,23 @@ function getAiScaledScreenDimensions(): { width: number; height: number } {
   let scaledWidth: number;
   let scaledHeight: number;
 
-  // 🔥 성능 최적화: 이미지 크기를 더 작게 조정 (1280x800 → 960x600)
-  if (aspectRatio > 960 / 600) {
-    scaledWidth = 960;
-    scaledHeight = Math.round(960 / aspectRatio);
+  // 🔥 성능 최적화: 이미지 크기를 더 작게 조정 (1280x800 → 720x450)
+  if (aspectRatio > 720 / 450) {
+    scaledWidth = 720;
+    scaledHeight = Math.round(720 / aspectRatio);
   } else {
-    scaledHeight = 600;
-    scaledWidth = Math.round(600 * aspectRatio);
+    scaledHeight = 450;
+    scaledWidth = Math.round(450 * aspectRatio);
   }
 
-  console.log('📏 [getAiScaledScreenDimensions] 최적화된 크기:', { 
-    original: { width, height }, 
-    scaled: { width: scaledWidth, height: scaledHeight },
-    reduction: `${Math.round((1 - (scaledWidth * scaledHeight) / (width * height)) * 100)}%`
-  });
+  // 🔥 개발 환경에서만 상세 로그 출력
+  if (process.env.NODE_ENV === 'development') {
+    console.log('📏 [getAiScaledScreenDimensions] 최적화된 크기:', { 
+      original: { width, height }, 
+      scaled: { width: scaledWidth, height: scaledHeight },
+      reduction: `${Math.round((1 - (scaledWidth * scaledHeight) / (width * height)) * 100)}%`
+    });
+  }
 
   return { width: scaledWidth, height: scaledHeight };
 }
@@ -41,6 +67,9 @@ const getScreenshotWithWindowInfo = async (): Promise<{
   screenshot: string; 
   windowInfo?: any 
 }> => {
+  const startTime = Date.now();
+  const startMemory = process.memoryUsage();
+  
   try {
     const { combinedStore } = require('../../stores/combinedStore');
     const windowState = combinedStore.getState().window;
@@ -48,18 +77,45 @@ const getScreenshotWithWindowInfo = async (): Promise<{
     
     console.log('📸 [getScreenshotWithWindowInfo] 창 정보:', targetWindow?.name);
     
+    let screenshot: string;
+    let windowInfo: any = null;
+    
     if (targetWindow && windowState?.captureTargetWindow) {
       // 선택된 창만 캡처
-      const screenshot = await windowState.captureTargetWindow();
-      return { 
-        screenshot, 
-        windowInfo: targetWindow 
-      };
+      screenshot = await windowState.captureTargetWindow();
+      windowInfo = targetWindow;
+    } else {
+      // 폴백: 전체 화면 캡처
+      screenshot = await fallbackScreenshot();
     }
     
-    // 폴백: 전체 화면 캡처
-    const screenshot = await fallbackScreenshot();
-    return { screenshot };
+    // 🔥 성능 및 메모리 모니터링
+    const endTime = Date.now();
+    const endMemory = process.memoryUsage();
+    const memoryDelta = {
+      rss: endMemory.rss - startMemory.rss,
+      heapUsed: endMemory.heapUsed - startMemory.heapUsed,
+      external: endMemory.external - startMemory.external
+    };
+    
+    console.log('📊 [getScreenshotWithWindowInfo] 성능 리포트:', {
+      duration: `${endTime - startTime}ms`,
+      memoryDelta: {
+        rss: `${Math.round(memoryDelta.rss / 1024 / 1024 * 100) / 100}MB`,
+        heapUsed: `${Math.round(memoryDelta.heapUsed / 1024 / 1024 * 100) / 100}MB`,
+        external: `${Math.round(memoryDelta.external / 1024 / 1024 * 100) / 100}MB`
+      },
+      screenshotSize: `${Math.round(screenshot.length / 1024)}KB`,
+      windowType: windowInfo ? 'targeted' : 'fullscreen'
+    });
+    
+    // 🔥 메모리 정리 (큰 스크린샷 처리 후)
+    if (global.gc) {
+      global.gc();
+      console.log('🧹 [getScreenshotWithWindowInfo] 가비지 컬렉션 실행');
+    }
+    
+    return { screenshot, windowInfo };
     
   } catch (error) {
     console.error('❌ [getScreenshotWithWindowInfo] 실패:', error);
@@ -68,27 +124,102 @@ const getScreenshotWithWindowInfo = async (): Promise<{
   }
 };
 
-// 폴백 전체 화면 캡처
+// 🔥 캐시 키 생성 함수
+const getCacheKey = (windowInfo?: any): string => {
+  if (windowInfo) {
+    return `window_${windowInfo.id}_${windowInfo.x}_${windowInfo.y}`;
+  }
+  return 'fullscreen';
+};
+
+// 폴백 전체 화면 캡처 (캐시 적용)
 const fallbackScreenshot = async (): Promise<string> => {
+  const cacheKey = getCacheKey();
+  
+  // 🔥 캐시 확인
+  cleanupCache();
+  const cached = screenshotCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log('📸 [fallbackScreenshot] 캐시에서 반환');
+    return cached.data;
+  }
+
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.size;
   const aiDimensions = getAiScaledScreenDimensions();
 
-  return hideWindowBlock(async () => {
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width, height },
-    });
-    const primarySource = sources[0];
+  try {
+    const result = await hideWindowBlock(async () => {
+      // 🔥 타임아웃 추가 (5초)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Screenshot timeout')), 5000);
+      });
+      
+      const screenshotPromise = (async () => {
+        const sources = await desktopCapturer.getSources({
+          types: ['screen'],
+          thumbnailSize: aiDimensions, // 🔥 최적화: 처음부터 작은 크기로 캡처
+        });
+        const primarySource = sources[0];
 
-    if (primarySource) {
-      const screenshot = primarySource.thumbnail;
-      const resizedScreenshot = screenshot.resize(aiDimensions);
-      const base64Image = resizedScreenshot.toPNG().toString('base64');
-      return base64Image;
+        if (primarySource) {
+          const screenshot = primarySource.thumbnail;
+          
+          // 🔥 최적화: JPEG 압축 사용 (PNG보다 50-70% 작음)
+          const jpegBuffer = screenshot.toJPEG(75); // 75% 품질 (AI 분석에 충분, 더 작은 파일)
+          const base64Image = jpegBuffer.toString('base64');
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('📸 [fallbackScreenshot] 압축 완료:', {
+              originalSize: `${width}x${height}`,
+              compressedSize: `${aiDimensions.width}x${aiDimensions.height}`,
+              format: 'JPEG 75%',
+              dataSize: `${Math.round(base64Image.length / 1024)}KB`
+            });
+          }
+          
+          return base64Image;
+        }
+        throw new Error('No display found for screenshot');
+      })();
+      
+      return Promise.race([screenshotPromise, timeoutPromise]);
+    });
+    
+    // 🔥 캐시에 저장
+    screenshotCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+    
+    return result;
+    
+  } catch (error) {
+    console.error('❌ [fallbackScreenshot] 실패:', error);
+    
+    // 🔥 에러 복구: 더 작은 크기로 재시도
+    try {
+      console.log('🔄 [fallbackScreenshot] 더 작은 크기로 재시도...');
+      const smallerDimensions = { width: 480, height: 300 };
+      
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: smallerDimensions,
+      });
+      
+      if (sources[0]) {
+        const jpegBuffer = sources[0].thumbnail.toJPEG(60);
+        const base64Image = jpegBuffer.toString('base64');
+        
+        console.log('✅ [fallbackScreenshot] 복구 성공');
+        return base64Image;
+      }
+    } catch (retryError) {
+      console.error('❌ [fallbackScreenshot] 복구 실패:', retryError);
     }
-    throw new Error('No display found for screenshot');
-  });
+    
+    throw error;
+  }
 };
 
 // 🔥 창 정보를 포함한 프롬프트 생성
@@ -158,7 +289,7 @@ const promptForGuideWithWindow = async (
           type: 'image',
           source: {
             type: 'base64',
-            media_type: 'image/png',
+            media_type: 'image/jpeg', // 🔥 JPEG 형식으로 변경
             data: screenshotData,
           },
         },
@@ -166,10 +297,12 @@ const promptForGuideWithWindow = async (
     };
   }
 
+  // 🔥 AI 요청 최적화
+  const startAITime = Date.now();
   const message = await anthropic.beta.messages.create({
     model: 'claude-3-5-sonnet-20241022',
-    max_tokens: 1024,
-    system: `당신은 소프트웨어 인터페이스 가이드 생성 전문가입니다.
+    max_tokens: 800, // 🔥 토큰 절약: 1024 → 800
+    system: `소프트웨어 가이드 생성 전문가입니다.
 
 ${windowContext}
 
@@ -191,13 +324,19 @@ ${windowContext}
 }
 \`\`\`
 
-가이드 작성 규칙:
-1. 사용자가 클릭하거나 상호작용해야 하는 UI 요소 근처에 가이드를 배치하세요.
-2. 여러 단계가 있다면 순서대로 진행하기 쉽게 배치하세요.
-3. 가이드가 서로 겹치지 않도록 적절히 간격을 두세요.
-4. 설명은 명확하고 간결하게 작성하세요.`,
+규칙:
+1. UI 요소 근처에 가이드 배치
+2. 순서대로 진행하기 쉽게 배치
+3. 겹치지 않게 간격 유지
+4. 명확하고 간결한 설명`,
     messages: historyWithoutImages,
   });
+
+  // 🔥 AI 응답 시간 측정
+  const aiTime = Date.now() - startAITime;
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`🤖 [promptForGuideWithWindow] AI 응답 시간: ${aiTime}ms`);
+  }
 
   return { content: message.content, role: message.role };
 };

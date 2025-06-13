@@ -827,32 +827,96 @@ export const windowStore = createStore<WindowState>((set, get) => ({
         
         console.log('🎯 메인 창 크기 및 위치 조정:', `(${targetX}, ${targetY}) ${newSize.width}×${newSize.height}`);
         
-        // 🔥 setBounds 대신 setPosition과 setSize 분리 호출
-        console.log('🔥 [setPosition] 위치 설정:', targetX, targetY);
-        mainWindowRef.setPosition(targetX, targetY);
+        // 🔥 Windows에서 더 안정적인 위치 설정
+        console.log('🔥 [setBounds] 위치와 크기 동시 설정:', { x: targetX, y: targetY, width: newSize.width, height: newSize.height });
         
-        console.log('🔥 [setSize] 크기 설정:', newSize.width, newSize.height);
+        // 🔥 방법 1: 먼저 크기 설정
         mainWindowRef.setSize(newSize.width, newSize.height);
         
-        // 🔥 실제 적용된 위치 확인
+        // 🔥 방법 2: 그 다음 위치 설정 (약간의 지연)
+        setTimeout(() => {
+          if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+            mainWindowRef.setPosition(targetX, targetY);
+            
+            // 🔥 방법 3: 최종 확인 후 setBounds로 강제 설정
+            setTimeout(() => {
+              if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+                mainWindowRef.setBounds({ 
+                  x: targetX, 
+                  y: targetY, 
+                  width: newSize.width, 
+                  height: newSize.height 
+                });
+              }
+            }, 50);
+          }
+        }, 50);
+        
+        // 🔥 실제 적용된 위치 확인 및 강력한 보정
         setTimeout(() => {
           if (mainWindowRef && !mainWindowRef.isDestroyed()) {
             const actualBounds = mainWindowRef.getBounds();
             console.log('🔍 [실제 위치 확인]:', actualBounds);
             console.log('🔍 [목표 위치]:', { x: targetX, y: targetY, width: newSize.width, height: newSize.height });
             
-            // 위치가 다르면 다시 시도
-            if (actualBounds.x !== targetX || actualBounds.y !== targetY) {
+            // 위치나 크기가 다르면 여러 번 시도
+            const tolerance = 5; // 5픽셀 허용 오차
+            const isPositionWrong = Math.abs(actualBounds.x - targetX) > tolerance || Math.abs(actualBounds.y - targetY) > tolerance;
+            const isSizeWrong = Math.abs(actualBounds.width - newSize.width) > tolerance || Math.abs(actualBounds.height - newSize.height) > tolerance;
+            
+            if (isPositionWrong || isSizeWrong) {
               console.log('🔄 [위치 재설정] 다시 시도...');
-              mainWindowRef.setBounds({ 
-                x: targetX, 
-                y: targetY, 
-                width: newSize.width, 
-                height: newSize.height 
-              });
+              
+              // 🔥 여러 방법으로 시도
+                             const retryMethods = [
+                 () => mainWindowRef?.setBounds({ x: targetX, y: targetY, width: newSize.width, height: newSize.height }),
+                 () => {
+                   mainWindowRef?.setPosition(targetX, targetY);
+                   mainWindowRef?.setSize(newSize.width, newSize.height);
+                 },
+                 () => {
+                   mainWindowRef?.setSize(newSize.width, newSize.height);
+                   mainWindowRef?.setPosition(targetX, targetY);
+                 }
+               ];
+              
+              let retryCount = 0;
+              const maxRetries = 3;
+              
+              const retryInterval = setInterval(() => {
+                if (retryCount >= maxRetries || !mainWindowRef || mainWindowRef.isDestroyed()) {
+                  clearInterval(retryInterval);
+                  return;
+                }
+                
+                try {
+                  retryMethods[retryCount]();
+                  console.log(`🔄 [재시도 ${retryCount + 1}/${maxRetries}] 방법 ${retryCount + 1} 적용`);
+                  
+                  setTimeout(() => {
+                    if (mainWindowRef && !mainWindowRef.isDestroyed()) {
+                      const newBounds = mainWindowRef.getBounds();
+                      const newPositionCorrect = Math.abs(newBounds.x - targetX) <= tolerance && Math.abs(newBounds.y - targetY) <= tolerance;
+                      const newSizeCorrect = Math.abs(newBounds.width - newSize.width) <= tolerance && Math.abs(newBounds.height - newSize.height) <= tolerance;
+                      
+                      if (newPositionCorrect && newSizeCorrect) {
+                        console.log('✅ [위치 재설정] 성공!', newBounds);
+                        clearInterval(retryInterval);
+                      }
+                    }
+                  }, 50);
+                  
+                  retryCount++;
+                } catch (error) {
+                  console.error(`❌ [재시도 ${retryCount + 1}] 실패:`, error);
+                  retryCount++;
+                }
+              }, 100);
+            } else {
+              console.log('✅ [위치 확인] 정확히 설정됨');
             }
           }
-        }, 100);
+        }, 150);
       } else {
         // 폴백: 화면 기준으로 배치
         const primaryDisplay = screen.getPrimaryDisplay();

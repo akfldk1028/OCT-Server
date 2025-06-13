@@ -115,9 +115,10 @@ const createWindow = async () => {
 
   // 메인 윈도우 생성 및 옵션 전달
   mainWindow = await createMainWindow(getAssetPath, {
-    width: 1024,
-    height: 728,
+    width: 1200,  // 🔥 Slack과 비슷한 크기로 증가 (1024 → 1200)
+    height: 800,  // 🔥 Slack과 비슷한 크기로 증가 (728 → 800)
     // transparent: true,
+    // 🌲 완전 커스텀 타이틀바 - 네이티브 타이틀바 완전히 숨김
   });
 
   // 🔥 Window-Specific Overlay를 위해 windowStore에 메인 윈도우 설정

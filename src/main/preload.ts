@@ -50,6 +50,11 @@ export type Channels =
   // ...기존 채널
   | 'set-guide-window'
   | 'reset-window'
+  // 🌲 커스텀 타이틀바 윈도우 컨트롤 채널들 추가
+  | 'minimize-window'
+  | 'maximize-window'
+  | 'close-window'
+  | 'show-window'
   // 🔥 Window-Specific Overlay 채널들 추가
   | 'get-screen-access'
   | 'open-screen-security'
@@ -102,6 +107,11 @@ const electronHandler = {
         'mcpRegistry:executeTool',
         'mcp:connectServer',
         'mcp:getStatus',
+        // 🌲 커스텀 타이틀바 윈도우 컨트롤 채널들 추가
+        'minimize-window',
+        'maximize-window',
+        'close-window',
+        'show-window',
         // 🔥 Window-Specific Overlay IPC 채널들 추가
         'get-screen-access',
         'open-screen-security',

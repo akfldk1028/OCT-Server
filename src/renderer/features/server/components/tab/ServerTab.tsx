@@ -98,7 +98,31 @@ export default function ServerTab({
               console.log('서버 드래그 설정 완료:', server.id);
             }}
           >
-            <span className="text-2xl">🧩</span>
+            {/* 🔥 축소 상태에서도 실제 아이콘 표시 */}
+            {server.mcp_servers?.local_image_path ? (
+              <img
+                src={server.mcp_servers.local_image_path}
+                alt={server.mcp_servers.name || 'Server'}
+                className="w-8 h-8 rounded object-cover"
+                onError={(e) => {
+                  // 이미지 로드 실패시 fallback
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+            ) : null}
+            {/* 🔥 Fallback avatar */}
+            <div 
+              className={`w-8 h-8 rounded flex items-center justify-center text-white font-bold text-sm ${
+                server.mcp_servers?.local_image_path ? 'hidden' : ''
+              }`}
+              style={{ 
+                backgroundColor: server.mcp_servers?.fallback_avatar_color || '#6366f1' 
+              }}
+            >
+              {server.mcp_servers?.fallback_avatar_initials || server.mcp_servers?.name?.slice(0, 2).toUpperCase() || '🧩'}
+            </div>
           </div>
         ))}
       </div>
@@ -140,7 +164,31 @@ export default function ServerTab({
           }}
         >
           <CardHeader className="flex flex-col items-center pb-0">
-            <span className="text-4xl mb-2">🧩</span>
+            {/* 🔥 실제 서버 아이콘/이미지 표시 */}
+            {server.mcp_servers?.local_image_path ? (
+              <img
+                src={server.mcp_servers.local_image_path}
+                alt={server.mcp_servers.name || 'Server'}
+                className="w-12 h-12 mb-2 rounded-lg object-cover"
+                onError={(e) => {
+                  // 이미지 로드 실패시 fallback
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+            ) : null}
+            {/* 🔥 Fallback avatar (initials + color) */}
+            <div 
+              className={`w-12 h-12 mb-2 rounded-lg flex items-center justify-center text-white font-bold text-lg ${
+                server.mcp_servers?.local_image_path ? 'hidden' : ''
+              }`}
+              style={{ 
+                backgroundColor: server.mcp_servers?.fallback_avatar_color || '#6366f1' 
+              }}
+            >
+              {server.mcp_servers?.fallback_avatar_initials || server.mcp_servers?.name?.slice(0, 2).toUpperCase() || '🧩'}
+            </div>
             <span className="text-accent-foreground font-bold text-center text-base break-words w-full">
               {server.mcp_servers?.name || `서버 ${server.original_server_id}`}
             </span>

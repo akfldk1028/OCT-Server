@@ -56,6 +56,7 @@ interface SidebarProps {
   name?: string;
   collapsed?: boolean;
   isChatView?: boolean; // ChatGPT 스타일로 표시할지 여부
+  onMenuSelect?: (menuName: string) => void; // 🔥 메뉴 선택 핸들러
 }
 
 export default function Sidebar({
@@ -67,8 +68,9 @@ export default function Sidebar({
   name,
   collapsed: collapsedProp,
   isChatView = false,
+  onMenuSelect,
 }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(collapsedProp ?? true); // 🔥 기본값을 true로 변경 (ChatGPT/Claude 스타일)
+  const [collapsed, setCollapsed] = useState(true); // 🔥 항상 true로 고정 (Slack 스타일 - 아이콘만)
   const [theme, setTheme] = useTheme();
   const navigate = useNavigate();
   const store = useStore();
@@ -176,44 +178,28 @@ export default function Sidebar({
     },
   ];
 
-  useEffect(() => {
-    if (collapsedProp !== undefined) setCollapsed(collapsedProp);
-  }, [collapsedProp]);
+  // 🔥 Slack 스타일: 항상 아이콘만 표시하므로 자동 크기 조절 비활성화
+  // useEffect(() => {
+  //   if (collapsedProp !== undefined) setCollapsed(collapsedProp);
+  // }, [collapsedProp]);
 
-  // 🔥 창 크기 변화 감지해서 사이드바 자동 제어
-  useEffect(() => {
-    const handleResize = () => {
-      const windowWidth = window.innerWidth;
-      
-      // 창이 작아지면 (600px 이하) 사이드바 자동 닫기
-      if (windowWidth <= 600) {
-        console.log('📥 [Sidebar] 창이 작아짐 - 사이드바 닫기 (width:', windowWidth, ')');
-        setCollapsed(true);
-      }
-      // 창이 커지면 (800px 이상) 사이드바 자동 열기
-      else if (windowWidth >= 800) {
-        console.log('📥 [Sidebar] 창이 커짐 - 사이드바 열기 (width:', windowWidth, ')');
-        setCollapsed(false);
-      }
-    };
-
-    // 초기 크기 체크
-    handleResize();
-    
-    // 리사이즈 이벤트 리스너 등록
-    window.addEventListener('resize', handleResize);
-    
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
+  // useEffect(() => {
+  //   const handleResize = () => {
+  //     // Slack 스타일에서는 항상 collapsed 상태 유지
+  //   };
+  //   handleResize();
+  //   window.addEventListener('resize', handleResize);
+  //   return () => {
+  //     window.removeEventListener('resize', handleResize);
+  //   };
+  // }, []);
 
   // ChatGPT 스타일 뷰
   if (isChatView) {
     return (
       <aside
         className={cn(
-          'flex flex-col h-full bg-background border-r transition-all duration-300',
+          'flex flex-col h-full bg-sidebar-background border-r border-sidebar-border transition-all duration-300',
           collapsed ? 'w-16' : 'w-64'
         )}
       >
@@ -228,13 +214,14 @@ export default function Sidebar({
               <Plus className="w-4 h-4" />
               {!collapsed && "New Chat"}
             </Button>
-            <Button
+            {/* Slack 스타일: 토글 버튼 비활성화 (항상 아이콘만) */}
+            {/* <Button
               variant="ghost"
               size="icon"
               onClick={() => setCollapsed(!collapsed)}
             >
               <Menu className="w-4 h-4" />
-            </Button>
+            </Button> */}
           </div>
         </div>
 
@@ -379,26 +366,27 @@ export default function Sidebar({
   return (
     <aside
       className={cn(
-        'flex flex-col h-full border-r transition-all duration-300',
+        'flex flex-col h-full bg-sidebar-background border-r border-sidebar-border transition-all duration-300',
         collapsed ? 'w-16' : 'w-64',
       )}
     >
       {/* 헤더 */}
-      <div className="h-16 px-4 flex items-center justify-between border-b">
+      <div className="h-16 px-4 flex items-center justify-between border-b border-sidebar-border">
         <Link to="/">
           <span
-            className={cn('font-bold text-lg truncate', collapsed && 'hidden')}
+            className={cn('font-bold text-lg truncate text-sidebar-foreground', collapsed && 'hidden')}
           >
             Contextor v0.0.1
           </span>
         </Link>
-        <Button
+        {/* Slack 스타일: 토글 버튼 비활성화 (항상 아이콘만) */}
+        {/* <Button
           variant="ghost"
           size="icon"
           onClick={() => setCollapsed(!collapsed)}
         >
           <Menu className="w-4 h-4" />
-        </Button>
+        </Button> */}
       </div>
 
       {/* 알림 영역 */}
@@ -436,18 +424,14 @@ export default function Sidebar({
         {collapsed ? (
           <div className="flex flex-col items-center gap-4 py-4">
             {menus.map((menu) => (
-              <NavLink
+              <button
                 key={menu.name}
-                to={menu.to}
-                className={({ isActive }) =>
-                  cn('p-2 rounded-md hover:bg-accent transition-colors', {
-                    'bg-accent': isActive,
-                  })
-                }
+                onClick={() => onMenuSelect?.(menu.name)} // 🔥 메뉴 선택 시 ChannelSidebar 업데이트
+                className="p-2 rounded-md hover:bg-sidebar-accent transition-colors focus:outline-none focus:bg-sidebar-accent text-sidebar-foreground"
                 title={menu.name}
               >
                 {menu.icon || <Folder className="w-4 h-4" />}
-              </NavLink>
+              </button>
             ))}
           </div>
         ) : (
@@ -526,7 +510,7 @@ export default function Sidebar({
       )}
 
       {/* 푸터 */}
-      <div className="p-4 border-t space-y-3">
+      <div className="p-4 border-t border-sidebar-border space-y-3">
         {/* 사용자 프로필 영역 (푸터로 이동) */}
         {isLoggedIn && !collapsed && (
           <div className="flex items-center mb-3">
