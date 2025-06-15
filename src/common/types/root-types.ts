@@ -13,6 +13,7 @@ import { InstallerState } from '@/main/stores/install/installer-types';
 import { AgentState } from '@/main/stores/orchestrator/agent-types';
 import { WorkflowState } from '@/renderer/features/server/types/server-types';
 import { WindowState } from '@/main/stores/window/windowStore';
+import { UpdateState } from '@/main/stores/update/updateStore';
 
 export interface CombinedState {
   // root: AppState;
@@ -30,5 +31,7 @@ export interface CombinedState {
   workflow: WorkflowState; // 추가
   overlay: OverlayState;
   window: WindowState;
+  update: UpdateState;
+  
   [key: string]: any; // 이 한 줄 추가!
 }

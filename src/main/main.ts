@@ -194,6 +194,59 @@ app.whenReady()
   .then(async () => {
     registerWindowApi();
     if (isDebug) await installExtensions();
+    
+    // 🔥 개발자 도구 단축키 등록 (복수 등록으로 안정성 향상)
+    try {
+      const f12Result = globalShortcut.register('F12', () => {
+        console.log('🔧 F12 키 감지됨!');
+        const focusedWindow = BrowserWindow.getFocusedWindow();
+        if (focusedWindow) {
+          if (focusedWindow.webContents.isDevToolsOpened()) {
+            focusedWindow.webContents.closeDevTools();
+            console.log('🔧 개발자 도구 닫힘 (F12)');
+          } else {
+            focusedWindow.webContents.openDevTools();
+            console.log('🔧 개발자 도구 열림 (F12)');
+          }
+        } else {
+          console.log('⚠️ 포커스된 윈도우 없음');
+        }
+      });
+      console.log('✅ F12 단축키 등록:', f12Result ? '성공' : '실패');
+
+      // 🔥 대안 단축키: Ctrl+Shift+I
+      const ctrlShiftIResult = globalShortcut.register('CommandOrControl+Shift+I', () => {
+        console.log('🔧 Ctrl+Shift+I 키 감지됨!');
+        const focusedWindow = BrowserWindow.getFocusedWindow();
+        if (focusedWindow) {
+          if (focusedWindow.webContents.isDevToolsOpened()) {
+            focusedWindow.webContents.closeDevTools();
+            console.log('🔧 개발자 도구 닫힘 (Ctrl+Shift+I)');
+          } else {
+            focusedWindow.webContents.openDevTools();
+            console.log('🔧 개발자 도구 열림 (Ctrl+Shift+I)');
+          }
+        } else {
+          console.log('⚠️ 포커스된 윈도우 없음');
+        }
+      });
+      console.log('✅ Ctrl+Shift+I 단축키 등록:', ctrlShiftIResult ? '성공' : '실패');
+
+      // 🔥 추가 단축키: Ctrl+Shift+J (Chrome 스타일)
+      const ctrlShiftJResult = globalShortcut.register('CommandOrControl+Shift+J', () => {
+        console.log('🔧 Ctrl+Shift+J 키 감지됨!');
+        const focusedWindow = BrowserWindow.getFocusedWindow();
+        if (focusedWindow) {
+          focusedWindow.webContents.openDevTools();
+          console.log('🔧 개발자 도구 열림 (Ctrl+Shift+J)');
+        }
+      });
+      console.log('✅ Ctrl+Shift+J 단축키 등록:', ctrlShiftJResult ? '성공' : '실패');
+      
+    } catch (error) {
+      console.error('❌ 개발자 도구 단축키 등록 실패:', error);
+    }
+    
     // store.getState().INIT_API_KEY();
     // store.getState().SET_API_KEY(
     //   "sk-proj-...",
@@ -218,6 +271,9 @@ app.whenReady()
 
     // 🔥 새로운 마우스 커서 창 선택 IPC 핸들러들
     setupNewWindowIPCHandlers();
+
+    // 🔥 개발자 도구 IPC 핸들러들 추가
+    setupDevToolsIPCHandlers();
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -282,6 +338,103 @@ function setupNewWindowIPCHandlers() {
   });
 
   console.log('✅ [main] 새로운 창 선택 IPC 핸들러 설정 완료!');
+}
+
+// 🔥 개발자 도구 IPC 핸들러들 (강화된 예외 처리)
+function setupDevToolsIPCHandlers() {
+  console.log('🔧 [main] 개발자 도구 IPC 핸들러 설정 중...');
+
+  // 기존 핸들러 제거 (중복 방지)
+  try {
+    ipcMain.removeHandler('devtools:open');
+    ipcMain.removeHandler('devtools:close');
+    ipcMain.removeHandler('devtools:toggle');
+    ipcMain.removeHandler('devtools:status');
+  } catch (error) {
+    // 핸들러가 존재하지 않으면 무시
+  }
+
+  // 개발자 도구 열기
+  ipcMain.handle('devtools:open', async () => {
+    try {
+      const focusedWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+      if (focusedWindow && !focusedWindow.isDestroyed()) {
+        focusedWindow.webContents.openDevTools();
+        console.log('🔧 개발자 도구 열림 (IPC)');
+        return { success: true };
+      }
+      console.warn('⚠️ 개발자 도구 열기 실패: 윈도우 없음');
+      return { success: false, error: 'No available window' };
+    } catch (error) {
+      console.error('❌ devtools:open 에러:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
+
+  // 개발자 도구 닫기
+  ipcMain.handle('devtools:close', async () => {
+    try {
+      const focusedWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+      if (focusedWindow && !focusedWindow.isDestroyed()) {
+        focusedWindow.webContents.closeDevTools();
+        console.log('🔧 개발자 도구 닫힘 (IPC)');
+        return { success: true };
+      }
+      console.warn('⚠️ 개발자 도구 닫기 실패: 윈도우 없음');
+      return { success: false, error: 'No available window' };
+    } catch (error) {
+      console.error('❌ devtools:close 에러:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
+
+  // 개발자 도구 토글
+  ipcMain.handle('devtools:toggle', async () => {
+    try {
+      const focusedWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+      if (focusedWindow && !focusedWindow.isDestroyed()) {
+        if (focusedWindow.webContents.isDevToolsOpened()) {
+          focusedWindow.webContents.closeDevTools();
+          console.log('🔧 개발자 도구 닫힘 (IPC Toggle)');
+        } else {
+          focusedWindow.webContents.openDevTools();
+          console.log('🔧 개발자 도구 열림 (IPC Toggle)');
+        }
+        return { success: true };
+      }
+      console.warn('⚠️ 개발자 도구 토글 실패: 윈도우 없음');
+      return { success: false, error: 'No available window' };
+    } catch (error) {
+      console.error('❌ devtools:toggle 에러:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  });
+
+  // 개발자 도구 상태 확인 (강화된 안전성)
+  ipcMain.handle('devtools:status', async () => {
+    try {
+      const focusedWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+      if (focusedWindow && !focusedWindow.isDestroyed()) {
+        const isOpen = focusedWindow.webContents.isDevToolsOpened();
+        console.log(`🔍 개발자 도구 상태 확인: ${isOpen ? '열림' : '닫힘'}`);
+        return { 
+          success: true, 
+          isOpen: isOpen
+        };
+      }
+      console.warn('⚠️ 개발자 도구 상태 확인 실패: 윈도우 없음');
+      return { success: false, error: 'No available window', isOpen: false };
+    } catch (error) {
+      console.error('❌ devtools:status 에러:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        isOpen: false 
+      };
+    }
+  });
+
+  console.log('✅ [main] 개발자 도구 IPC 핸들러 설정 완료!');
 }
 
 app.on('before-quit', async () => {});

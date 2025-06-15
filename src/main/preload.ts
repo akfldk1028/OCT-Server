@@ -68,7 +68,12 @@ export type Channels =
   | 'find-window-by-title'
   | 'toggle-window-mode'
   | 'get-available-windows'
-  | 'select-window-by-id';
+  | 'select-window-by-id'
+  // 🔥 개발자 도구 관련 채널들 추가
+  | 'devtools:open'
+  | 'devtools:close'
+  | 'devtools:toggle'
+  | 'devtools:status';
 
 const electronHandler = {
   ipcRenderer: {
@@ -129,7 +134,12 @@ const electronHandler = {
         // 🔥 새로운 창 선택 모드 채널들 추가
         'window:start-selection-mode',
         'window:attach-to-target',
-        'window:detach-from-target'
+        'window:detach-from-target',
+        // 🔥 개발자 도구 관련 채널들 추가
+        'devtools:open',
+        'devtools:close', 
+        'devtools:toggle',
+        'devtools:status'
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
@@ -172,6 +182,29 @@ const electronHandler = {
     // 세션 ID 가져오기
     getSessionId(serverUrl: string = 'http://localhost:4303') {
       return ipcRenderer.invoke('mcp:getSessionId', serverUrl);
+    },
+  },
+
+  // 🔥 개발자 도구 관련 기능 추가
+  devTools: {
+    // 개발자 도구 열기
+    open() {
+      return ipcRenderer.invoke('devtools:open');
+    },
+
+    // 개발자 도구 닫기
+    close() {
+      return ipcRenderer.invoke('devtools:close');
+    },
+
+    // 개발자 도구 토글 (열려있으면 닫고, 닫혀있으면 열기)
+    toggle() {
+      return ipcRenderer.invoke('devtools:toggle');
+    },
+
+    // 개발자 도구 상태 확인
+    getStatus() {
+      return ipcRenderer.invoke('devtools:status');
     },
   },
 };

@@ -21,7 +21,7 @@ interface WindowInfo {
   display_id?: string;
 }
 
-interface WindowState {
+export interface WindowState {
   isAttachedMode: boolean;
   attachPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   windowOpacity: number;

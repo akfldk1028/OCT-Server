@@ -3,7 +3,20 @@ import { useReactFlow } from '@xyflow/react';
 import { Button } from '@/renderer/common/components/ui/button';
 import { Input } from '@/renderer/common/components/ui/input';
 import { useToast } from '@/renderer/hooks/use-toast';
-import { Save, Upload, Download, FileJson } from 'lucide-react';
+import { 
+  Save, 
+  Upload, 
+  Download, 
+  Plus, 
+  Copy,
+  FileText,
+  Share2,
+  Info,
+  Zap,
+  Settings2,
+  Link2,
+  ExternalLink
+} from 'lucide-react';
 import { useOutletContext } from 'react-router';
 import type { ServerLayoutContext } from '../../types/server-types';
 import { makeSSRClient } from '@/renderer/supa-client';
@@ -13,7 +26,7 @@ import {
   getProductById 
 } from '../../../products/queries';
 import { getClients } from '../../queries';
-import { createWorkflow, saveWorkflowNodes, saveWorkflowEdges, getUserWorkflows } from '../../workflow-queries';
+import { createWorkflow, saveWorkflowNodes, saveWorkflowEdges, getUserWorkflows, createWorkflowShare } from '../../workflow-queries';
 import { publishAsTemplate } from '../../template-queries';
 import WorkflowListModal from './WorkflowListModal';
 
@@ -685,14 +698,14 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
     });
   };
 
-  // 🔥 템플릿으로 발행 (관리자용)
-  const handlePublishTemplate = async () => {
+  // 🔥 워크플로우 공유 링크 생성 및 복사
+  const handleShareWorkflow = async () => {
     try {
       if (!userId) {
         toast({
-          title: '로그인 필요',
-          description: '템플릿을 발행하려면 먼저 로그인해주세요.',
-          variant: 'default',
+          title: '로그인이 필요합니다',
+          description: '워크플로우를 공유하려면 먼저 로그인해주세요.',
+          variant: 'destructive',
         });
         return;
       }
@@ -702,201 +715,253 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
       
       if (nodes.length === 0) {
         toast({
-          title: '노드 없음',
-          description: '템플릿으로 발행할 노드가 없습니다.',
-          variant: 'default',
+          title: '공유할 워크플로우가 없습니다',
+          description: '노드를 추가한 후 공유해주세요.',
+          variant: 'destructive',
         });
         return;
       }
 
-      // 🔥 1단계: 먼저 워크플로우 저장
-      const workflowResult = await saveWorkflowToDB({
-        name: workflowName || `Template_${new Date().toISOString().slice(0, 19)}`,
-        version: '1.0.0',
-        createdAt: new Date().toISOString(),
-        userId: userId,
-        description: `템플릿 - ${nodes.length}개 노드, ${edges.length}개 연결`,
-        nodes: nodes.map(node => ({
-          id: node.id,
-          type: node.type,
-          position: node.position,
-          dataRef: getNodeDataRef(node)
-        })),
-        edges: edges.map(edge => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          sourceHandle: edge.sourceHandle,
-          targetHandle: edge.targetHandle,
-          type: edge.type,
-          animated: edge.animated,
-          style: edge.style,
-          label: edge.label
-        }))
-      });
-
-      if (!workflowResult?.id) {
-        throw new Error('워크플로우 저장 실패');
+      // 1. 먼저 워크플로우 저장 (저장되지 않은 경우)
+      let workflowId = currentWorkflowId;
+      
+      if (!workflowId || isModified) {
+        if (!workflowName.trim()) {
+          const autoName = `공유_워크플로우_${new Date().toISOString().slice(0, 19)}`;
+          setWorkflowName(autoName);
+        }
+        
+        const savedWorkflow = await saveWorkflowToDB({
+          name: workflowName || `공유_워크플로우_${new Date().toISOString().slice(0, 19)}`,
+          version: '1.0.0',
+          createdAt: new Date().toISOString(),
+          userId: userId,
+          description: `공유된 워크플로우 - ${nodes.length}개 노드, ${edges.length}개 연결`,
+          nodes: nodes.map(node => ({
+            id: node.id,
+            type: node.type,
+            position: node.position,
+            dataRef: getNodeDataRef(node)
+          })),
+          edges: edges.map(edge => ({
+            id: edge.id,
+            source: edge.source,
+            target: edge.target,
+            sourceHandle: edge.sourceHandle,
+            targetHandle: edge.targetHandle,
+            type: edge.type,
+            animated: edge.animated,
+            style: edge.style,
+            label: edge.label
+          }))
+        });
+        
+        if (!savedWorkflow?.id) {
+          throw new Error('워크플로우 저장 실패');
+        }
+        
+        workflowId = savedWorkflow.id;
+        setCurrentWorkflowId(workflowId);
+        setIsModified(false);
       }
 
-      // 🔥 2단계: 템플릿으로 발행
+      // 2. 공유 링크 생성
       const { client } = makeSSRClient();
-      const templateResult = await publishAsTemplate(client as any, {
-        workflow_id: workflowResult.id,
-        profile_id: userId,
-        share_title: workflowName || `템플릿 ${workflowResult.id}`,
-        share_description: `${nodes.length}개 노드로 구성된 워크플로우 템플릿입니다.`,
+      const shareToken = `share_${workflowId}_${Date.now()}`;
+      
+      const shareResult = await createWorkflowShare(client as any, {
+        workflow_id: workflowId,
+        shared_by_user_id: userId,
+        share_type: 'link',
+        share_title: workflowName || `워크플로우 ${workflowId}`,
+        share_description: `${nodes.length}개 노드, ${edges.length}개 연결로 구성된 워크플로우`,
+        share_token: shareToken,
+        can_view: true,
+        can_copy: true,
+        can_edit: false,
       });
 
-      console.log('🎉 [FlowToolbar] 템플릿 발행 완료:', templateResult);
-
+      // 3. 공유 URL 생성 및 클립보드 복사 (환경별 처리)
+      // 일렉트론(HashRouter) vs 웹(BrowserRouter) 환경 감지
+      const isElectron = window.location.protocol === 'file:' || window.location.hostname === 'localhost';
+      const baseUrl = isElectron 
+        ? `${window.location.origin}/#`
+        : window.location.origin;
+      const shareUrl = `${baseUrl}/workflow/share/${shareToken}`;
+      
+      await navigator.clipboard.writeText(shareUrl);
+      
       toast({
-        title: '템플릿 발행 완료! 📤',
-        description: `"${workflowName || '워크플로우'}"가 템플릿으로 공개되었습니다.`,
-        variant: 'success',
+        title: '공유 링크 복사 완료! 📋',
+        description: `링크가 클립보드에 복사되었습니다. 다른 사람과 공유해보세요!`,
       });
+      
+      console.log('🔗 공유 링크 생성:', shareUrl);
 
     } catch (error) {
-      console.error('❌ [FlowToolbar] 템플릿 발행 실패:', error);
-      toast({
-        title: '템플릿 발행 실패',
-        description: '템플릿을 발행하는 중 오류가 발생했습니다.',
-        variant: 'error',
-      });
+      console.error('워크플로우 공유 실패:', error);
+      
+      // 클립보드 접근 실패시 대체 방법
+      if (error instanceof Error && error.name === 'NotAllowedError') {
+        toast({
+          title: '클립보드 접근 권한이 필요합니다',
+          description: '브라우저 설정에서 클립보드 접근을 허용해주세요.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: '공유 실패',
+          description: '워크플로우 공유 중 오류가 발생했습니다.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
+  const currentNodeCount = getNodes().length;
+  const currentEdgeCount = getEdges().length;
+
   return (
-    <div className={`flex items-center gap-1 px-4 py-2 bg-card/95 backdrop-blur-sm border-b border-border ${className}`}>
-      {/* 🔥 Colab 스타일 워크플로우 이름 입력 */}
-      <div className="relative">
-        <Input
-          type="text"
-          placeholder={currentWorkflowId ? "기존 워크플로우" : "새 워크플로우 이름"}
-          value={workflowName}
-          onChange={(e) => setWorkflowName(e.target.value)}
-          className={`w-40 h-8 text-sm border-0 ${
-            currentWorkflowId 
-              ? 'bg-primary/5 focus:bg-primary/10 ring-1 ring-primary/20' 
-              : 'bg-muted/50 focus:bg-muted'
-          }`}
-        />
-        {currentWorkflowId && (
-          <div className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full" title="기존 워크플로우" />
-        )}
-        {isModified && (
-          <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-destructive rounded-full" title="수정됨" />
-        )}
-      </div>
+    <div className={`w-full bg-gradient-to-r from-background/95 to-background/90 backdrop-blur-md border-b border-border/50 shadow-sm ${className}`}>
+      <div className="flex items-center justify-between h-16 px-6">
+        {/* 왼쪽: 워크플로우 정보 & 액션 */}
+        <div className="flex items-center gap-4">
+          {/* 워크플로우 이름 */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
+              <span className="text-sm font-medium text-muted-foreground">워크플로우</span>
+            </div>
+            
+            <div className="relative">
+              <Input
+                type="text"
+                placeholder="워크플로우 이름을 입력하세요"
+                value={workflowName}
+                onChange={(e) => setWorkflowName(e.target.value)}
+                className={`min-w-[280px] h-9 bg-background/50 border-border/30 focus:border-primary/50 transition-all ${
+                  currentWorkflowId ? 'ring-1 ring-primary/20' : ''
+                }`}
+              />
+              {currentWorkflowId && (
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full animate-pulse" />
+              )}
+              {isModified && (
+                <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+              )}
+            </div>
 
-      {/* 구분선 */}
-      <div className="h-6 w-px bg-border mx-1" />
-
-      {/* 🔥 Colab 스타일 저장 버튼들 */}
-      <div className="flex items-center gap-1">
-        {/* Save 버튼 - 기존/새로운에 따라 다른 동작 */}
-        <Button
-          onClick={handleSaveWorkflow}
-          size="sm"
-          variant="ghost"
-          className={`h-8 px-2 hover:bg-primary/10 ${
-            isModified ? 'bg-primary/5 ring-1 ring-primary/20' : ''
-          }`}
-          title={currentWorkflowId ? 
-            (isModified ? `"${workflowName}" 저장 (수정됨)` : `"${workflowName}" 저장 (변경없음)`) : 
-            "새 워크플로우로 저장"
-          }
-        >
-          <Save className={`h-4 w-4 mr-1 ${
-            isModified ? 'text-primary' : 'text-primary/80'
-          }`} />
-          <span className="text-xs text-primary">
-            {currentWorkflowId ? '저장' : '저장'}
-          </span>
-          {isModified && currentWorkflowId && (
-            <span className="ml-1 w-1.5 h-1.5 bg-primary rounded-full"></span>
-          )}
-        </Button>
-
-        {/* SaveAs 버튼 - 항상 새로운 복사본 생성 */}
-        <Button
-          onClick={handleSaveAsNewWorkflow}
-          size="sm"
-          variant="ghost"
-          className="h-8 px-2 hover:bg-secondary"
-          title="다른 이름으로 저장 (새 복사본 생성)"
-        >
-          <Save className="h-4 w-4 mr-1 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">복사</span>
-        </Button>
-
-        {/* New 버튼 - 새 워크플로우 시작 */}
-        <Button
-          onClick={handleNewWorkflow}
-          size="sm"
-          variant="ghost"
-          className="h-8 px-2 hover:bg-accent"
-          title="새 워크플로우 시작"
-        >
-          <span className="text-sm mr-1">🆕</span>
-          <span className="text-xs text-accent-foreground">새로</span>
-        </Button>
-
-        {/* Load 버튼 - Supabase에서 불러오기 */}
-        <Button
-          onClick={handleShowSavedWorkflows}
-          size="sm"
-          variant="ghost"
-          className="h-8 px-2 hover:bg-muted"
-          title="Supabase에서 불러오기"
-        >
-          <Upload className="h-4 w-4 mr-1 text-foreground" />
-          <span className="text-xs text-foreground">불러오기</span>
-        </Button>
-
-        {/* 템플릿 발행 버튼 */}
-        <Button
-          onClick={handlePublishTemplate}
-          size="sm"
-          variant="ghost"
-          className="h-8 w-8 p-0 hover:bg-muted"
-          title="템플릿 발행"
-        >
-          <span className="text-muted-foreground">📤</span>
-        </Button>
-      </div>
-
-      {/* 구분선 */}
-      <div className="h-6 w-px bg-border mx-1" />
-
-      {/* 보조 버튼들 */}
-      <div className="flex items-center gap-1">
-        <Button
-          onClick={handleShowCurrentFlow}
-          size="sm"
-          variant="ghost"
-          className="h-8 w-8 p-0 hover:bg-muted"
-          title="현재 정보"
-        >
-          <Download className="h-3.5 w-3.5 text-muted-foreground" />
-        </Button>
-      </div>
-
-      {/* 🔥 Colab 스타일 상태 표시 */}
-      <div className="ml-auto flex items-center gap-2">
-        {/* 워크플로우 상태 */}
-        {currentWorkflowId && (
-          <div className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
-            기존 #{currentWorkflowId}
-            {isModified && <span className="ml-1 text-destructive">*</span>}
+            {/* 상태 표시 */}
+            <div className="flex items-center gap-2">
+              {currentWorkflowId && (
+                <div className="px-2 py-1 text-xs bg-primary/10 text-primary rounded-full border border-primary/20">
+                  #{currentWorkflowId}
+                </div>
+              )}
+              {isModified && (
+                <div className="px-2 py-1 text-xs bg-orange-500/10 text-orange-600 rounded-full border border-orange-500/20">
+                  수정됨
+                </div>
+              )}
+            </div>
           </div>
-        )}
-        
-        {/* 노드/엣지 카운트 */}
-        <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full border border-border">
-          <span className="font-medium text-primary">{getNodes().length}</span>
-          <span className="mx-1">·</span>
-          <span className="font-medium text-foreground">{getEdges().length}</span>
+
+          {/* 구분선 */}
+          <div className="h-8 w-px bg-border/30" />
+
+          {/* 주요 액션 버튼들 */}
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleSaveWorkflow}
+              size="sm"
+              className={`h-9 px-4 gap-2 transition-all ${
+                isModified 
+                  ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-md' 
+                  : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+              }`}
+            >
+              <Save className="h-4 w-4" />
+              저장
+            </Button>
+
+            <Button
+              onClick={handleSaveAsNewWorkflow}
+              size="sm"
+              variant="outline"
+              className="h-9 px-4 gap-2 hover:bg-accent"
+            >
+              <Copy className="h-4 w-4" />
+              복사본
+            </Button>
+
+            <Button
+              onClick={handleNewWorkflow}
+              size="sm"
+              variant="outline"
+              className="h-9 px-4 gap-2 hover:bg-accent"
+            >
+              <Plus className="h-4 w-4" />
+              새로 만들기
+            </Button>
+
+            <Button
+              onClick={handleShowSavedWorkflows}
+              size="sm"
+              variant="outline"
+              className="h-9 px-4 gap-2 hover:bg-accent"
+            >
+              <Upload className="h-4 w-4" />
+              불러오기
+            </Button>
+          </div>
+        </div>
+
+        {/* 오른쪽: 통계 & 기타 */}
+        <div className="flex items-center gap-4">
+          {/* 워크플로우 통계 */}
+          <div className="flex items-center gap-4 px-4 py-2 bg-muted/30 rounded-lg border border-border/30">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-primary rounded-full" />
+              <span className="text-sm text-muted-foreground">노드</span>
+              <span className="text-sm font-semibold text-foreground">{currentNodeCount}</span>
+            </div>
+            <div className="h-4 w-px bg-border/50" />
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full" />
+              <span className="text-sm text-muted-foreground">연결</span>
+              <span className="text-sm font-semibold text-foreground">{currentEdgeCount}</span>
+            </div>
+          </div>
+
+          {/* 추가 액션 */}
+          <div className="flex items-center gap-1">
+            <Button
+              onClick={handleShareWorkflow}
+              size="sm"
+              variant="outline"
+              className="h-9 px-3 gap-2 hover:bg-accent text-primary border-primary/20 hover:border-primary/40"
+              title="워크플로우 공유 링크 생성"
+            >
+              <Link2 className="h-4 w-4" />
+              <span className="text-sm font-medium">공유</span>
+            </Button>
+
+            <Button
+              onClick={() => {
+                console.log('현재 워크플로우:', { nodes: getNodes(), edges: getEdges() });
+                toast({
+                  title: '워크플로우 정보',
+                  description: `${currentNodeCount}개 노드, ${currentEdgeCount}개 연결 (콘솔 확인)`,
+                });
+              }}
+              size="sm"
+              variant="outline"
+              className="h-9 w-9 p-0 hover:bg-accent"
+              title="디버그 정보"
+            >
+              <Info className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 

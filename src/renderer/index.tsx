@@ -50,6 +50,12 @@ import ProductDetailLayout ,{ loader as ProductDetailLayoutLoader } from './feat
 import ProductDetailsPage from './features/products/pages/ProductDetailsPage';
 import ProductToolsPage from './features/products/pages/ProductToolsPage';
 
+// 🔥 Chat 관련 imports 추가
+import ChatLayout, { loader as chatLayoutLoader } from './features/chat/layouts/chat-layout';
+import ChatPage from './features/chat/pages/chat-page';
+import ChatRoomPage from './features/chat/pages/chat-room-page';
+import TestSharePage from './features/server/pages/test-share-page';
+
 console.log('📍 Loaded renderer entry index.tsx');
 
 // 일렉트론용 라우터 (HashRouter)
@@ -179,22 +185,60 @@ const electronRouter = createHashRouter(
           loader: serverLayoutLoader,
           children: [
             {
-              index: true,
               path: 'inspector',
               element: <JobPage />,
             },
             {
               path: 'node',
               element: <NodePage />,
+            }
+            // ,
+            // {
+            //   path: 'chat',
+            //   children: [
+            //     {
+            //       path: ':sessionId',
+            //       element: <ChatWrapper />, // RealtimeChat 대신 ChatWrapper 사용
+            //     }
+            //   ]
+            // }
+          ]
+        },
+        // 🔥 Chat 전용 라우팅 추가
+        {
+          path: 'chat',
+          element: <ChatLayout />,
+          loader: chatLayoutLoader,
+          children: [
+            {
+              index: true,
+              element: <ChatPage />,
             },
             {
-              path: 'chat',
-              children: [
-                {
-                  path: ':sessionId',
-                  element: <ChatWrapper />, // RealtimeChat 대신 ChatWrapper 사용
-                }
-              ]
+              path: ':sessionId',
+              element: <ChatWrapper />,
+            },
+            {
+              path: 'history',
+              element: <ChatPage />, // 히스토리도 기본 페이지로 처리
+            },
+            {
+              path: 'models',
+              element: <ChatPage />, // 모델 설정도 기본 페이지로 처리
+            },
+            {
+              path: 'settings',
+              element: <ChatPage />, // 설정도 기본 페이지로 처리
+            },
+          ]
+        },
+        // 🔥 워크플로우 공유 라우팅 추가
+        {
+          path: 'workflow',
+          children: [
+            {
+              path: 'share/:shareToken',
+              element: <TestSharePage />,
             }
           ]
         }
@@ -324,7 +368,7 @@ const webRouter = createBrowserRouter(
         {
           path: 'jobs',
           element: <ServerLayout />,
-          // loader: serverLayoutLoader,
+          loader: serverLayoutLoader,
           children: [
             {
               index: true,
@@ -346,6 +390,43 @@ const webRouter = createBrowserRouter(
               index: true,
               element: <PricePage />,
               loader: priceLoader,
+            }
+          ]
+        },
+        {
+          path: 'chat',
+          element: <ChatLayout />,
+          loader: chatLayoutLoader,
+          children: [
+            {
+              index: true,
+              element: <ChatPage />,
+            },
+            {
+              path: ':sessionId',
+              element: <ChatRoomPage />,
+            },
+            {
+              path: 'history',
+              element: <ChatPage />, // 히스토리도 기본 페이지로 처리
+            },
+            {
+              path: 'models',
+              element: <ChatPage />, // 모델 설정도 기본 페이지로 처리
+            },
+            {
+              path: 'settings',
+              element: <ChatPage />, // 설정도 기본 페이지로 처리
+            },
+          ]
+        },
+        // 🔥 워크플로우 공유 라우팅 추가 (웹용)
+        {
+          path: 'workflow',
+          children: [
+            {
+              path: 'share/:shareToken',
+              element: <TestSharePage />,
             }
           ]
         }

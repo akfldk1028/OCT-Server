@@ -49,23 +49,14 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({ onSend, isStreaming, a
         />
       )}
       
-      {/* 활성 도구 표시 */}
-      {activeTools.length > 0 && !isStreaming && selectedTags.length === 0 && (
-        <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
-          <Zap className="w-3 h-3 text-blue-500" />
-          <span>사용 가능한 도구: {activeTools.slice(0, 3).join(', ')}</span>
-          {activeTools.length > 3 && <span>외 {activeTools.length - 3}개</span>}
-        </div>
-      )}
-      
-      <div className={`flex gap-2 p-2 bg-background border rounded-lg transition-all duration-200 ${ // 🔥 간격과 패딩 줄임: gap-3 p-4 → gap-2 p-2, rounded-xl → rounded-lg
-        isFocused ? 'ring-2 ring-yellow-400/20 border-yellow-400/30' : 'border-border'
+      <div className={`flex gap-3 p-3 bg-background border rounded-xl transition-all duration-200 ${
+        isFocused ? 'ring-2 ring-primary/20 border-primary/30' : 'border-border'
       } ${isStreaming ? 'opacity-75' : ''}`}>
         
         {/* 메시지 아이콘 */}
-        <div className="flex-shrink-0 mt-1"> {/* 🔥 마진 줄임: mt-2 → mt-1 */}
-          <MessageSquare className={`w-4 h-4 transition-colors ${ // 🔥 아이콘 크기 줄임: w-5 h-5 → w-4 h-4
-            isFocused ? 'text-yellow-400' : 'text-muted-foreground'
+        <div className="flex-shrink-0 mt-2">
+          <MessageSquare className={`w-5 h-5 transition-colors ${
+            isFocused ? 'text-primary' : 'text-muted-foreground'
           }`} />
         </div>
 
@@ -84,7 +75,7 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({ onSend, isStreaming, a
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             placeholder={getPlaceholderText()}
-            className="min-h-[40px] max-h-[100px] resize-none border-0 p-0 focus-visible:ring-0 bg-transparent placeholder:text-muted-foreground/60" // 🔥 높이 줄임: min-h-[50px] → min-h-[40px], max-h-[150px] → max-h-[100px]
+            className="min-h-[50px] max-h-[150px] resize-none border-0 p-0 focus-visible:ring-0 bg-transparent placeholder:text-muted-foreground/60"
             disabled={isStreaming}
             rows={1}
           />
@@ -104,17 +95,17 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({ onSend, isStreaming, a
             onClick={handleSend}
             disabled={!input.trim() || isStreaming}
             size="icon"
-            className={`h-8 w-8 rounded-md transition-all duration-200 ${ // 🔥 버튼 크기 줄임: h-10 w-10 → h-8 w-8, rounded-lg → rounded-md
+            className={`h-10 w-10 rounded-lg transition-all duration-200 ${
               input.trim() && !isStreaming 
-                ? 'bg-yellow-400 hover:bg-yellow-500 text-black shadow-lg hover:shadow-xl' 
+                ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl' 
                 : ''
             }`}
             variant={input.trim() && !isStreaming ? "default" : "ghost"}
           >
             {isStreaming ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
-              <Send className={`w-4 h-4 transition-transform ${
+              <Send className={`w-5 h-5 transition-transform ${
                 input.trim() ? 'scale-110' : 'scale-100'
               }`} />
             )}

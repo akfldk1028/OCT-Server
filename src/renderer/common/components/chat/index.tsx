@@ -1,7 +1,7 @@
 // components/ChatList/index.tsx
 import React, { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { MessageSquare } from 'lucide-react';
 import { ChatListGroup } from './ChatListGroup';
 import { useStore, useDispatch } from '@/hooks/useStore';
 
@@ -52,7 +52,7 @@ export const ChatList: React.FC = () => {
 
 
   const handleItemClick = (sessionId: string) => {
-    navigate(`/jobs/chat/${sessionId}`);
+    navigate(`/chat/${sessionId}`);
   };
 
   const handleItemRename = (roomId: string, newTitle: string) => {
@@ -74,25 +74,32 @@ export const ChatList: React.FC = () => {
   };
 
   return (
-    <ScrollArea className="flex-1">
-      <div className="p-3">
+    <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="p-2">
         {chatItems.length === 0 ? (
-          <p className="text-center text-sm text-muted-foreground py-8">
-            No conversations yet
-          </p>
+          <div className="flex flex-col items-center justify-center py-8 px-4">
+            {/* 🔥 깔끔한 빈 상태 */}
+            <div className="w-12 h-12 bg-sidebar-accent rounded-full flex items-center justify-center mb-3">
+              <MessageSquare className="w-6 h-6 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground text-center">
+              대화를 시작해보세요
+            </p>
+          </div>
         ) : (
           <>
             <ChatListGroup
-              title="Today"
+              title="Recent Conversations"
+              items={chatItems}
               currentSessionId={currentSessionId}
               onItemClick={handleItemClick}
               onItemRename={handleItemRename}
-              onItemDelete={handleItemDelete as (item: ChatItem) => void}
+              onItemDelete={handleItemDelete}
             />
         
           </>
         )}
       </div>
-    </ScrollArea>
+    </div>
   );
 };

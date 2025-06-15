@@ -88,7 +88,7 @@ export const useChatCreation = () => {
       });
 
       // 5. 페이지 이동
-      navigate(`/jobs/chat/${sessionId}`);
+      navigate(`/chat/${sessionId}`);
       
       return { roomId, sessionId };
     } catch (err) {

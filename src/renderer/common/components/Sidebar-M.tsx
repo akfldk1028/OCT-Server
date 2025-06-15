@@ -13,6 +13,12 @@ import {
   SettingsIcon,
   LogOutIcon,
   Plus,
+  Settings,
+  Package,
+  Server,
+  Users,
+  Wrench,
+  Network,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -55,7 +61,6 @@ interface SidebarProps {
   avatar?: string | null;
   name?: string;
   collapsed?: boolean;
-  isChatView?: boolean; // ChatGPT 스타일로 표시할지 여부
   onMenuSelect?: (menuName: string) => void; // 🔥 메뉴 선택 핸들러
 }
 
@@ -67,7 +72,6 @@ export default function Sidebar({
   avatar,
   name,
   collapsed: collapsedProp,
-  isChatView = false,
   onMenuSelect,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(true); // 🔥 항상 true로 고정 (Slack 스타일 - 아이콘만)
@@ -78,10 +82,11 @@ export default function Sidebar({
 
   // 메뉴 배열
   const menus = [
+ 
     {
       name: 'Products',
       to: '/products',
-      icon: <Folder className="w-4 h-4" />,
+      icon: <Package className="w-4 h-4" />,
       items: [
         {
           name: 'Leaderboards',
@@ -113,7 +118,7 @@ export default function Sidebar({
     {
       name: 'Server',
       to: '/jobs',
-      icon: <Folder className="w-4 h-4" />,
+      icon: <Network className="w-4 h-4" />,
       items: [
         {
           name: 'Inspector',
@@ -133,9 +138,36 @@ export default function Sidebar({
       ],
     },
     {
+      name: 'Chat',
+      to: '/chat',
+      icon: <MessageSquare className="w-4 h-4" />,
+      items: [
+        {
+          name: 'New Chat',
+          description: 'Start a new conversation',
+          action: () => createNewChat(),
+        },
+        {
+          name: 'Chat History',
+          description: 'View previous conversations',
+          to: '/chat/history',
+        },
+        {
+          name: 'AI Models',
+          description: 'Configure AI models',
+          to: '/chat/models',
+        },
+        {
+          name: 'Settings',
+          description: 'Chat settings and preferences',
+          to: '/chat/settings',
+        },
+      ],
+    },
+    {
       name: 'Community',
       to: '/overlay',
-      icon: <MessageSquare className="w-4 h-4" />,
+      icon: <Users className="w-4 h-4" />,
       items: [
         {
           name: 'All Posts',
@@ -162,7 +194,7 @@ export default function Sidebar({
     {
       name: 'Tools',
       to: '/teams',
-      icon: <Home className="w-4 h-4" />,
+      icon: <Wrench className="w-4 h-4" />,
       items: [
         {
           name: 'All Teams',
@@ -178,190 +210,6 @@ export default function Sidebar({
     },
   ];
 
-  // 🔥 Slack 스타일: 항상 아이콘만 표시하므로 자동 크기 조절 비활성화
-  // useEffect(() => {
-  //   if (collapsedProp !== undefined) setCollapsed(collapsedProp);
-  // }, [collapsedProp]);
-
-  // useEffect(() => {
-  //   const handleResize = () => {
-  //     // Slack 스타일에서는 항상 collapsed 상태 유지
-  //   };
-  //   handleResize();
-  //   window.addEventListener('resize', handleResize);
-  //   return () => {
-  //     window.removeEventListener('resize', handleResize);
-  //   };
-  // }, []);
-
-  // ChatGPT 스타일 뷰
-  if (isChatView) {
-    return (
-      <aside
-        className={cn(
-          'flex flex-col h-full bg-sidebar-background border-r border-sidebar-border transition-all duration-300',
-          collapsed ? 'w-16' : 'w-64'
-        )}
-      >
-        {/* Header */}
-        <div className="p-3 border-b">
-          <div className="flex items-center justify-between gap-2">
-            <Button
-              onClick={() => createNewChat()}
-              className={cn("flex-1 justify-start gap-2", collapsed && "px-2")}
-              variant="outline"
-            >
-              <Plus className="w-4 h-4" />
-              {!collapsed && "New Chat"}
-            </Button>
-            {/* Slack 스타일: 토글 버튼 비활성화 (항상 아이콘만) */}
-            {/* <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setCollapsed(!collapsed)}
-            >
-              <Menu className="w-4 h-4" />
-            </Button> */}
-          </div>
-        </div>
-
-        {/* Chat List */}
-        {!collapsed && <ChatList />}
-
-        {/* Footer */}
-        <div className="p-4 border-t">
-          {/* 사용자 프로필 */}
-          {isLoggedIn && !collapsed && (
-            <div className="flex items-center mb-3">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild className="cursor-pointer">
-                  <div className="flex items-center gap-2 w-full">
-                    <Avatar>
-                      {avatar ? (
-                        <AvatarImage className="object-cover" src={avatar} />
-                      ) : (
-                        <AvatarFallback>{name?.[0]}</AvatarFallback>
-                      )}
-                    </Avatar>
-                    <div className="flex flex-col text-sm flex-1">
-                      <span className="font-medium truncate">{name}</span>
-                      <span className="text-xs text-muted-foreground truncate">
-                        @{username}
-                      </span>
-                    </div>
-                  </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56">
-                  <DropdownMenuLabel className="flex flex-col">
-                    <span className="font-medium">{name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      @{username}
-                    </span>
-                  </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuItem asChild className="cursor-pointer">
-                    <Link to="/my/dashboard">
-                      <BarChart3Icon className="size-4 mr-2" />
-                      Dashboard
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild className="cursor-pointer">
-                    <Link to="/my/profile">
-                      <UserIcon className="size-4 mr-2" />
-                      Profile
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild className="cursor-pointer">
-                    <Link to="/my/settings">
-                      <SettingsIcon className="size-4 mr-2" />
-                      Settings
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild className="cursor-pointer">
-                  <Link to="/auth/logout">
-                    <LogOutIcon className="size-4 mr-2" />
-                    Logout
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
-
-        {/* 테마 선택기 */}
-        {!collapsed && (
-          <Select value={theme} onValueChange={(v) => setTheme(v as any)}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Theme" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="system">System</SelectItem>
-              <SelectItem value="light">Light</SelectItem>
-              <SelectItem value="dark">Dark</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
-
-        {/* 프로필 아이콘 (접힌 상태) */}
-        {isLoggedIn && collapsed && (
-          <div className="flex justify-center my-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild className="cursor-pointer">
-                <Avatar>
-                  {avatar ? (
-                    <AvatarImage className="object-cover" src={avatar} />
-                  ) : (
-                    <AvatarFallback>{name?.[0]}</AvatarFallback>
-                  )}
-                </Avatar>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56">
-                <DropdownMenuLabel className="flex flex-col">
-                  <span className="font-medium">{name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    @{username}
-                  </span>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuItem asChild className="cursor-pointer">
-                    <Link to="/my/dashboard">
-                      <BarChart3Icon className="size-4 mr-2" />
-                      Dashboard
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild className="cursor-pointer">
-                    <Link to="/my/profile">
-                      <UserIcon className="size-4 mr-2" />
-                      Profile
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild className="cursor-pointer">
-                    <Link to="/my/settings">
-                      <SettingsIcon className="size-4 mr-2" />
-                      Settings
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild className="cursor-pointer">
-                  <Link to="/auth/logout">
-                    <LogOutIcon className="size-4 mr-2" />
-                    Logout
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
-      </div>
-    </aside>
-  );
-}
-
   // 기존 일반 사이드바 뷰
   return (
     <aside
@@ -372,12 +220,18 @@ export default function Sidebar({
     >
       {/* 헤더 */}
       <div className="h-16 px-4 flex items-center justify-between border-b border-sidebar-border">
-        <Link to="/">
-          <span
-            className={cn('font-bold text-lg truncate text-sidebar-foreground', collapsed && 'hidden')}
-          >
-            Contextor v0.0.1
-          </span>
+        <Link to="/" className="flex items-center gap-2">
+          {collapsed ? (
+            /* 🔥 접힌 상태: 로고 아이콘만 표시 */
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <Home className="w-5 h-5 text-primary-foreground" />
+            </div>
+          ) : (
+            /* 🔥 펼친 상태: 전체 로고 텍스트 */
+            <span className="font-bold text-lg truncate text-sidebar-foreground">
+              Contextor v0.0.1
+            </span>
+          )}
         </Link>
         {/* Slack 스타일: 토글 버튼 비활성화 (항상 아이콘만) */}
         {/* <Button
@@ -625,6 +479,23 @@ export default function Sidebar({
                       <SettingsIcon className="size-4 mr-2" />
                       Settings
                     </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem asChild>
+                    <div className="px-2 py-1">
+                      <Select value={theme} onValueChange={(v) => setTheme(v as any)}>
+                        <SelectTrigger className="w-full h-8">
+                          <SelectValue placeholder="테마 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="system">SYSTEM</SelectItem>
+                          <SelectItem value="light">LIGHT</SelectItem>
+                          <SelectItem value="dark">DARK</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />

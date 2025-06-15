@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { useChatCreation } from '@/components/chat/useChatCreation';
+import { useChatCreation } from './chat/useChatCreation';
 import {
   Hash,
   Users,
@@ -20,11 +20,12 @@ import {
   Image,
   Hash as Counter,
 } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useDnD } from '../../features/server/hook/DnDContext';
+import { ChatList } from './chat/index';
 
 interface ChannelSidebarProps {
   className?: string;
@@ -133,27 +134,27 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
               name: 'Leaderboards', 
               items: [
                 { name: 'All Leaderboards', path: '/products/leaderboards' },
-                { name: 'Daily Rankings', path: '/products/leaderboards/daily' },
-                { name: 'Weekly Rankings', path: '/products/leaderboards/weekly' },
-                { name: 'Monthly Rankings', path: '/products/leaderboards/monthly' }
+                // { name: 'Daily Rankings', path: '/products/leaderboards?period=daily' },
+                // { name: 'Weekly Rankings', path: '/products/leaderboards?period=weekly' },
+                // { name: 'Monthly Rankings', path: '/products/leaderboards?period=monthly' }
               ]
             },
             { 
               name: 'Categories', 
               items: [
                 { name: 'All Categories', path: '/products/categories' },
-                { name: 'AI/ML', path: '/products/categories/ai' },
-                { name: 'Web Dev', path: '/products/categories/web' },
-                { name: 'Mobile', path: '/products/categories/mobile' },
-                { name: 'DevTools', path: '/products/categories/devtools' }
+                // { name: 'AI/ML', path: '/products/categories?category=AI/ML' },
+                // { name: 'Web Dev', path: '/products/categories?category=Web Dev' },
+                // { name: 'Mobile', path: '/products/categories?category=Mobile' },
+                // { name: 'DevTools', path: '/products/categories?category=DevTools' }
               ]
             },
             { 
               name: 'Manage', 
               items: [
-                { name: 'Search Products', path: '/products/search' },
-                { name: 'Submit Product', path: '/products/submit' },
-                { name: 'Promote Product', path: '/products/promote' }
+                // { name: 'Search Products', path: '/products/search' },
+                // { name: 'Submit Product', path: '/products/submit' },
+                // { name: 'Promote Product', path: '/products/promote' }
               ]
             },
           ]
@@ -165,17 +166,9 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
             { 
               name: 'Tools', 
               items: [
-                { name: 'Inspector', path: '/jobs/inspector' },
+                // { name: 'Inspector', path: '/jobs/inspector' },
                 { name: 'Node Manager', path: '/jobs/node' },
-                { name: 'Performance Monitor', path: '/jobs/performance' }
-              ]
-            },
-            { 
-              name: 'Chat Services', 
-              items: [
-                { name: 'New Chat', action: 'createNewChat' },
-                { name: 'Chat History', path: '/jobs/chat/history' },
-                { name: 'AI Models', path: '/jobs/models' }
+                // { name: 'Performance Monitor', path: '/jobs/performance' }
               ]
             },
             // 🔥 노드 편집기 섹션 추가
@@ -183,6 +176,34 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
               name: 'Node Editor', 
               type: 'nodeEditor',
               items: [] // 특별 처리
+            },
+            //Template 추가해야함
+          ]
+        };
+      case 'Chat':
+        return {
+          title: 'Chat & AI',
+          sections: [
+            { 
+              name: 'Conversations', 
+              type: 'chatList',
+              items: [] // ChatList 컴포넌트로 특별 처리
+            },
+            { 
+              name: 'Quick Actions', 
+              items: [
+                { name: 'New Chat', action: 'createNewChat' },
+                { name: 'Chat History', path: '/chat/history' },
+                { name: 'Clear All Chats', action: 'clearAllChats' }
+              ]
+            },
+            { 
+              name: 'AI Settings', 
+              items: [
+                { name: 'AI Models', path: '/chat/models' },
+                { name: 'Chat Settings', path: '/chat/settings' },
+                { name: 'API Configuration', path: '/chat/api' }
+              ]
             },
           ]
         };
@@ -215,17 +236,17 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
             { 
               name: 'Teams', 
               items: [
-                { name: 'All Teams', path: '/teams' },
-                { name: 'Create Team', path: '/teams/create' },
-                { name: 'My Teams', path: '/teams/my' }
+                // { name: 'All Teams', path: '/teams' },
+                // { name: 'Create Team', path: '/teams/create' },
+                // { name: 'My Teams', path: '/teams/my' }
               ]
             },
             { 
               name: 'Workspace', 
               items: [
-                { name: 'Shared Files', path: '/teams/files' },
-                { name: 'Projects', path: '/teams/projects' },
-                { name: 'Settings', path: '/teams/settings' }
+                // { name: 'Shared Files', path: '/teams/files' },
+                // { name: 'Projects', path: '/teams/projects' },
+                // { name: 'Settings', path: '/teams/settings' }
               ]
             },
           ]
@@ -269,6 +290,10 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
       switch (item.action) {
         case 'createNewChat':
           createNewChat();
+          break;
+        case 'clearAllChats':
+          // TODO: 모든 채팅 삭제 로직 구현
+          console.log('모든 채팅 삭제');
           break;
         default:
           console.log(`액션 실행: ${item.action}`);
@@ -435,6 +460,66 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
     </div>
   );
 
+  // 🔥 채팅 리스트 렌더링
+  const renderChatList = () => (
+    <div className="space-y-2">
+      <div className="px-2">
+        <ChatList />
+      </div>
+    </div>
+  );
+
+  // 🔥 Chat 메뉴 선택 시 깔끔한 스타일 렌더링
+  if (selectedMenu === 'Chat') {
+    return (
+      <aside className={cn('flex flex-col h-full bg-sidebar-background border-r border-sidebar-border w-64', className)}>
+        {/* 🔥 깔끔한 헤더 */}
+        <div className="p-4 border-b border-sidebar-border/50">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-bold text-lg text-sidebar-foreground">Chat</h2>
+            <Button 
+              onClick={() => createNewChat()}
+              size="sm" 
+              className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              새 채팅
+            </Button>
+          </div>
+        </div>
+
+        {/* 🔥 ChatList - 깔끔한 스타일 */}
+        <div className="flex-1 overflow-hidden">
+          <ChatList />
+        </div>
+
+        {/* 🔥 간단한 푸터 */}
+        <div className="p-3 border-t border-sidebar-border/50">
+          <div className="flex items-center justify-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-3 text-xs hover:bg-sidebar-accent text-muted-foreground hover:text-sidebar-foreground"
+              onClick={() => navigate('/chat/models')}
+            >
+              <Settings className="w-3 h-3 mr-1" />
+              설정
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-3 text-xs hover:bg-sidebar-accent text-muted-foreground hover:text-sidebar-foreground"
+              onClick={() => navigate('/chat/history')}
+            >
+              <MessageCircle className="w-3 h-3 mr-1" />
+              히스토리
+            </Button>
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside className={cn('flex flex-col h-full bg-sidebar-background border-r border-sidebar-border w-64', className)}>
       {/* 헤더 */}
@@ -461,7 +546,7 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
       </div>
 
       {/* 메인 콘텐츠 */}
-      <ScrollArea className="flex-1">
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="p-2">
           {/* 🔥 동적 섹션 렌더링 */}
           {menuContent.sections.map((section, sectionIndex) => (
@@ -500,8 +585,15 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
                 </div>
               )}
               
+              {/* 🔥 채팅 리스트 특별 렌더링 */}
+              {(section as any).type === 'chatList' && sectionsExpanded[String(sectionIndex)] && (
+                <div className="ml-2 mt-2">
+                  {renderChatList()}
+                </div>
+              )}
+              
               {/* 🔥 일반 섹션 렌더링 */}
-              {(section as any).type !== 'nodeEditor' && sectionsExpanded[String(sectionIndex)] && (
+              {(section as any).type !== 'nodeEditor' && (section as any).type !== 'chatList' && sectionsExpanded[String(sectionIndex)] && (
                 <div className="ml-2 mt-1 space-y-1">
                   {section.items.map((item: any, itemIndex: number) => (
                     <button
@@ -529,7 +621,62 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
             </div>
           ))}
         </div>
-      </ScrollArea>
+      </div>
+      
+      {/* 🔥 커스텀 스크롤바 스타일 */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .custom-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(156, 163, 175, 0.3) transparent;
+          }
+          
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+          }
+          
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(16, 185, 129, 0.3);
+            border-radius: 3px;
+            transition: background 0.2s ease;
+          }
+          
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(16, 185, 129, 0.5);
+          }
+          
+          .custom-scrollbar::-webkit-scrollbar-thumb:active {
+            background: rgba(16, 185, 129, 0.7);
+          }
+          
+          /* Dark mode support */
+          .dark .custom-scrollbar {
+            scrollbar-color: rgba(16, 185, 129, 0.4) transparent;
+          }
+          
+          .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(16, 185, 129, 0.4);
+          }
+          
+          .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(16, 185, 129, 0.6);
+          }
+          
+          /* 🔥 Alternative: Hidden scrollbar style */
+          .hidden-scrollbar {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+          }
+          
+          .hidden-scrollbar::-webkit-scrollbar {
+            display: none;
+          }
+        `
+      }} />
     </aside>
   );
 } 

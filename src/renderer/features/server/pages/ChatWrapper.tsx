@@ -5,7 +5,7 @@ function ChatWrapper() {
   const { sessionId } = useParams<{ sessionId: string }>();
   
   return (
-    <div className="h-screen w-full overflow-hidden">
+    <div className="h-full w-full overflow-hidden">
       <ChatRoom />
     </div>
   );

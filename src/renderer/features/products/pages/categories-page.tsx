@@ -1,57 +1,10 @@
-// import { Hero } from "../../../common/components/hero";
-// import { CategoryCard } from "../components/category-card";
-// import {type LoaderFunctionArgs, type MetaFunction, useLoaderData} from "react-router";
-// import { getCategories } from "../queries";
-// import { makeSSRClient } from "../../../supa-client";
-// import { Tables } from "../../../database.types";
-//
-// // GitHubPopularityView 타입 정의
-// type mcp_server_categories_view = Tables<"mcp_server_categories_view">;
-//
-// // 로더 데이터 타입 정의
-// type CategoriesPageLoaderData = {
-//   categories: mcp_server_categories_view[];
-// };
-//
-// export const meta: MetaFunction = () => [
-//   { title: "Categories | ProductHunt Clone" },
-//   { name: "description", content: "Browse products by category" },
-// ];
-//
-// export const loader = async ({ request }: LoaderFunctionArgs) => {
-//   const { client, headers } = makeSSRClient(request);
-//   const categories = await getCategories(client as any);
-//   return { categories };
-// };
-//
-// export default function CategoriesPage() {
-//   const { categories } = useLoaderData() as CategoriesPageLoaderData;
-//
-//   return (
-//     <div className="space-y-10">
-//       <Hero title="Categories" subtitle="Browse products by category" />
-//       <div className="grid md:grid-cols-4 gap-4 md:gap-10">
-//         {categories.map((category : mcp_server_categories_view, index: number) => (
-//           <div key={category.id} className="h-full flex">
-//             <CategoryCard
-//               id={category.id}
-//               name={category.name ?? ""}
-//               description={category.description ?? ""}
-//             />
-//           </div>
-//         ))}
-//       </div>
-//     </div>
-//   );
-// }
-
 import { Hero } from "../../../common/components/hero";
 import { CategoryCard } from "../components/category-card";
 import { type LoaderFunctionArgs, type MetaFunction, useLoaderData, useSearchParams, Link } from "react-router";
 import { getCategories } from "../queries";
 import { makeSSRClient } from "../../../supa-client";
 import { Button } from "../../../common/components/ui/button";
-import { CircleXIcon } from "lucide-react";
+import { X } from "lucide-react";
 import { cn } from "../../../lib/utils";
 
 // 타입 정의
@@ -67,7 +20,7 @@ type CategoriesPageLoaderData = {
   uniqueTags: string[];
   uniqueStatuses: string[];
   uniquePopularities: string[];
-  uniqueCategoryTypes: string[]; // 카테고리 타입 추가
+  uniqueCategoryTypes: string[];
 };
 
 export const meta: MetaFunction = () => [
@@ -84,11 +37,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // 서버에서 고유한 태그, 상태, 인기도 정보를 가져옴
   const { data: serverData } = await client
     .from('mcp_server_categories_view')
-    .select('tags, activity_status, popularity_category, categories'); // category_type 대신 categories 사용
+    .select('tags, activity_status, popularity_category, categories');
 
   // 고유 태그 추출
   const uniqueTags = Array.from(new Set(
-    serverData
+    (serverData || [])
       .filter(item => item.tags)
       .flatMap(item => item.tags.split(',').map(tag => tag.trim()))
       .filter(tag => tag)
@@ -96,26 +49,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // 고유 상태 추출
   const uniqueStatuses = Array.from(new Set(
-    serverData
+    (serverData || [])
       .filter(item => item.activity_status)
       .map(item => item.activity_status)
   ));
 
   // 고유 인기도 카테고리 추출
   const uniquePopularities = Array.from(new Set(
-    serverData
+    (serverData || [])
       .filter(item => item.popularity_category)
       .map(item => item.popularity_category)
   ));
 
   // 고유 카테고리 타입 추출
   const uniqueCategoryTypes = Array.from(new Set(
-    serverData
+    (serverData || [])
       .filter(item => item.categories)
       .flatMap(item => item.categories.split(',').map(cat => cat.trim()))
       .filter(Boolean)
   ));
-  console.log(uniqueCategoryTypes)
+
   return {
     categories,
     uniqueTags,
@@ -149,58 +102,63 @@ export default function CategoriesPage() {
   const tag = searchParams.get("tag") || "";
   const status = searchParams.get("status") || "";
   const popularity = searchParams.get("popularity") || "";
-  const categoryType = searchParams.get("category") || ""; // 카테고리 타입 파라미터 추가
+  const categoryType = searchParams.get("category") || "";
 
   return (
-    <div className="space-y-20">
+    <div className="space-y-8">
       <Hero title="카테고리" subtitle="카테고리별 MCP 서버 찾아보기" />
-      <div className="grid grid-cols-1 xl:grid-cols-6 gap-20 items-start">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:col-span-4 gap-5">
-          {categories.map((category) => (
-            <div key={category.id} className="aspect-square">
+      
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 items-start">
+        {/* 🔥 카테고리 그리드 */}
+        <div className="xl:col-span-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {categories.map((category) => (
               <CategoryCard
+                key={category.id}
                 id={category.id}
                 name={category.name}
                 description={category.description}
               />
-            </div>
-          ))}
-          {categories.length === 0 && (
-            <div className="col-span-full">
-              <p className="text-lg font-semibold text-muted-foreground">
-                조건에 맞는 카테고리가 없습니다. 필터를 수정하거나{" "}
-                <Button variant={"link"} asChild className="p-0 text-lg">
-                  <Link to="/categories">초기화</Link>
-                </Button>{" "}
-                하세요.
-              </p>
-            </div>
-          )}
+            ))}
+            {categories.length === 0 && (
+              <div className="col-span-full text-center py-8">
+                <p className="text-lg font-semibold text-muted-foreground">
+                  조건에 맞는 카테고리가 없습니다. 필터를 수정하거나{" "}
+                  <Button variant="link" asChild className="p-0 text-lg">
+                    <Link to="/products/categories">초기화</Link>
+                  </Button>{" "}
+                  하세요.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="xl:col-span-2 sticky top-20 flex flex-col gap-10">
-          {/* 카테고리 타입 필터 - 새로 추가 */}
+        {/* 🔥 필터 사이드바 */}
+        <div className="xl:col-span-1 space-y-6">
+          {/* 카테고리 타입 필터 */}
           {uniqueCategoryTypes.length > 0 && (
-            <div className="flex flex-col items-start gap-2.5">
-              <h4 className="text-sm text-muted-foreground font-bold">카테고리 타입</h4>
-              <div className="flex flex-wrap gap-2">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">카테고리 타입</h4>
                 {categoryType && (
                   <Button
-                    variant={"outline"}
-                    className="text-red-500"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => clearFilter("category")}
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
                   >
-                    <CircleXIcon className="w-4 h-4" />
+                    <X className="w-4 h-4" />
                   </Button>
                 )}
+              </div>
+              <div className="flex flex-wrap gap-2">
                 {uniqueCategoryTypes.map((typeOption) => (
                   <Button
                     key={typeOption}
-                    variant={"outline"}
+                    variant={typeOption === categoryType ? "default" : "outline"}
+                    size="sm"
                     onClick={() => onFilterClick("category", typeOption)}
-                    className={cn(
-                      typeOption === categoryType ? "bg-accent" : ""
-                    )}
                   >
                     {typeOption}
                   </Button>
@@ -211,26 +169,27 @@ export default function CategoriesPage() {
 
           {/* 태그 필터 */}
           {uniqueTags.length > 0 && (
-            <div className="flex flex-col items-start gap-2.5">
-              <h4 className="text-sm text-muted-foreground font-bold">태그</h4>
-              <div className="flex flex-wrap gap-2">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">태그</h4>
                 {tag && (
                   <Button
-                    variant={"outline"}
-                    className="text-red-500"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => clearFilter("tag")}
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
                   >
-                    <CircleXIcon className="w-4 h-4" />
+                    <X className="w-4 h-4" />
                   </Button>
                 )}
-                {uniqueTags.map((tagOption) => (
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {uniqueTags.slice(0, 8).map((tagOption) => (
                   <Button
                     key={tagOption}
-                    variant={"outline"}
+                    variant={tagOption === tag ? "default" : "outline"}
+                    size="sm"
                     onClick={() => onFilterClick("tag", tagOption)}
-                    className={cn(
-                      tagOption === tag ? "bg-accent" : ""
-                    )}
                   >
                     {tagOption}
                   </Button>
@@ -241,26 +200,27 @@ export default function CategoriesPage() {
 
           {/* 상태 필터 */}
           {uniqueStatuses.length > 0 && (
-            <div className="flex flex-col items-start gap-2.5">
-              <h4 className="text-sm text-muted-foreground font-bold">상태</h4>
-              <div className="flex flex-wrap gap-2">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">상태</h4>
                 {status && (
                   <Button
-                    variant={"outline"}
-                    className="text-red-500"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => clearFilter("status")}
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
                   >
-                    <CircleXIcon className="w-4 h-4" />
+                    <X className="w-4 h-4" />
                   </Button>
                 )}
+              </div>
+              <div className="flex flex-wrap gap-2">
                 {uniqueStatuses.map((statusOption) => (
                   <Button
                     key={statusOption}
-                    variant={"outline"}
+                    variant={statusOption === status ? "default" : "outline"}
+                    size="sm"
                     onClick={() => onFilterClick("status", statusOption)}
-                    className={cn(
-                      statusOption === status ? "bg-accent" : ""
-                    )}
                   >
                     {statusOption}
                   </Button>
@@ -271,26 +231,27 @@ export default function CategoriesPage() {
 
           {/* 인기도 필터 */}
           {uniquePopularities.length > 0 && (
-            <div className="flex flex-col items-start gap-2.5">
-              <h4 className="text-sm text-muted-foreground font-bold">인기도</h4>
-              <div className="flex flex-wrap gap-2">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">인기도</h4>
                 {popularity && (
                   <Button
-                    variant={"outline"}
-                    className="text-red-500"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => clearFilter("popularity")}
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
                   >
-                    <CircleXIcon className="w-4 h-4" />
+                    <X className="w-4 h-4" />
                   </Button>
                 )}
+              </div>
+              <div className="flex flex-wrap gap-2">
                 {uniquePopularities.map((popularityOption) => (
                   <Button
                     key={popularityOption}
-                    variant={"outline"}
+                    variant={popularityOption === popularity ? "default" : "outline"}
+                    size="sm"
                     onClick={() => onFilterClick("popularity", popularityOption)}
-                    className={cn(
-                      popularityOption === popularity ? "bg-accent" : ""
-                    )}
                   >
                     {popularityOption}
                   </Button>

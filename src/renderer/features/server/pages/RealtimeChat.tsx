@@ -441,9 +441,9 @@ export default function ChatRoom() {
 
 
   return (
-    <div className="min-h-screen w-full flex">
+    <div className="w-full flex h-full">
       {/* Main Chat Container */}
-      <div className="flex-1 w-full flex flex-col h-screen"> {/* 🔥 max-w-5xl mx-auto 제거하고 w-full로 전체 너비 사용 */}
+      <div className="flex-1 w-full flex flex-col h-full"> {/* 🔥 타이틀바 고려해서 h-full 사용 */}
         {/* Header */}
         <ChatHeader 
           roomName={room.name}
@@ -463,22 +463,24 @@ export default function ChatRoom() {
         />
 
         {/* Chat Messages Area */}
-        <div className="flex-1 overflow-hidden min-h-0">
+        <div className="flex-1 flex flex-col min-h-0">
           {messages.length === 0 && !isStreaming ? (
-            <EmptyState
-              onShowWorkflow={() => setShowWorkflowModal(true)}
-              onShowSettings={() => setShowSettings(true)}
-              mcpToolsCount={availableTools.length}
-              onStartChat={(message) => sendMessage(message)}
-              currentModel={chatConfig?.model || 'openai/gpt-4'}
-              connectedServers={mcpBindings
-                .filter(b => b.status === 'active')
-                .map(b => {
-                  const server = availableServers.find(s => s.id === b.serverId);
-                  return server?.name || b.serverId;
-                })
-              }
-            />
+            <div className="flex-1 flex items-center justify-center">
+              <EmptyState
+                onShowWorkflow={() => setShowWorkflowModal(true)}
+                onShowSettings={() => setShowSettings(true)}
+                mcpToolsCount={availableTools.length}
+                onStartChat={(message) => sendMessage(message)}
+                currentModel={chatConfig?.model || 'openai/gpt-4'}
+                connectedServers={mcpBindings
+                  .filter(b => b.status === 'active')
+                  .map(b => {
+                    const server = availableServers.find(s => s.id === b.serverId);
+                    return server?.name || b.serverId;
+                  })
+                }
+              />
+            </div>
           ) : (
             <ChatMessages
             ref={containerRef}
@@ -493,9 +495,9 @@ export default function ChatRoom() {
           )}
         </div>
 
-        {/* Chat Input */}
-        <div className="border-t border-border p-2"> {/* 🔥 패딩 줄임: p-6 → p-2 */}
-          <div className="w-full px-2"> {/* 🔥 mx-auto 제거하고 px-2로 좌우 패딩만 추가 */}
+        {/* Chat Input - 항상 보이는 하단 고정 */}
+        <div className="flex-shrink-0 border-t border-border bg-background">
+          <div className="p-4">
             <ChatInput 
               onSend={sendMessage} 
               isStreaming={isStreaming} 
@@ -512,10 +514,10 @@ export default function ChatRoom() {
       {showSettings && (
         <>
           <div 
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[9998]"
             onClick={() => setShowSettings(false)}
           />
-          <div className="fixed right-0 top-0 h-full w-80 bg-white dark:bg-gray-900 shadow-2xl z-50 transform transition-transform">
+          <div className="fixed right-0 top-8 h-[calc(100vh-2rem)] w-80 bg-white dark:bg-gray-900 shadow-2xl z-[9999] transform transition-transform"> {/* 🔥 타이틀바 아래에 위치하도록 top-8 추가 */}
             <ChatSidebar
               isOpen={showSettings}
               onClose={() => setShowSettings(false)}

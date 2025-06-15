@@ -17,6 +17,8 @@ import { agentOrchestratorStore } from './orchestrator/agentOrchestratorStore';
 import { workflowStore } from './workflow/workflowStore';
 import { overlayStore } from './overlay/overlayStore';
 import { windowStore } from './window/windowStore';
+import { updateStore } from './update/updateStore';
+
 
 export const combinedStore = createStore<CombinedState>((set, get) => ({
   // root: rootStore.getState(),
@@ -33,6 +35,7 @@ export const combinedStore = createStore<CombinedState>((set, get) => ({
   workflow: workflowStore.getState(),
   overlay: overlayStore.getState(),
   window: windowStore.getState(),
+  update: updateStore.getState(),
   // agentOrchestrator: agentOrchestratorStore.getState(),
 }));
 

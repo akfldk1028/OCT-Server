@@ -117,6 +117,21 @@ export function Root() {
   // 🔥 선택된 메뉴 상태 관리 (Slack 스타일)
   const [selectedMenu, setSelectedMenu] = useState<string | null>(null);
 
+  // 🔥 URL 기반으로 selectedMenu 자동 설정
+  useEffect(() => {
+    if (pathname.startsWith('/chat')) {
+      setSelectedMenu('Chat');
+    } else if (pathname.startsWith('/jobs')) {
+      setSelectedMenu('Server');
+    } else if (pathname.startsWith('/products')) {
+      setSelectedMenu('Products');
+    } else if (pathname.startsWith('/overlay') || pathname.startsWith('/community')) {
+      setSelectedMenu('Community');
+    } else if (pathname.startsWith('/teams')) {
+      setSelectedMenu('Tools');
+    }
+  }, [pathname]);
+
   Settings.defaultLocale = 'ko';
   Settings.defaultZone = 'utc';
 
@@ -252,7 +267,7 @@ export function Root() {
               'overflow-hidden py-0 md:py-0 px-0 md:px-0': pathname.includes('/jobs/node'),
               'overflow-hidden py-10 md:py-10 px-5 md:px-10': pathname.includes('/jobs/inspector'),
               'overflow-y-auto py-10 md:py-20 px-5 md:px-20': IS_ELECTRON && pathname === '/',
-              'overflow-y-auto py-0 px-5 md:py-0 min-h-screen bg-background': pathname.includes('/chat/'),
+              'overflow-hidden py-0 px-0 md:py-0 h-full bg-background': pathname.includes('/chat/'),
               'transition-opacity animate-pulse': isLoading,
             }
           )}

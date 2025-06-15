@@ -46,7 +46,6 @@ import { useKeyboardShortcuts } from '../hook/useKeyboardShortcuts'; // 새로 �
 import { type MyNode } from '../components/initialElements';
 import { useOutletContext } from 'react-router';
 import type { ServerLayoutContext } from '../types/server-types';
-import { config } from 'process';
 import FlowToolbar from '../components/Flow/FlowToolbar';
 // 🔥 DnDProvider 추가
 import { DnDProvider } from '../hook/DnDContext';
@@ -170,12 +169,6 @@ export default function NodePage() {
   // 실제 데이터 context에서 받아오기
   const { servers, clients } = useOutletContext<ServerLayoutContext>();
 
-  
-    // console.log("[node-page] ✅✅")
-    // console.log(servers)
-    // console.log( clients)
-    // console.log("[node-page] ✅✅")
-
   const dynamicInitNodes: MyNode[] = [
     { id: '1', type: 'trigger', data: { label: 'START TRIGGER' }, position: { x: 100, y: 50 } },
     clients && clients.length > 0 ?
@@ -189,9 +182,6 @@ export default function NodePage() {
     { id: 'e2-3', source: '2', target: '3', animated: true, style: { strokeWidth: 2 }, type: 'smoothstep' },
   ];
 
-
-
-
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState(dynamicInitNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(dynamicInitEdges);
@@ -204,7 +194,6 @@ export default function NodePage() {
     bottom?: number;
   } | null>(null);
   
-  // 🔥 노드 드래그 훅 사용 (ChannelSidebar와 연동)
   const { onDrop, onDragOver } = useDragAndDrop();
 
   const {
@@ -219,7 +208,6 @@ export default function NodePage() {
   const hideContextMenu = useCallback(() => setMenu(null), []);
   useKeyboardShortcuts(nodes, edges, setNodes, setEdges, hideContextMenu);
 
-  // 🔥 onDrop 핸들러를 setNodes와 함께 래핑
   const handleDrop = useCallback((event: React.DragEvent) => {
     onDrop(event, setNodes);
   }, [onDrop, setNodes]);
@@ -229,10 +217,14 @@ export default function NodePage() {
     [setEdges],
   );
 
-  // 🔥 DnDProvider로 전체 컴포넌트 감싸기
   return (
     <DnDProvider>
-        <div className="w-full h-full relative bg-background">
+      <div className="w-full h-full flex flex-col bg-background">
+        {/* 상단 툴바 */}
+        <FlowToolbar />
+        
+        {/* 메인 플로우 영역 */}
+        <div className="flex-1 relative">
           <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%' }}>
             <ReactFlow
               nodes={nodes}
@@ -257,7 +249,6 @@ export default function NodePage() {
                   left: event.clientX,
                 });
               }}
-              // 🔥 드래그앤드롭 핸들러 설정
               onDrop={handleDrop}
               onDragOver={onDragOver}
               fitView
@@ -270,9 +261,6 @@ export default function NodePage() {
             >
               <Background />
               <Controls position="bottom-left" />
-              <Panel position="top-right">
-                <FlowToolbar />
-              </Panel>
               <Panel position="top-left">
                 <div className="flex flex-col gap-2 p-2 bg-card border border-border rounded-lg shadow-sm">
                   <button
@@ -333,7 +321,8 @@ export default function NodePage() {
             <div>Ctrl+A: Select all</div>
             <div>Esc: Close menu/deselect</div>
           </div>
-                 </div>
-     </DnDProvider>
-   );
+        </div>
+      </div>
+    </DnDProvider>
+  );
 }

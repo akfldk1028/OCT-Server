@@ -395,6 +395,118 @@ export const getPublicWorkflows = async (
   }
 };
 
+// 🔥 공유 토큰으로 워크플로우 가져오기 (SSR용)
+export const getWorkflowByShareToken = async (
+  client: SupabaseClient<Database>,
+  params: {
+    share_token: string;
+  }
+) => {
+  const { share_token } = params;
+  
+  try {
+    // 1. 공유 정보 먼저 조회 (권한 확인)
+    const { data: shareData, error: shareError } = await client
+      .from('workflow_shares')
+      .select(`
+        *,
+        workflows (
+          id,
+          name,
+          description,
+          flow_structure,
+          created_at,
+          updated_at,
+          profiles (
+            profile_id,
+            name,
+            username,
+            avatar
+          )
+        )
+      `)
+      .eq('share_token', share_token)
+      .eq('is_active', true)
+      .single();
+      
+    if (shareError) throw shareError;
+    if (!shareData) {
+      throw new Error('워크플로우 공유를 찾을 수 없습니다.');
+    }
+    
+    // 2. 만료 시간 확인
+    if (shareData.expires_at && new Date(shareData.expires_at) < new Date()) {
+      throw new Error('공유 링크가 만료되었습니다.');
+    }
+    
+    // 3. 뷰 권한 확인
+    if (!shareData.can_view) {
+      throw new Error('이 워크플로우를 볼 권한이 없습니다.');
+    }
+    
+    const workflow = shareData.workflows;
+    if (!workflow) {
+      throw new Error('워크플로우를 찾을 수 없습니다.');
+    }
+    
+    // 4. 관련 노드들 (서버 정보 포함)
+    const { data: nodes, error: nodesError } = await client
+      .from('workflow_nodes')
+      .select(`
+        *,
+        mcp_servers:original_server_id (
+          id,
+          name,
+          description,
+          primary_url,
+          github_info,
+          metadata
+        )
+      `)
+      .eq('workflow_id', workflow.id);
+      
+    if (nodesError) throw nodesError;
+    
+    // 5. 관련 엣지들
+    const { data: edges, error: edgesError } = await client
+      .from('workflow_edges')
+      .select('*')
+      .eq('workflow_id', workflow.id);
+      
+    if (edgesError) throw edgesError;
+    
+    // 6. 다운로드 카운트 업데이트 (선택적)
+    await client
+      .from('workflow_shares')
+      .update({ 
+        download_count: (shareData.download_count || 0) + 1 
+      })
+      .eq('id', shareData.id);
+    
+    return {
+      workflow: {
+        ...workflow,
+        nodes: nodes || [],
+        edges: edges || []
+      },
+      shareInfo: {
+        share_token: shareData.share_token,
+        share_title: shareData.share_title,
+        share_description: shareData.share_description,
+        can_view: shareData.can_view,
+        can_copy: shareData.can_copy,
+        can_edit: shareData.can_edit,
+        download_count: shareData.download_count,
+        created_at: shareData.created_at,
+        expires_at: shareData.expires_at,
+      }
+    };
+  } catch (error) {
+    console.error('Failed to fetch workflow by share token:', error);
+    throw error;
+  }
+};
+
 // 워크플로우 실행 기록 저장 (새로운 실행 시작 시)
 export async function saveWorkflowExecution(
   client: SupabaseClient,
