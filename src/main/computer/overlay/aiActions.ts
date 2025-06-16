@@ -98,6 +98,24 @@ const getScreenshotWithWindowInfo = async (): Promise<{
       external: endMemory.external - startMemory.external
     };
     
+    // 🔥 PNG→JPEG 변환 (Anthropic API 호환성을 위해)
+    const { nativeImage } = require('electron');
+    try {
+      const buffer = Buffer.from(screenshot, 'base64');
+      const image = nativeImage.createFromBuffer(buffer);
+      const jpegBuffer = image.toJPEG(75); // 75% 품질로 JPEG 변환
+      screenshot = jpegBuffer.toString('base64');
+      
+      console.log('📸 [getScreenshotWithWindowInfo] PNG→JPEG 변환 완료:', {
+        originalSize: `${Math.round(buffer.length / 1024)}KB`,
+        compressedSize: `${Math.round(jpegBuffer.length / 1024)}KB`,
+        compression: `${Math.round((1 - jpegBuffer.length / buffer.length) * 100)}% 절약`
+      });
+    } catch (convertError) {
+      console.warn('⚠️ [getScreenshotWithWindowInfo] 이미지 변환 실패:', convertError);
+      // 변환 실패 시 원본 사용 (최악의 경우 대비)
+    }
+
     console.log('📊 [getScreenshotWithWindowInfo] 성능 리포트:', {
       duration: `${endTime - startTime}ms`,
       memoryDelta: {
@@ -413,6 +431,11 @@ export function extractStepsFromResponse(message: BetaMessage): GuideStep[] {
       ? content.filter(item => item.type === 'text').map(item => item.text).join('\n')
       : '';
 
+  console.log('🔍 [extractStepsFromResponse] AI 응답 내용:', {
+    contentLength: contentText.length,
+    preview: contentText.substring(0, 200) + '...'
+  });
+
   const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)```/i;
   const jsonMatch = contentText.match(jsonBlockRegex);
 
@@ -420,15 +443,21 @@ export function extractStepsFromResponse(message: BetaMessage): GuideStep[] {
 
   try {
     if (jsonMatch && jsonMatch[1]) {
+      console.log('✅ [extractStepsFromResponse] JSON 블록 발견');
       parsed = JSON.parse(jsonMatch[1].trim());
     } else {
+      console.log('🔍 [extractStepsFromResponse] 인라인 JSON 검색 중...');
       const inlineJsonMatch = contentText.match(/\{\s*"steps"[\s\S]*\}$/m);
       if (inlineJsonMatch) {
+        console.log('✅ [extractStepsFromResponse] 인라인 JSON 발견');
         parsed = JSON.parse(inlineJsonMatch[0]);
+      } else {
+        console.warn('⚠️ [extractStepsFromResponse] JSON 형식을 찾을 수 없음');
       }
     }
   } catch (e) {
-    console.warn('⚠️ JSON 파싱 실패:', e);
+    console.warn('⚠️ [extractStepsFromResponse] JSON 파싱 실패:', e);
+    console.log('📄 [extractStepsFromResponse] 파싱 실패한 내용:', jsonMatch ? jsonMatch[1] : '매치된 내용 없음');
   }
 
   if (!parsed || !Array.isArray(parsed.steps)) {
@@ -603,9 +632,19 @@ export const runAgent = async (
 
     // 🔥 4단계: 응답 파싱 및 좌표 조정
     const steps = extractStepsFromResponse(message as BetaMessage);
+    console.log('📋 [runAgent] AI 응답 파싱 결과:', {
+      originalSteps: steps.length,
+      stepTitles: steps.map(s => s.title)
+    });
+    
     const adjustedSteps = windowInfo ? 
       adjustStepsForWindow(steps, windowInfo) : 
       steps;
+
+    console.log('🎯 [runAgent] 좌표 조정 완료:', {
+      adjustedSteps: adjustedSteps.length,
+      windowAdjusted: !!windowInfo
+    });
 
     setState({
       ...getState(),
@@ -614,10 +653,16 @@ export const runAgent = async (
     });
 
     // 🔥 5단계: 가이드 표시
-    await getState().SHOW_GUIDE({
-      software: getState().activeSoftware,
-      steps: adjustedSteps,
-    });
+    if (adjustedSteps.length > 0) {
+      console.log('🎯 [runAgent] 가이드 표시 시작...');
+      const showResult = await getState().SHOW_GUIDE({
+        software: getState().activeSoftware,
+        steps: adjustedSteps,
+      });
+      console.log('✅ [runAgent] 가이드 표시 결과:', showResult);
+    } else {
+      console.warn('⚠️ [runAgent] 가이드 스텝이 없어 표시하지 않음');
+    }
 
     // 🔥 성능 모니터링 완료
     const totalTime = Date.now() - startTime;

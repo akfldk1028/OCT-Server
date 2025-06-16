@@ -1,11 +1,10 @@
 // src/main/store/screenshotActions.ts
 import fs from 'node:fs';
 import path from 'node:path';
-import { app, desktopCapturer, nativeImage } from 'electron';
+import { app, desktopCapturer, nativeImage, screen, BrowserWindow, ipcMain } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-
 
 const execFileAsync = promisify(execFile);
 
@@ -203,25 +202,85 @@ async function captureScreenshotMac(targetWindow?: any): Promise<Buffer> {
 }
 
 async function captureScreenshotWindows(targetWindow?: any): Promise<Buffer> {
-  // 🔥 PowerShell 대신 desktopCapturer API 사용 (성능 최적화)
+  console.log('🚀 [캡처 시작] 고성능 워커 모드');
+  const primaryDisplay = screen.getPrimaryDisplay();
+
+  // 1. 썸네일 없이 소스 목록만 빠르게 가져오기
   const sources = await desktopCapturer.getSources({
     types: ['window', 'screen'],
-    thumbnailSize: { width: 1920, height: 1080 } // 임시 크기, 실제론 원본 크기
+    thumbnailSize: { width: 0, height: 0 }, // 썸네일 없이 가져와서 매우 빠름
+    fetchWindowIcons: false,
   });
 
   let source;
-  if (targetWindow && targetWindow.id) {
-    // targetWindow.id 형식: "window:12345:1"
-    const windowId = targetWindow.id.split(':')[1];
-    source = sources.find(s => s.id.includes(windowId));
+  const targetName = targetWindow?.name;
+  const targetId = targetWindow?.display_id;
+
+  // 2. display_id 또는 이름으로 정확한 소스 찾기
+  if (targetId) {
+    source = sources.find((s) => s.id === targetId);
   }
-  
-  // 특정 창을 못 찾으면 주 화면을 캡처
+  if (!source && targetName) {
+    source = sources.find((s) => s.name === targetName);
+  }
   if (!source) {
-    source = sources.find(s => s.id.startsWith('screen:'));
+    console.warn(`[캡처 폴백] 특정 창(${targetName})을 찾지 못해 전체 화면 캡처`);
+    source = sources.find((s) => s.id.startsWith('screen:'));
     if (!source) throw new Error('스크린샷 소스를 찾을 수 없습니다.');
   }
+  console.log(`✅ [캡처 대상] "${source.name}" (${source.id})`);
 
-  const image = await source.thumbnail.toPNG();
-  return image;
+  // 3. 캡처에 필요한 정보 설정
+  const captureConfig = {
+    width: targetWindow?.width || primaryDisplay.size.width,
+    height: targetWindow?.height || primaryDisplay.size.height,
+  };
+
+  // 4. 보이지 않는 워커 창을 사용하여 캡처 실행
+  return new Promise((resolve, reject) => {
+    const worker = new BrowserWindow({
+      show: false,
+      width: 100,
+      height: 100,
+      webPreferences: {
+        nodeIntegration: true, // require 사용을 위해
+        contextIsolation: false, // ipcRenderer 사용을 위해
+      },
+    });
+
+    const cleanup = () => {
+      ipcMain.removeAllListeners('screenshot-captured');
+      if (!worker.isDestroyed()) {
+        worker.close();
+      }
+    };
+
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('스크린샷 캡처 시간 초과 (5초)'));
+    }, 5000);
+
+    ipcMain.once('screenshot-captured', (event, result) => {
+      clearTimeout(timeout);
+      cleanup();
+      if (result.success) {
+        const buffer = Buffer.from(
+          result.dataURL.replace(/^data:image\/png;base64,/, ''),
+          'base64',
+        );
+        console.log('✅ [캡처 성공] 이미지 버퍼 생성 완료');
+        resolve(buffer);
+      } else {
+        reject(new Error(`캡처 워커 오류: ${result.error}`));
+      }
+    });
+
+    worker.webContents.on('did-finish-load', () => {
+      worker.webContents.send('capture-source', source.id, captureConfig);
+    });
+
+    // 워커 HTML 파일 로드
+    const workerPath = path.join(__dirname, 'capture.html');
+    worker.loadFile(workerPath);
+  });
 }
