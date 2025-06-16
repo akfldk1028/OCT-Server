@@ -1,4 +1,4 @@
-import {Link, type MetaFunction, useLoaderData} from "react-router";
+import {Link, type MetaFunction, useLoaderData, useOutletContext} from "react-router";
 import { ProductCard } from "../../features/products/components/product-card";
 // import { PostCard } from "~/features/community/components/post-card";
 // import { IdeaCard } from "~/features/ideas/components/idea-card";
@@ -18,13 +18,13 @@ import { Marquee } from "../components/ui/marquee";
 import { RetroGrid } from "../components/ui/retro-grid";
 import { MagicCard } from "../components/ui/magic-card";
 import { Ripple } from "../components/ui/ripple";
-import { makeSSRClient, supabase } from "../../supa-client";
+import { supabase } from "../../supa-client";
 import { Button } from "../components/ui/button";
 import type { Database } from "../../supa-client";
 import { InitialAvatar } from "../components/ui/initial-avatar";
 import { type LoaderFunctionArgs } from "react-router";
 import {  IS_ELECTRON, IS_WEB } from '../../utils/environment';
-import { Server } from "lucide-react";
+import { Server, Play, Eye, Clock, Edit, Plus } from "lucide-react";
 import { useState, useEffect } from "react";
 import { ensureClaudeApi } from "../../lib/utils";
 import { MoreVertical, Trash2, Archive } from 'lucide-react';
@@ -40,7 +40,6 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 
 export type HomePageLoaderData = {
   products: any;
-
 };
 
 // props 타입 수동 정의
@@ -57,18 +56,20 @@ export const meta: MetaFunction = () => {
     { name: "description", content: "Welcome to wemake" },
   ];
 };
+
 export const loader = async ({  request } : LoaderFunctionArgs) => {
   try {
-
-    // const { client, headers } = makeSSRClient(request); // headers might be unused now
-    console.log("Using client created by makeSSRClient (Electron adapted)");
-    const [products] = await Promise.all([
-      getProductsBypopularity(supabase as any, { // 'as any' cast might still be needed depending on exact types
-        limit: 100,
-        // limit: 8,
-
-      }),
-    ]);
+    console.log("🔥 [HomePage Loader] 제품 데이터만 로드 (나머지는 root.tsx에서)");
+    
+    // 🔥 제품 데이터만 로드 (서버/클라이언트/워크플로우는 root.tsx에서 가져옴)
+    const products = await getProductsBypopularity(supabase as any, { 
+      limit: 100,
+    });
+    
+    console.log('🔥 [HomePage Loader] 로드된 데이터:', {
+      products: products?.length || 0
+    });
+    
     return {
       products,
     };
@@ -83,129 +84,478 @@ export const loader = async ({  request } : LoaderFunctionArgs) => {
   }
 };
 
-type ServerTabGridProps = { claudeServers: string[], setClaudeServers: (servers: string[]) => void };
-function ServerTabGrid({ claudeServers = [], setClaudeServers }: ServerTabGridProps) {
-  const serverTabs = [
+
+
+
+
+
+
+
+
+type ServerTabGridProps = { 
+  claudeServers: string[], 
+  setClaudeServers: (servers: string[]) => void,
+  workflowClientType?: string,
+  targetClients?: string[],
+  realServers?: any[], // 🔥 실제 서버 데이터
+  realClients?: any[],  // 🔥 실제 클라이언트 데이터
+  workflows?: any[]     // 🔥 워크플로우 데이터
+};
+
+function ServerTabGrid({ 
+  claudeServers = [], 
+  setClaudeServers, 
+  workflowClientType = 'all',
+  targetClients = [],
+  realServers = [],
+  realClients = [],
+  workflows = []
+}: ServerTabGridProps) {
+  // 🔥 더보기 상태 관리
+  const [showAllWorkflows, setShowAllWorkflows] = useState(false);
+  
+  // 🔥 워크플로우를 클라이언트 타입별로 분류
+  const getLocalWorkflows = () => {
+    return workflows.filter(workflow => 
+      workflow.client_type === 'local' || workflow.client_type === 'mixed'
+    );
+  };
+
+  const getClaudeWorkflows = () => {
+    return workflows.filter(workflow => 
+      workflow.client_type === 'claude_desktop' || workflow.client_type === 'mixed'
+    );
+  };
+
+  const getOpenAIWorkflows = () => {
+    return workflows.filter(workflow => 
+      workflow.client_type === 'openai' || workflow.client_type === 'mixed'
+    );
+  };
+
+  // 🔥 모든 서버 탭 정의 (워크플로우 데이터 사용)
+  const allServerTabs = [
     {
       label: 'Local',
       key: 'my',
-      servers: [
-        { name: 'DESKTOP-XXXXXXX', owner: 'user#1234' },
-        { name: 'MSI', owner: 'you' },
-        { name: 'DESKTOP-CK5JOK6', owner: 'Bandi97#16922696' },
-        { name: 'DESKTOP-2K5U0TU', owner: 'kanjooyoung#16647253' },
-        { name: 'DESKTOP-Q5ELDCL', owner: 'pjh7083#16175568' },
-        { name: 'DESKTOP-CK5JOK6', owner: 'Bandi97#16922696' },
-        { name: 'DESKTOP-2K5U0TU', owner: 'kanjooyoung#16647253' },
-        { name: 'DESKTOP-Q5ELDCL', owner: 'pjh7083#16175568' },
-      ],
+      clientType: 'local',
+      workflows: getLocalWorkflows(),
+      icon: '💻',
+      color: 'hsl(var(--primary))',
+      description: '로컬 환경에서 실행되는 워크플로우'
     },
     {
       label: 'Claude',
       key: 'claude',
-      servers: claudeServers.map(name => ({ name, owner: 'Claude Desktop' })),
+      clientType: 'claude_desktop',
+      workflows: getClaudeWorkflows(),
+      icon: '🧠',
+      color: 'hsl(var(--chart-2))',
+      description: 'Claude Desktop과 연동된 워크플로우'
     },
     {
-      label: 'Cursor',
+      label: 'OpenAI/Cursor',
       key: 'company',
-      servers: [
-        { name: 'GA504_PC4', owner: 'pjh7083#16175568' },
-        { name: 'DESKTOP-ABCD123', owner: 'guest' },
-        { name: 'DESKTOP-TEST', owner: 'testuser' },
-      ],
+      clientType: 'openai',
+      workflows: getOpenAIWorkflows(),
+      icon: '🔧',
+      color: 'hsl(var(--chart-1))',
+      description: 'OpenAI API를 사용하는 워크플로우'
     },
   ];
-  const [activeTab, setActiveTab] = useState('my');
-  const currentServers = serverTabs.find(tab => tab.key === activeTab)?.servers ?? [];
-  return (
-    <div className="relative min-h-[500px] w-full flex bg-background overflow-hidden p-8 items-start">
-      <div className="w-full">
-        <h1 className="text-3xl md:text-5xl font-bold mb-2">My Model Context</h1>
-        <p className="mb-4 text-gray-400">Connect to your computer or a friend's computer in low latency desktop mode.</p>
-        {/* 탭 메뉴 */}
-        <div className="flex gap-2 mb-6 border-b border-zinc-700">
-          {serverTabs.map(tab => (
-            <button
-              key={tab.key}
-              className={
-                `px-5 py-2 font-semibold rounded-t-lg border-b-2 transition-colors duration-200
-                ${activeTab === tab.key
-                  ? 'bg-background border-primary text-primary shadow-sm'
-                  : 'bg-transparent border-transparent text-gray-400 hover:bg-zinc-800 hover:text-primary'}
-                `
-              }
-              style={{ outline: 'none' }}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              {tab.label}
-            </button>
-          ))}
+
+  const getFilteredTabs = () => {
+    if (workflowClientType === 'all') {
+      return allServerTabs;
+    }
+    
+    return allServerTabs.filter(tab => {
+      if (workflowClientType === 'mixed') {
+        return targetClients.some(client => {
+          const name = client.toLowerCase();
+          let clientType = 'local';
+          if (name.includes('claude')) clientType = 'claude_desktop';
+          else if (name.includes('openai') || name.includes('gpt') || name.includes('cursor')) clientType = 'openai';
+          
+          return clientType === tab.clientType;
+        });
+      }
+      
+      return tab.clientType === workflowClientType;
+    });
+  };
+
+  const getInitialActiveTab = () => {
+    const filteredTabs = getFilteredTabs();
+    if (filteredTabs.length === 0) return '';
+    
+    if (workflowClientType !== 'all') {
+      const targetTab = filteredTabs.find(tab => tab.clientType === workflowClientType);
+      if (targetTab) return targetTab.key;
+    }
+    
+    return filteredTabs[0].key;
+  };
+
+  const [activeTab, setActiveTab] = useState<string>(getInitialActiveTab());
+
+  useEffect(() => {
+    setActiveTab(getInitialActiveTab());
+  }, [workflowClientType, targetClients]);
+
+  const filteredTabs = getFilteredTabs();
+  const currentTab = filteredTabs.find(tab => tab.key === activeTab);
+
+  if (filteredTabs.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="relative mb-6">
+          <div className="w-24 h-24 bg-gradient-to-br from-primary to-primary/70 rounded-3xl flex items-center justify-center shadow-2xl relative">
+            <Server className="h-12 w-12 text-white" />
+            {/* 글로우 효과 */}
+            <div className="absolute inset-0 rounded-3xl blur-xl opacity-40 animate-pulse bg-primary" />
+          </div>
         </div>
-        <input
-          type="text"
-          placeholder="Search Hosts and Computers"
-          className="w-full max-w-md p-2 rounded bg-zinc-800 text-white border border-zinc-700 mb-6"
-        />
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6 w-full">
-          {currentServers.map((comp, idx) => (
-            <div key={idx} className="relative rounded-lg p-6 flex flex-col items-center shadow-lg border border-zinc-200 dark:border-zinc-700 min-h-[100px] w-full bg-white dark:bg-zinc-900">
-              {/* 메뉴 버튼: 카드 우측 상단 */}
-              {activeTab === 'claude' && (
-                <div className="absolute top-2 right-2 z-10">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800">
-                        <MoreVertical className="w-5 h-5 text-zinc-400 hover:text-primary" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="z-20 min-w-[120px]">
-                      <DropdownMenuItem
-                        className="flex items-center gap-2 text-red-500"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          await (window as any).claudeAPI.removeServer(comp.name);
-                          const updated = await (window as any).claudeAPI.getAllServers();
-                          setClaudeServers(updated);
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4" /> 삭제
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="flex items-center gap-2 text-blue-500"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          alert('보관 기능은 추후 구현!');
-                        }}
-                      >
-                        <Archive className="w-4 h-4" /> 보관
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              )}
-              {/* 카드 내용 */}
-              <div className="mb-4">
-                <Server className="w-10 h-10 text-primary" />
+        <h3 className="text-xl font-semibold mb-3">워크플로우가 없습니다</h3>
+        <p className="text-muted-foreground mb-8">
+          새로운 워크플로우를 만들어서 자동화를 시작해보세요! ✨
+        </p>
+        <Link to="/jobs/node">
+          <Button className="bg-primary hover:bg-primary/90 text-white px-8 py-3 text-lg font-semibold shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 relative overflow-hidden group">
+            {/* 버튼 글로우 */}
+            <div className="absolute inset-0 bg-gradient-to-r from-primary via-transparent to-primary opacity-20 group-hover:opacity-30 transition-opacity" />
+            <span className="relative z-10">✨ 새 워크플로우 만들기</span>
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full space-y-8">
+      {/* 🎨 심플한 탭 헤더 */}
+      <div className="flex space-x-1 bg-muted p-1 rounded-lg">
+        {filteredTabs.map((tab) => (
+          <button
+            key={tab.key}
+            className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === tab.key
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => setActiveTab(tab.key)}
+          >
+            {tab.label} ({tab.workflows.length})
+          </button>
+        ))}
+      </div>
+
+      {/* 🎯 워크플로우 카드 그리드 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {/* 조건부 표시: showAllWorkflows가 true면 전체, false면 8개까지 */}
+        {(showAllWorkflows 
+          ? currentTab?.workflows 
+          : currentTab?.workflows.slice(0, 8)
+        )?.map((workflow) => (
+          <WorkflowCard key={workflow.id} workflow={workflow} />
+        )) || []}
+      </div>
+      
+      {/* 더보기/간략히 버튼 */}
+      {currentTab && currentTab.workflows.length > 8 && (
+        <div className="flex justify-center mt-6">
+          <Button 
+            variant="outline"
+            onClick={() => setShowAllWorkflows(!showAllWorkflows)}
+            className="px-6 py-2"
+          >
+            {showAllWorkflows 
+              ? `간략히 보기 (${currentTab.workflows.length}개 중 8개만)` 
+              : `더보기 (+${currentTab.workflows.length - 8}개)`
+            }
+          </Button>
+        </div>
+      )}
+
+              {/* 빈 상태 - 블링블링 */}
+        {currentTab && currentTab.workflows.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="relative mb-6">
+              <div 
+                className="w-24 h-24 rounded-3xl flex items-center justify-center shadow-2xl relative"
+                style={{ backgroundColor: currentTab.color }}
+              >
+                <span className="text-4xl">{currentTab.icon}</span>
+                {/* 글로우 효과 */}
+                <div 
+                  className="absolute inset-0 rounded-3xl blur-xl opacity-40 animate-pulse"
+                  style={{ backgroundColor: currentTab.color }}
+                />
               </div>
-              <div className="font-semibold text-lg mb-1 break-words text-center w-full truncate text-zinc-900 dark:text-white">{comp.name}</div>
-              <div className="text-gray-500 dark:text-gray-400 text-sm mb-2 break-words text-center w-full truncate">Owner: {comp.owner}</div>
-              <button className="mt-auto px-4 py-2 bg-primary text-white rounded hover:bg-primary/80 transition">Connect</button>
             </div>
-          ))}
+            <h3 className="text-xl font-semibold mb-3">
+              {currentTab.label} 워크플로우가 없습니다
+            </h3>
+            <p className="text-muted-foreground mb-8">
+              새로운 워크플로우를 만들어서 자동화를 시작해보세요! ✨
+            </p>
+            <Link to="/jobs/node">
+              <Button 
+                className="text-white px-8 py-3 text-lg font-semibold shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 relative overflow-hidden group"
+                style={{ backgroundColor: currentTab.color }}
+              >
+                {/* 버튼 글로우 */}
+                <div 
+                  className="absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity"
+                  style={{ 
+                    background: `linear-gradient(45deg, ${currentTab.color}, transparent, ${currentTab.color})`
+                  }}
+                />
+                <span className="relative z-10">✨ 새 워크플로우 만들기</span>
+              </Button>
+            </Link>
+          </div>
+        )}
+    </div>
+  );
+}
+
+// 🎴 모던 워크플로우 카드 컴포넌트
+function WorkflowCard({ workflow }: { workflow: any }) {
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('ko-KR', {
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return '날짜 없음';
+    }
+  };
+
+  const getStatusConfig = (status: string) => {
+    const statusMap = {
+      draft: { 
+        label: '초안', 
+        className: 'bg-slate-100 text-slate-700 border-slate-200',
+        icon: '📝'
+      },
+      active: { 
+        label: '활성', 
+        className: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+        icon: '🟢'
+      },
+      archived: { 
+        label: '보관', 
+        className: 'bg-amber-100 text-amber-700 border-amber-200',
+        icon: '📦'
+      },
+      shared: { 
+        label: '공유', 
+        className: 'bg-blue-100 text-blue-700 border-blue-200',
+        icon: '🔗'
+      },
+    };
+    
+    return statusMap[status as keyof typeof statusMap] || statusMap.draft;
+  };
+
+  const getClientTypeConfig = (clientType: string) => {
+    const typeMap = {
+      local: { 
+        label: 'Local', 
+        className: 'bg-primary/10 text-primary',
+        icon: <Server className="h-10 w-10" style={{ color: 'hsl(var(--primary))' }} />,
+        color: 'hsl(var(--primary))'
+      },
+      claude_desktop: { 
+        label: 'Claude', 
+        className: 'bg-chart-2/10 text-chart-2',
+        icon: <div className="text-4xl font-bold" style={{ color: 'hsl(var(--chart-2))' }}>C</div>,
+        color: 'hsl(var(--chart-2))'
+      },
+      openai: { 
+        label: 'OpenAI', 
+        className: 'bg-chart-1/10 text-chart-1',
+        icon: <div className="text-2xl font-bold" style={{ color: 'hsl(var(--chart-1))' }}>AI</div>,
+        color: 'hsl(var(--chart-1))'
+      },
+      mixed: { 
+        label: 'Mixed', 
+        className: 'bg-chart-3/10 text-chart-3',
+        icon: <div className="grid grid-cols-2 gap-1 w-8 h-8">
+          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'hsl(var(--chart-3))' }}></div>
+          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'hsl(var(--chart-1))' }}></div>
+          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'hsl(var(--chart-2))' }}></div>
+          <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'hsl(var(--primary))' }}></div>
+        </div>,
+        color: 'hsl(var(--chart-3))'
+      },
+      unknown: { 
+        label: 'Unknown', 
+        className: 'bg-muted text-muted-foreground',
+        icon: <div className="text-3xl" style={{ color: 'hsl(var(--muted-foreground))' }}>?</div>,
+        color: 'hsl(var(--muted-foreground))'
+      },
+    };
+    
+    return typeMap[clientType as keyof typeof typeMap] || typeMap.unknown;
+  };
+
+  const statusConfig = getStatusConfig(workflow.status);
+  const clientConfig = getClientTypeConfig(workflow.client_type);
+
+  const handleRunWorkflow = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // TODO: 워크플로우 실행 로직 구현
+    console.log('🚀 워크플로우 실행:', workflow.name);
+    
+    // 나중에 실제 실행 API 호출
+    // await executeWorkflow(workflow.id);
+  };
+
+  return (
+    <div className="group relative">
+      {/* 깔끔한 카드 */}
+      <div className="bg-card border border-border rounded-lg p-4 hover:border-primary/30 transition-all duration-200 hover:shadow-md h-[260px] flex flex-col">
+        
+        {/* 상단: 타입 라벨 */}
+        <div className="flex justify-end mb-2">
+          <span className={`px-2 py-1 rounded text-xs font-medium ${clientConfig.className}`}>
+            {clientConfig.label}
+          </span>
+        </div>
+
+        {/* 중앙: 큰 아이콘 */}
+        <div className="flex items-center justify-center mb-3">
+          {clientConfig.icon}
+        </div>
+
+        {/* 제목 */}
+        <h3 className="font-semibold text-sm text-card-foreground text-center mb-2 px-1" style={{
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          wordBreak: 'keep-all',
+          lineHeight: '1.3',
+          height: '2.6rem'
+        }}>
+          {workflow.name || '제목 없음'}
+        </h3>
+
+        {/* 설명 (있으면) */}
+        {workflow.description && (
+          <p className="text-xs text-muted-foreground text-center mb-2 px-1" style={{
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            wordBreak: 'keep-all',
+            lineHeight: '1.2',
+            height: '2.4rem'
+          }}>
+            {workflow.description}
+          </p>
+        )}
+
+        {/* 상태와 날짜 */}
+        <div className="flex items-center justify-center space-x-2 text-xs text-muted-foreground mb-2">
+          <span className={`px-1.5 py-0.5 rounded ${statusConfig.className}`}>
+            {statusConfig.label}
+          </span>
+          <span>•</span>
+          <span>{formatDate(workflow.updated_at)}</span>
+        </div>
+
+        {/* 클라이언트 정보 (있으면) */}
+        {workflow.target_clients && workflow.target_clients.length > 0 && (
+          <div className="text-xs text-muted-foreground text-center mb-3">
+            🔗 {workflow.target_clients.length}개 연결
+          </div>
+        )}
+
+        {/* Spacer - 남은 공간 차지 */}
+        <div className="flex-1" />
+
+        {/* 액션 버튼 - 하단 고정 */}
+        <div className="flex items-center space-x-2 mt-auto">
+          <button
+            onClick={handleRunWorkflow}
+            className="flex-1 text-white px-3 py-2 rounded font-medium text-sm transition-colors hover:opacity-90 flex items-center justify-center gap-1.5"
+            style={{ backgroundColor: clientConfig.color }}
+          >
+            <Play className="h-3 w-3" />
+            실행
+          </button>
+          
+          <Link 
+            to={`/jobs/node?workflow=${workflow.id}`}
+            className="px-2.5 py-2 border border-border text-muted-foreground rounded text-sm hover:bg-accent transition-colors"
+          >
+            <Edit className="h-3 w-3" />
+          </Link>
         </div>
       </div>
     </div>
   );
 }
 
+// 🔥 Outlet context 타입 정의 (root.tsx에서 전달되는 데이터)
+type OutletContext = {
+  isLoggedIn: boolean;
+  name: string;
+  userId: string;
+  username: string;
+  avatar: string | null;
+  email: string;
+  servers: any[];
+  clients: any[];
+  workflows: any[];
+};
+
 export default  function HomePage() {
-  const { products } = useLoaderData() as { products: Product[] };
+  const { products } = useLoaderData() as HomePageLoaderData;
+  
+  // 웹 환경에서는 하드코딩된 버전 사용 (process 객체 문제 해결)
+  const appVersion = '0.0.1';
+  // 🔥 root.tsx에서 전달된 모든 데이터 사용
+  const { isLoggedIn, userId, servers, clients, workflows } = useOutletContext<OutletContext>();
   const [claudeServers, setClaudeServers] = useState<string[]>([]);
+  
+  // 🔥 워크플로우 클라이언트 타입 상태 관리
+  const [workflowClientType, setWorkflowClientType] = useState<string>('all');
+  const [targetClients, setTargetClients] = useState<string[]>([]);
+
+  // 🔥 로드된 데이터 디버깅
+  console.log('🏠 [HomePage] 로드된 데이터:', {
+    products: products?.length || 0,
+    servers: servers?.length || 0,
+    clients: clients?.length || 0,
+    workflows: workflows?.length || 0
+  });
 
   useEffect(() => {
     if ((window as any).claudeAPI) {
       (window as any).claudeAPI.getAllServers().then(setClaudeServers);
     }
+  }, []);
+
+  // 🔥 워크플로우 클라이언트 타입 변경 핸들러 (다른 컴포넌트에서 호출 가능)
+  const handleWorkflowClientTypeChange = (clientType: string, clients: string[]) => {
+    console.log('🎯 [HomePage] 워크플로우 클라이언트 타입 변경:', { clientType, clients });
+    setWorkflowClientType(clientType);
+    setTargetClients(clients);
+  };
+
+  // 🔥 전역적으로 접근 가능하도록 window 객체에 등록 (필요시)
+  useEffect(() => {
+    (window as any).setWorkflowClientType = handleWorkflowClientTypeChange;
+    return () => {
+      delete (window as any).setWorkflowClientType;
+    };
   }, []);
 
   // Log the fetched products data to the console
@@ -238,7 +588,15 @@ export default  function HomePage() {
             </div>
           </div>
         ) : (
-          <ServerTabGrid claudeServers={claudeServers} setClaudeServers={setClaudeServers} />
+          <ServerTabGrid 
+            claudeServers={claudeServers} 
+            setClaudeServers={setClaudeServers}
+            workflowClientType={workflowClientType}
+            targetClients={targetClients}
+            realServers={servers}
+            realClients={clients}
+            workflows={workflows}
+          />
         )}
 
                {/* 다운로드 네비게이션: 웹에서만 노출 */}
@@ -259,12 +617,12 @@ export default  function HomePage() {
                           className="gap-2 px-12 py-8 text-base font-semibold bg-primary text-white hover:bg-primary/90 shadow-none transition-shadow relative"
                         >
                           <a
-                            href="https://github.com/ibttf/interview-coder/releases/download/v1.0.25/Interview.Coder-Mac-1.0.25.dmg"
+                            href={`https://pub-453f6f0e9aab4be4a88dd25cff24d9bd.r2.dev/downloads/OCT-Server-Setup-${appVersion}.exe`}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
                             <svg className="inline-block" stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" height="20" width="20"><path d="M11.6734 7.22198C10.7974 7.22198 9.44138 6.22598 8.01338 6.26198C6.12938 6.28598 4.40138 7.35397 3.42938 9.04597C1.47338 12.442 2.92538 17.458 4.83338 20.218C5.76938 21.562 6.87338 23.074 8.33738 23.026C9.74138 22.966 10.2694 22.114 11.9734 22.114C13.6654 22.114 14.1454 23.026 15.6334 22.99C17.1454 22.966 18.1054 21.622 19.0294 20.266C20.0974 18.706 20.5414 17.194 20.5654 17.11C20.5294 17.098 17.6254 15.982 17.5894 12.622C17.5654 9.81397 19.8814 8.46998 19.9894 8.40998C18.6694 6.47798 16.6414 6.26198 15.9334 6.21398C14.0854 6.06998 12.5374 7.22198 11.6734 7.22198ZM14.7934 4.38998C15.5734 3.45398 16.0894 2.14598 15.9454 0.849976C14.8294 0.897976 13.4854 1.59398 12.6814 2.52998C11.9614 3.35798 11.3374 4.68998 11.5054 5.96198C12.7414 6.05798 14.0134 5.32598 14.7934 4.38998Z"></path></svg>
-                            Mac용 다운로드
+                            Windows용 다운로드 (Mac 준비중)
                           </a>
                         </Button>
                       </div>
@@ -283,7 +641,7 @@ export default  function HomePage() {
                           className="gap-2 px-12 py-8 text-base font-semibold border-primary text-primary hover:bg-primary/10 shadow-none transition-shadow relative bg-white/80 dark:bg-zinc-900/80"
                         >
                           <a
-                            href="https://github.com/ibttf/interview-coder/releases/download/v1.0.25/Interview.Coder-Windows-1.0.25.exe"
+                            href={`https://pub-453f6f0e9aab4be4a88dd25cff24d9bd.r2.dev/downloads/OCT-Server-Setup-${appVersion}.exe`}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
@@ -304,7 +662,7 @@ export default  function HomePage() {
             >
               <div className="flex items-center justify-center gap-4 p-4 flex-nowrap relative z-10">
                 {products && products.length > 0 ? (
-                  products.map((product, index) => (
+                  products.map((product: Product, index: number) => (
                     <InitialAvatar
                       key={product.unique_id ?? index}
                       initials={product.fallback_avatar_initials}

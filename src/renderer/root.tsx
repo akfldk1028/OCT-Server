@@ -27,6 +27,251 @@ import { DnDProvider } from './features/server/hook/DnDContext';
 import { getClients } from './features/server/queries';
 import { getUserInstalledServers } from './features/products/queries';
 import { getMcpConfigsByServerId } from './features/products/queries';
+import { getUserWorkflows, getWorkflowWithDetails } from './features/server/workflow-queries';
+
+// 🔥 WorkflowListModal에서 가져온 분석 함수들
+// 타입 정의
+type AnalysisResult = {
+  clients: string[];
+  mcpServers: string[];
+  hasClaudeClient: boolean;
+  hasOpenAIClient: boolean; 
+  hasLocalClient: boolean;
+  hasMCPServers: boolean;
+  primaryClientType: string | null;
+};
+
+// 🎯 메인 분석 함수
+const analyzeWorkflowClientType = async (workflow: any, client: any, userId: string): Promise<{ client_type: string; target_clients: string[] }> => {
+  try {
+    // 1. 워크플로우 데이터 로드
+    const workflowDetails = await loadWorkflowDetails(workflow.id, client, userId);
+    if (!workflowDetails) {
+      return { client_type: 'unknown', target_clients: [] };
+    }
+
+    // 2. DFS 기반 노드 분석
+    const analysisResult = await analyzeNodesByDFS(workflowDetails);
+    if (!analysisResult) {
+      return { client_type: 'unknown', target_clients: [] };
+    }
+
+    // 3. 최종 클라이언트 타입 결정
+    const clientType = determineClientType(analysisResult, workflowDetails);
+    
+    return { 
+      client_type: clientType, 
+      target_clients: [...new Set(analysisResult.clients)] 
+    };
+    
+  } catch (error) {
+    console.error('❌ 워크플로우 분석 실패:', error);
+    return { client_type: 'unknown', target_clients: [] };
+  }
+};
+
+// 📥 워크플로우 상세 정보 로드
+const loadWorkflowDetails = async (workflowId: number, client: any, userId: string) => {
+  const workflowDetails = await getWorkflowWithDetails(client as any, {
+    workflow_id: workflowId,
+    profile_id: userId,
+  });
+  
+  if (!workflowDetails?.nodes || !workflowDetails?.edges) {
+    return null;
+  }
+  
+  return workflowDetails;
+};
+
+// 🔄 DFS 기반 노드 분석
+const analyzeNodesByDFS = async (workflowDetails: any): Promise<AnalysisResult | null> => {
+  // 트리거 노드 찾기
+  const triggerNode = workflowDetails.nodes.find((node: any) => node.node_type === 'trigger');
+  if (!triggerNode) {
+    console.log('⚠️ 트리거 노드 없음');
+    return null;
+  }
+
+  // ReactFlow 형식으로 변환
+  const { nodes, edges } = convertToReactFlowFormat(workflowDetails);
+  
+  // 간단한 DFS 순회 (dfsTraverse 함수 없이)
+  const orderedNodes = performSimpleDFS(triggerNode.node_id, nodes, edges);
+
+  // 분석 결과 초기화
+  const result: AnalysisResult = {
+    clients: [],
+    mcpServers: [],
+    hasClaudeClient: false,
+    hasOpenAIClient: false,
+    hasLocalClient: false,
+    hasMCPServers: false,
+    primaryClientType: null
+  };
+
+  // 순서대로 노드 분석
+  for (const node of orderedNodes) {
+    analyzeNode(node, result);
+  }
+
+  return result;
+};
+
+// 🔄 ReactFlow 형식 변환
+const convertToReactFlowFormat = (workflowDetails: any) => {
+  const nodes = workflowDetails.nodes.map((node: any) => ({
+    id: node.node_id,
+    type: node.node_type,
+    data: node.node_config || {},
+    mcp_servers: node.mcp_servers,
+  }));
+
+  const edges = workflowDetails.edges.map((edge: any) => ({
+    id: edge.edge_id,
+    source: edge.source_node_id,
+    target: edge.target_node_id,
+  }));
+
+  return { nodes, edges };
+};
+
+// 간단한 DFS 구현
+const performSimpleDFS = (startNodeId: string, nodes: any[], edges: any[]): any[] => {
+  const visited = new Set<string>();
+  const result: any[] = [];
+  
+  const dfs = (nodeId: string) => {
+    if (visited.has(nodeId)) return;
+    visited.add(nodeId);
+    
+    const node = nodes.find(n => n.id === nodeId);
+    if (node) {
+      result.push(node);
+      
+      // 연결된 노드들 찾기
+      const connectedEdges = edges.filter(e => e.source === nodeId);
+      for (const edge of connectedEdges) {
+        dfs(edge.target);
+      }
+    }
+  };
+  
+  dfs(startNodeId);
+  return result;
+};
+
+// 🔍 개별 노드 분석
+const analyzeNode = (node: any, result: AnalysisResult) => {
+  if (node.type === 'service' || node.type === 'client') {
+    analyzeServiceNode(node, result);
+  } else if (node.type === 'server') {
+    analyzeServerNode(node, result);
+  }
+};
+
+// 🔧 서비스 노드 분석
+const analyzeServiceNode = (node: any, result: AnalysisResult) => {
+  const config = node.data?.config || node.data;
+  const clientName = config?.name;
+  
+  if (!clientName) return;
+
+  // 첫 번째 클라이언트가 주요 타겟
+  if (!result.primaryClientType) {
+    result.clients.push(clientName);
+    result.primaryClientType = classifyClientType(clientName);
+    
+    // 플래그 설정
+    if (result.primaryClientType === 'claude_desktop') {
+      result.hasClaudeClient = true;
+    } else if (result.primaryClientType === 'openai') {
+      result.hasOpenAIClient = true;
+    } else {
+      result.hasLocalClient = true;
+    }
+  } else if (!result.clients.includes(clientName)) {
+    // 추가 클라이언트 수집
+    result.clients.push(clientName);
+    
+    const additionalType = classifyClientType(clientName);
+    if (additionalType === 'claude_desktop') result.hasClaudeClient = true;
+    else if (additionalType === 'openai') result.hasOpenAIClient = true;
+    else result.hasLocalClient = true;
+  }
+};
+
+// 🖥️ 서버 노드 분석
+const analyzeServerNode = (node: any, result: AnalysisResult) => {
+  if (node.mcp_servers) {
+    result.hasMCPServers = true;
+    const serverName = node.mcp_servers.name || `서버 ${node.id}`;
+    result.mcpServers.push(serverName);
+  }
+};
+
+// 🏷️ 클라이언트 타입 분류
+const classifyClientType = (clientName: string): string => {
+  const name = clientName.toLowerCase();
+  
+  if (name.includes('claude')) {
+    return 'claude_desktop';
+  } else if (name.includes('openai') || name.includes('gpt')) {
+    return 'openai';
+  } else {
+    return 'local';
+  }
+};
+
+// 🎯 최종 클라이언트 타입 결정
+const determineClientType = (result: AnalysisResult, workflowDetails: any): string => {
+  // 1. 명시적 클라이언트가 있는 경우
+  if (result.primaryClientType) {
+    return checkMixedType(result) || result.primaryClientType;
+  }
+
+  // 2. MCP 서버만 있는 경우
+  if (result.hasMCPServers) {
+    return analyzeWorkflowMetadata(workflowDetails, result);
+  }
+
+  // 3. 분류 기준 부족
+  return 'unknown';
+};
+
+// 🔀 Mixed 타입 체크
+const checkMixedType = (result: AnalysisResult): string | null => {
+  const activeTypes = [
+    result.hasClaudeClient,
+    result.hasOpenAIClient, 
+    result.hasLocalClient
+  ].filter(Boolean).length;
+  
+  if (activeTypes > 1) {
+    return 'mixed';
+  }
+  
+  return null;
+};
+
+// 📝 워크플로우 메타데이터 분석
+const analyzeWorkflowMetadata = (workflowDetails: any, result: AnalysisResult): string => {
+  const workflowName = workflowDetails.name?.toLowerCase() || '';
+  const workflowDesc = workflowDetails.description?.toLowerCase() || '';
+  
+  const localKeywords = ['local', 'prototype', 'test', '로컬', '테스트', '개발'];
+  const hasLocalKeywords = localKeywords.some(keyword => 
+    workflowName.includes(keyword) || workflowDesc.includes(keyword)
+  );
+  
+  if (hasLocalKeywords) {
+    result.hasLocalClient = true;
+    return 'local';
+  } else {
+    result.hasClaudeClient = true;
+    return 'claude_desktop';
+  }
+};
 
 // loader 함수 정의
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -37,16 +282,72 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (user && user.id) {
     const [profile] = await Promise.all([getUserById(supabase as any, {id: user.id})]);
     
-    // 🔥 서버/클라이언트 데이터도 가져오기 (server-layout.tsx에서 이동)
+    // 🔥 서버/클라이언트/워크플로우 데이터 함께 가져오기
     try {
+      const { client } = makeSSRClient(request);
 
-      // 클라이언트 데이터 가져오기
-      const clients = await getClients(supabase as any, { limit: 100 });
-      
-      // 설치된 서버 데이터 가져오기
-      const installedServers = await getUserInstalledServers(supabase as any, {
-        profile_id: user.id,
-      });
+      // 병렬로 데이터 가져오기
+      const [clients, installedServers, workflows] = await Promise.all([
+        // 클라이언트 데이터 가져오기
+        getClients(supabase as any, { limit: 100 }),
+        
+        // 설치된 서버 데이터 가져오기
+        getUserInstalledServers(supabase as any, {
+          profile_id: user.id,
+        }),
+        
+        // 🔥 워크플로우 데이터 가져오기 (DFS 기반 정교한 분석)
+        getUserWorkflows(client as any, {
+          profile_id: user.id,
+          limit: 100,
+        }).then(async (data) => {
+          if (!data || data.length === 0) {
+            console.log('🔍 [root loader] 워크플로우 데이터 없음');
+            return [];
+          }
+          
+          console.log('🔍 [root loader] 워크플로우 원본 데이터:', data.length, '개');
+          
+          // 🔥 WorkflowListModal과 동일한 정교한 분석 로직 사용
+          const workflowsWithClientInfo = await Promise.all(
+            data.map(async (workflow: any) => {
+              try {
+                const { client_type, target_clients } = await analyzeWorkflowClientType(workflow, client, user.id);
+                
+                console.log(`🔍 [root loader] 워크플로우 ${workflow.id} 분석 완료:`, {
+                  name: workflow.name,
+                  client_type,
+                  target_clients,
+                  hasFlowStructure: !!workflow.flow_structure,
+                  nodeCount: workflow.flow_structure?.nodes?.length || 0
+                });
+
+                return {
+                  ...workflow,
+                  description: workflow.description || undefined,
+                  status: workflow.status || 'draft',
+                  client_type,
+                  target_clients
+                };
+              } catch (error) {
+                console.warn(`⚠️ [root loader] 워크플로우 ${workflow.id} 분석 실패:`, error);
+                return {
+                  ...workflow,
+                  description: workflow.description || undefined,
+                  status: workflow.status || 'draft',
+                  client_type: 'unknown',
+                  target_clients: []
+                };
+              }
+            })
+          );
+          
+          return workflowsWithClientInfo;
+        }).catch(error => {
+          console.warn('⚠️ [root loader] 워크플로우 데이터 로드 실패:', error);
+          return [];
+        })
+      ]);
       
       // 각 서버의 설정들 병렬로 가져오기
       const servers = await Promise.all(
@@ -70,20 +371,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         })
       );
       
-      console.log('✅ [root loader] 서버+클라이언트 데이터 로드 완료:', {
+      console.log('✅ [root loader] 서버+클라이언트+워크플로우 데이터 로드 완료:', {
         servers: servers.length,
-        clients: clients.length
+        clients: clients.length,
+        workflows: workflows.length
       });
       
-      return { user, profile, servers, clients };
+      return { user, profile, servers, clients, workflows };
       
     } catch (error) {
-      console.error('❌ [root loader] 서버/클라이언트 데이터 로드 실패:', error);
-      return { user, profile, servers: [], clients: [] };
+      console.error('❌ [root loader] 서버/클라이언트/워크플로우 데이터 로드 실패:', error);
+      return { user, profile, servers: [], clients: [], workflows: [] };
     }
   }
   
-  return { user: null, profile: null, servers: [], clients: [] };
+  return { user: null, profile: null, servers: [], clients: [], workflows: [] };
 };
 
 // 로더 데이터 타입 정의
@@ -97,6 +399,7 @@ type LoaderData = {
   } | null;
   servers: any[];
   clients: any[];
+  workflows: any[];
 };
 
 // 이 타입은 Route.LoaderArgs를 대체합니다
@@ -104,7 +407,7 @@ type LoaderData = {
 export function Root() {
   const loaderData = useLoaderData() as LoaderData | undefined;
 
-  const { user, profile, servers = [], clients = [] } = loaderData ?? { user: null, profile: null, servers: [], clients: [] };  const { pathname } = useLocation();
+  const { user, profile, servers = [], clients = [], workflows = [] } = loaderData ?? { user: null, profile: null, servers: [], clients: [], workflows: [] };  const { pathname } = useLocation();
   const navigation = useNavigation();
   const navigate = useNavigate(); // 훅은 컴포넌트 최상단에서 호출
 
@@ -209,6 +512,7 @@ export function Root() {
             email: user?.email,
             servers,
             clients,
+            workflows,
           }}
         />
       </div>
@@ -282,6 +586,7 @@ export function Root() {
               email: user?.email || "",
               servers,
               clients,
+              workflows,
             }}
           />
         </main>

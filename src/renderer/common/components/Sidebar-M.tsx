@@ -12,6 +12,8 @@ import {
   UserIcon,
   SettingsIcon,
   LogOutIcon,
+  LogIn as LogInIcon,
+  UserPlus as UserPlusIcon,
   Plus,
   Settings,
   Package,
@@ -51,7 +53,6 @@ import { Separator } from '@/components/ui/separator';
 import { useStore } from '@/hooks/useStore';
 import { ChatList } from '@/components/chat/index';
 import { useChatCreation } from '@/components/chat/useChatCreation';
-import { T } from 'python/libs/playwright/driver/package/lib/vite/traceViewer/assets/defaultSettingsView-5nVJRt0A';
 
 interface SidebarProps {
   isLoggedIn: boolean;
@@ -82,7 +83,7 @@ export default function Sidebar({
 
   // 메뉴 배열
   const menus = [
- 
+
     {
       name: 'Products',
       to: '/products',
@@ -352,14 +353,33 @@ export default function Sidebar({
       </ScrollArea>
 
       {/* 로그인 하지 않은 경우 로그인/가입 버튼 */}
-      {!isLoggedIn && !collapsed && (
+      {!isLoggedIn && (
         <div className="p-4 border-t space-y-2">
-          <Button asChild variant="secondary" className="w-full">
-            <Link to="/auth/login">로그인</Link>
-          </Button>
-          <Button asChild className="w-full">
-            <Link to="/auth/join">회원가입</Link>
-          </Button>
+          {!collapsed ? (
+            // 펼쳐진 상태: 전체 버튼
+            <>
+              <Button asChild variant="secondary" className="w-full">
+                <Link to="/auth/login">로그인</Link>
+              </Button>
+              <Button asChild className="w-full">
+                <Link to="/auth/join">회원가입</Link>
+              </Button>
+            </>
+          ) : (
+            // 접힌 상태: 아이콘 버튼
+            <div className="flex flex-col items-center space-y-2">
+              <Button asChild variant="secondary" size="sm" className="w-8 h-8 p-0">
+                <Link to="/auth/login" title="로그인">
+                  <LogInIcon className="w-4 h-4" />
+                </Link>
+              </Button>
+              <Button asChild size="sm" className="w-8 h-8 p-0">
+                <Link to="/auth/join" title="회원가입">
+                  <UserPlusIcon className="w-4 h-4" />
+                </Link>
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

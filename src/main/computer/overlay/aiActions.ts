@@ -523,8 +523,20 @@ export const runAgent = async (
       if (screenshotPath && typeof screenshotPath === 'string') {
         // 🔥 비동기 파일 읽기로 안전하게 처리
         const fs = require('fs').promises;
+        const { nativeImage } = require('electron');
+        
         const screenshotBuffer = await fs.readFile(screenshotPath);
-        screenshot = screenshotBuffer.toString('base64');
+        
+        // 🔥 PNG를 JPEG로 변환 (Anthropic API 호환성을 위해)
+        const image = nativeImage.createFromBuffer(screenshotBuffer);
+        const jpegBuffer = image.toJPEG(75); // 75% 품질로 JPEG 변환
+        screenshot = jpegBuffer.toString('base64');
+        
+        console.log('📸 [runAgent] PNG→JPEG 변환 완료:', {
+          originalSize: `${Math.round(screenshotBuffer.length / 1024)}KB`,
+          compressedSize: `${Math.round(jpegBuffer.length / 1024)}KB`,
+          compression: `${Math.round((1 - jpegBuffer.length / screenshotBuffer.length) * 100)}% 절약`
+        });
         
         // 🔥 임시 파일 정리 (메모리 절약)
         try {

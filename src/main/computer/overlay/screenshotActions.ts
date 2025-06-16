@@ -1,7 +1,7 @@
 // src/main/store/screenshotActions.ts
 import fs from 'node:fs';
 import path from 'node:path';
-import { app } from 'electron';
+import { app, desktopCapturer, nativeImage } from 'electron';
 import { v4 as uuidv4 } from 'uuid';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -203,40 +203,25 @@ async function captureScreenshotMac(targetWindow?: any): Promise<Buffer> {
 }
 
 async function captureScreenshotWindows(targetWindow?: any): Promise<Buffer> {
-  const tmpPath = path.join(app.getPath('temp'), `${uuidv4()}.png`);
-  
-  let script: string;
-  
-  if (targetWindow) {
-    // 🔥 선택된 창 영역만 캡처
-    const { x, y, width, height } = targetWindow;
-    script = `
-      Add-Type -AssemblyName System.Windows.Forms
-      Add-Type -AssemblyName System.Drawing
-      $bitmap = New-Object System.Drawing.Bitmap ${width}, ${height}
-      $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-      $graphics.CopyFromScreen(${x}, ${y}, 0, 0, $bitmap.Size)
-      $bitmap.Save('${tmpPath.replace(/\\/g, '\\\\')}')
-      $graphics.Dispose()
-      $bitmap.Dispose()
-    `;
-  } else {
-    // 전체 화면 캡처 (fallback)
-    script = `
-      Add-Type -AssemblyName System.Windows.Forms
-      Add-Type -AssemblyName System.Drawing
-      $screen = [System.Windows.Forms.Screen]::PrimaryScreen
-      $bitmap = New-Object System.Drawing.Bitmap $screen.Bounds.Width, $screen.Bounds.Height
-      $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-      $graphics.CopyFromScreen($screen.Bounds.X, $screen.Bounds.Y, 0, 0, $bitmap.Size)
-      $bitmap.Save('${tmpPath.replace(/\\/g, '\\\\')}')
-      $graphics.Dispose()
-      $bitmap.Dispose()
-    `;
+  // 🔥 PowerShell 대신 desktopCapturer API 사용 (성능 최적화)
+  const sources = await desktopCapturer.getSources({
+    types: ['window', 'screen'],
+    thumbnailSize: { width: 1920, height: 1080 } // 임시 크기, 실제론 원본 크기
+  });
+
+  let source;
+  if (targetWindow && targetWindow.id) {
+    // targetWindow.id 형식: "window:12345:1"
+    const windowId = targetWindow.id.split(':')[1];
+    source = sources.find(s => s.id.includes(windowId));
   }
   
-  await execFileAsync('powershell', ['-command', script]);
-  const buffer = await fs.promises.readFile(tmpPath);
-  await fs.promises.unlink(tmpPath);
-  return buffer;
+  // 특정 창을 못 찾으면 주 화면을 캡처
+  if (!source) {
+    source = sources.find(s => s.id.startsWith('screen:'));
+    if (!source) throw new Error('스크린샷 소스를 찾을 수 없습니다.');
+  }
+
+  const image = await source.thumbnail.toPNG();
+  return image;
 }
