@@ -275,44 +275,87 @@ const analyzeWorkflowMetadata = (workflowDetails: any, result: AnalysisResult): 
 
 // loader 함수 정의
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  
+  // 🔥 일렉트론 환경에서는 IPC를 통해 세션 정보 가져오기
+  if (IS_ELECTRON && typeof window !== 'undefined' && window.electronAPI) {
+    try {
+      console.log('🔍 [root loader] 일렉트론 환경 - IPC로 세션 정보 요청');
+      // IPC를 통해 메인 프로세스에서 세션 정보 가져오기
+      const sessionResult = await (window.electronAPI as any).invoke('auth:get-session');
+      if (sessionResult.success && sessionResult.user) {
+        user = sessionResult.user;
+        console.log('🔍 [root loader] 일렉트론 세션 정보 (IPC):', user?.email);
+      } else {
+        console.log('🔍 [root loader] 일렉트론 세션 없음 (IPC)');
+      }
+    } catch (error) {
+      console.warn('⚠️ [root loader] 일렉트론 세션 정보 가져오기 실패:', error);
+    }
+  } else {
+    // 웹 환경에서는 기존 방식 사용
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+    console.log('🔍 [root loader] 웹 세션 정보:', user?.email);
+  }
   
   if (user && user.id) {
+    console.log('🔍 [root loader] 프로필 로드 시작...');
     const [profile] = await Promise.all([getUserById(supabase as any, {id: user.id})]);
+    console.log('🔍 [root loader] 프로필 로드 완료:', profile);
     
     // 🔥 서버/클라이언트/워크플로우 데이터 함께 가져오기
     try {
-      const { client } = makeSSRClient(request);
+      // 병렬로 데이터 가져오기 (모두 supabase client 사용)
+      console.log('🔍 [root loader] 데이터 로드 시작...');
 
-      // 병렬로 데이터 가져오기
-      const [clients, installedServers, workflows] = await Promise.all([
+      
+      const [clients, installedServers, rawWorkflows] = await Promise.all([
         // 클라이언트 데이터 가져오기
-        getClients(supabase as any, { limit: 100 }),
+        getClients(supabase as any, { limit: 100 }).then(result => {
+          console.log('🔍 [root loader] 클라이언트 데이터:', result?.length || 0, '개');
+          return result;
+        }).catch(error => {
+          console.error('❌ [root loader] 클라이언트 로드 실패:', error);
+          return [];
+        }),
         
         // 설치된 서버 데이터 가져오기
         getUserInstalledServers(supabase as any, {
           profile_id: user.id,
+        }).then(result => {
+          console.log('🔍 [root loader] 서버 데이터:', result?.length || 0, '개');
+          return result;
+        }).catch(error => {
+          console.error('❌ [root loader] 서버 로드 실패:', error);
+          return [];
         }),
         
-        // 🔥 워크플로우 데이터 가져오기 (DFS 기반 정교한 분석)
-        getUserWorkflows(client as any, {
+        // 🔥 워크플로우 원본 데이터 가져오기 (supabase client 사용)
+        getUserWorkflows(supabase as any, {
           profile_id: user.id,
           limit: 100,
-        }).then(async (data) => {
-          if (!data || data.length === 0) {
-            console.log('🔍 [root loader] 워크플로우 데이터 없음');
-            return [];
-          }
-          
-          console.log('🔍 [root loader] 워크플로우 원본 데이터:', data.length, '개');
+        }).then(result => {
+          console.log('🔍 [root loader] 워크플로우 원본 데이터:', result?.length || 0, '개');
+          console.log('🔍 [root loader] 워크플로우 첫 번째 항목:', result?.[0]);
+          return result;
+        }).catch(error => {
+          console.error('❌ [root loader] 워크플로우 데이터 로드 실패:', error);
+          return [];
+        })
+      ]);
+      
+      // 🔥 워크플로우 분석 처리 (별도로 처리)
+      let workflows: any[] = [];
+      try {
+        if (rawWorkflows && rawWorkflows.length > 0) {
+          console.log('🔍 [root loader] 워크플로우 원본 데이터:', rawWorkflows.length, '개');
           
           // 🔥 WorkflowListModal과 동일한 정교한 분석 로직 사용
-          const workflowsWithClientInfo = await Promise.all(
-            data.map(async (workflow: any) => {
+          workflows = await Promise.all(
+            rawWorkflows.map(async (workflow: any) => {
               try {
-                const { client_type, target_clients } = await analyzeWorkflowClientType(workflow, client, user.id);
+                const { client_type, target_clients } = await analyzeWorkflowClientType(workflow, supabase, user.id);
                 
                 console.log(`🔍 [root loader] 워크플로우 ${workflow.id} 분석 완료:`, {
                   name: workflow.name,
@@ -341,13 +384,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               }
             })
           );
-          
-          return workflowsWithClientInfo;
-        }).catch(error => {
-          console.warn('⚠️ [root loader] 워크플로우 데이터 로드 실패:', error);
-          return [];
-        })
-      ]);
+        } else {
+          console.log('🔍 [root loader] 워크플로우 데이터 없음');
+        }
+      } catch (error) {
+        console.warn('⚠️ [root loader] 워크플로우 분석 실패:', error);
+        workflows = rawWorkflows || [];
+      }
       
       // 각 서버의 설정들 병렬로 가져오기
       const servers = await Promise.all(
@@ -407,7 +450,13 @@ type LoaderData = {
 export function Root() {
   const loaderData = useLoaderData() as LoaderData | undefined;
 
-  const { user, profile, servers = [], clients = [], workflows = [] } = loaderData ?? { user: null, profile: null, servers: [], clients: [], workflows: [] };  const { pathname } = useLocation();
+  const { user: initialUser, profile: initialProfile, servers = [], clients = [], workflows = [] } = loaderData ?? { user: null, profile: null, servers: [], clients: [], workflows: [] };  
+  
+  // 🔥 로그인 상태 동적 관리
+  const [user, setUser] = useState(initialUser);
+  const [profile, setProfile] = useState(initialProfile);
+  
+  const { pathname } = useLocation();
   const navigation = useNavigation();
   const navigate = useNavigate(); // 훅은 컴포넌트 최상단에서 호출
 
@@ -416,6 +465,62 @@ export function Root() {
 
   const dispatch = useDispatch();
   const store = useStore();
+  
+  // 🔥 Auth 세션 업데이트 리스너 (일렉트론 환경에서만)
+  useEffect(() => {
+    if (!IS_ELECTRON || typeof window === 'undefined' || !window.electronAPI) return;
+
+    console.log('🔥 [Root] Auth 이벤트 리스너 등록');
+    
+    // 세션 업데이트 리스너
+    const removeSessionListener = window.electronAPI.onAuthSessionUpdated(({ user: newUser, session }) => {
+      console.log('🔥 [Root] Auth 세션 업데이트 받음:', newUser?.email);
+      
+      if (newUser) {
+        // 사용자 정보 업데이트
+        setUser({
+          id: newUser.id,
+          email: newUser.email
+        });
+        
+        // 프로필 정보 업데이트 (user_metadata에서 가져오기)
+        setProfile({
+          id: newUser.id,
+          name: newUser.user_metadata?.name || newUser.user_metadata?.full_name || '사용자',
+          username: newUser.user_metadata?.preferred_username || newUser.user_metadata?.user_name || 'user',
+          avatar: newUser.user_metadata?.avatar_url || null
+        });
+        
+        console.log('🔥 [Root] 프로필 정보 업데이트 완료:', {
+          name: newUser.user_metadata?.name,
+          avatar: newUser.user_metadata?.avatar_url
+        });
+        
+        // 🔥 로그인 성공 시 자동으로 데이터 다시 로드 (더 부드러운 방식)
+        console.log('🔥 [Root] 로그인 완료 - 데이터 다시 로드');
+        setTimeout(() => {
+          // React Router의 revalidate 대신 현재 페이지로 navigate (데이터 다시 로드 트리거)
+          navigate('/', { replace: true });
+        }, 1000); // 1초 후 재로드 (UI 업데이트를 보여준 후)
+      }
+    });
+
+    // 🔥 로그아웃 리스너 추가
+    const removeLogoutListener = window.electronAPI.onLoggedOut(() => {
+      console.log('🔥 [Root] 로그아웃 이벤트 받음 - 사용자 정보 초기화');
+      
+      // 상태 초기화
+      setUser(null);
+      setProfile(null);
+      
+      console.log('🔥 [Root] 로그아웃 완료 - UI 업데이트됨');
+    });
+
+    return () => {
+      removeSessionListener();
+      removeLogoutListener();
+    };
+  }, []);
   
   // 🔥 선택된 메뉴 상태 관리 (Slack 스타일)
   const [selectedMenu, setSelectedMenu] = useState<string | null>(null);

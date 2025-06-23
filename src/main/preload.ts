@@ -73,7 +73,9 @@ export type Channels =
   | 'devtools:open'
   | 'devtools:close'
   | 'devtools:toggle'
-  | 'devtools:status';
+  | 'devtools:status'
+  | 'auth:social-login';
+
 
 const electronHandler = {
   ipcRenderer: {
@@ -112,6 +114,8 @@ const electronHandler = {
         'mcpRegistry:executeTool',
         'mcp:connectServer',
         'mcp:getStatus',
+        'workflow:execute',
+        'workflow:executeNode',
         // 🌲 커스텀 타이틀바 윈도우 컨트롤 채널들 추가
         'minimize-window',
         'maximize-window',
@@ -137,9 +141,13 @@ const electronHandler = {
         'window:detach-from-target',
         // 🔥 개발자 도구 관련 채널들 추가
         'devtools:open',
-        'devtools:close', 
+        'devtools:close',
         'devtools:toggle',
-        'devtools:status'
+        'devtools:status',
+        'auth:social-login',
+        'auth:logout',
+        'auth:get-session'
+
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.invoke(channel, ...args);
@@ -230,13 +238,27 @@ if (isAdmin) {
   console.log('Regular user environment variables exposed');
 }
 
-// IPC 통신 설정
+// IPC 통신 설정 (electronHandler의 invoke 메서드 재사용)
 contextBridge.exposeInMainWorld('electronAPI', {
   sendMessage: (channel: string, data: any) => ipcRenderer.send(channel, data),
   onMessage: (channel: string, func: (...args: any[]) => void) => {
     const subscription = (event: any, ...args: any[]) => func(...args);
     ipcRenderer.on(channel, subscription);
     return () => ipcRenderer.removeListener(channel, subscription);
+  },
+  // 🔥 electronHandler의 invoke 메서드 재사용 (중복 제거)
+  invoke: electronHandler.ipcRenderer.invoke,
+  // 🔥 Auth 세션 업데이트 리스너 추가
+  onAuthSessionUpdated: (callback: (data: { user: any; session: any }) => void) => {
+    const subscription = (event: any, data: { user: any; session: any }) => callback(data);
+    ipcRenderer.on('auth:session-updated', subscription);
+    return () => ipcRenderer.removeListener('auth:session-updated', subscription);
+  },
+  // 🔥 로그아웃 리스너 추가
+  onLoggedOut: (callback: () => void) => {
+    const subscription = (event: any) => callback();
+    ipcRenderer.on('auth:logged-out', subscription);
+    return () => ipcRenderer.removeListener('auth:logged-out', subscription);
   },
   // 역할 확인용 API 추가
   isAdmin: () => isAdmin,
@@ -270,10 +292,10 @@ const api = {
   // 🔥 Window Selection API 추가
   startWindowSelectionMode: () =>
     ipcRenderer.invoke('window:start-selection-mode'),
-  
+
   attachToTargetWindow: (windowInfo: any) =>
     ipcRenderer.invoke('window:attach-to-target', windowInfo),
-  
+
   detachFromTargetWindow: () =>
     ipcRenderer.invoke('window:detach-from-target'),
 

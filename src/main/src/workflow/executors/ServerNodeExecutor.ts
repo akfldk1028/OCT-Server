@@ -187,11 +187,11 @@ export class ServerNodeExecutor extends BaseNodeExecutor<ServerNodeData> {
       ...(config.env && { env: config.env })
     };
     
-    const success = this.integration.connectServer(config.config_name, serverConfig);
+    const success = this.integration.connectServer(serverName, serverConfig);
     return {
       message: success 
-        ? `🎉 ${config.config_name} Windows에 추가됨! Claude Desktop 재시작 필요`
-        : `❌ Windows 연결 실패: ${config.config_name}`
+        ? `🎉 ${serverName} Windows에 추가됨! Claude Desktop 재시작 필요`
+        : `❌ Windows 연결 실패: ${serverName}`
     };
   }
 
@@ -214,11 +214,11 @@ export class ServerNodeExecutor extends BaseNodeExecutor<ServerNodeData> {
       ...(config.env && { env: config.env })
     };
     
-    const success = this.integration.connectServer(config.config_name, serverConfig);
+    const success = this.integration.connectServer(serverName, serverConfig);
     return {
       message: success 
-        ? `🎉 ${config.config_name} macOS에 추가됨! Claude Desktop 재시작 필요`
-        : `❌ macOS 연결 실패: ${config.config_name}`
+        ? `🎉 ${serverName} macOS에 추가됨! Claude Desktop 재시작 필요`
+        : `❌ macOS 연결 실패: ${serverName}`
     };
   }
 
@@ -241,56 +241,53 @@ export class ServerNodeExecutor extends BaseNodeExecutor<ServerNodeData> {
       ...(config.env && { env: config.env })
     };
     
-    const success = this.integration.connectServer(config.config_name, serverConfig);
+    const success = this.integration.connectServer(serverName, serverConfig);
     return {
       message: success 
-        ? `🎉 ${config.config_name} Linux에 추가됨! Claude Desktop 재시작 필요`
-        : `❌ Linux 연결 실패: ${config.config_name}`
+        ? `🎉 ${serverName} Linux에 추가됨! Claude Desktop 재시작 필요`
+        : `❌ Linux 연결 실패: ${serverName}`
     };
   }
   
   private selectBestConfigForWindows(configs: any[]): any {
-    // Windows 우선순위 (비개발자 친화적): recommended > npx > npm > pip > uvx > uv > python > docker
+    // Windows 우선순위 (비개발자 친화적): npx > npm > pip > uvx > uv > python > docker
     const priorities = ['npx', 'npm', 'pip', 'uvx', 'uv', 'python', 'docker'];
     
-    const recommended = configs.find(c => c.is_recommended);
-    if (recommended) return recommended;
-    
+    // 🔥 강제로 순서대로만 확인 - is_recommended 완전 무시
     for (const priority of priorities) {
       const config = configs.find(c => c.command === priority);
       if (config) return config;
     }
     
+    // 위에서 못 찾으면 첫 번째
     return configs[0] || null;
   }
 
   private selectBestConfigForMacOS(configs: any[]): any {
-    // macOS 우선순위 (비개발자 친화적): recommended > npx > npm > pip > uvx > uv > python > docker
+    // macOS 우선순위 (비개발자 친화적): npx > npm > pip > uvx > uv > python > docker
     const priorities = ['npx', 'npm', 'pip', 'uvx', 'uv', 'python', 'docker'];
     
-    const recommended = configs.find(c => c.is_recommended);
-    if (recommended) return recommended;
-    
+    // 🔥 강제로 순서대로만 확인 - is_recommended 완전 무시
     for (const priority of priorities) {
       const config = configs.find(c => c.command === priority);
       if (config) return config;
     }
     
+    // 위에서 못 찾으면 첫 번째
     return configs[0] || null;
   }
 
   private selectBestConfigForLinux(configs: any[]): any {
-    // Linux 우선순위 (비개발자 친화적): recommended > npx > npm > pip > uvx > uv > python > docker
+    // Linux 우선순위 (비개발자 친화적): npx > npm > pip > uvx > uv > python > docker
     const priorities = ['npx', 'npm', 'pip', 'uvx', 'uv', 'python', 'docker'];
     
-    const recommended = configs.find(c => c.is_recommended);
-    if (recommended) return recommended;
-    
+    // 🔥 강제로 순서대로만 확인 - is_recommended 완전 무시
     for (const priority of priorities) {
       const config = configs.find(c => c.command === priority);
       if (config) return config;
     }
     
+    // 위에서 못 찾으면 첫 번째
     return configs[0] || null;
   }
 }

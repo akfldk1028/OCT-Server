@@ -42,6 +42,8 @@ import {setupMCPpreLoad} from "@/main/stores/renderProxy/rendererMCPProxy-preloa
 // 🔥 Window-Specific Overlay 시스템 임포트 (이미 구현된 기능 사용)
 import { integrateOverlayWithWindow, setupWindowSelectionTrigger } from './stores/overlay/overlayWindowIntegration';
 import { registerWindowApi } from './windowApi';
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '../renderer/database.types';
 
 dotenv.config();
 
@@ -49,6 +51,12 @@ dotenv.config();
 console.log('[Main Process] dotenv loaded.');
 console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
 console.log('SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY);
+
+// 🔥 메인 프로세스용 Supabase 클라이언트 (createClient 사용)
+const supabase = createClient<Database>(
+  process.env.SUPABASE_URL || 'https://mcrzlwriffyulnswfckt.supabase.co',
+  process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jcnpsd3JpZmZ5dWxuc3dmY2t0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczMDkwMjIsImV4cCI6MjA2Mjg4NTAyMn0.zHbjwPZnJUBx-u6YWsBVKS36gtO2WnUQT3ieZRLzKRQ'
+);
 
 // function getPythonPath() {  // ✅ 제거됨 - installer-helpers.ts에서 처리
 //   if (app.isPackaged) {
@@ -76,6 +84,250 @@ const isDebug =
 // if (isDebug) {
 //   require('electron-debug').default();
 // }
+
+
+
+
+let authWindow: BrowserWindow | null = null;
+
+// OAuth 창 생성 함수
+async function createAuthWindow(authUrl: string): Promise<string | { type: 'tokens'; access_token: string; refresh_token: string; fragment_params: any } | null> {
+  return new Promise((resolve) => {
+    authWindow = new BrowserWindow({
+      width: 600,
+      height: 800,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+      parent: mainWindow || undefined,
+      modal: true,
+    });
+
+    authWindow.loadURL(authUrl);
+
+    // URL 변경 감지
+    const handleRedirect = (url: string) => {
+      console.log('🔥 [OAuth] URL 변경 감지:', url);
+      
+      // Supabase 콜백 URL 패턴 확인 (code 또는 access_token)
+      if (url.includes('/auth/v1/callback') || url.includes('code=') || url.includes('access_token=')) {
+        try {
+          const urlObj = new URL(url);
+          const code = urlObj.searchParams.get('code');
+          const error = urlObj.searchParams.get('error');
+          
+          // URL fragment (#) 파라미터도 확인 (implicit flow)
+          const fragment = urlObj.hash.substring(1); // # 제거
+          const fragmentParams = new URLSearchParams(fragment);
+          const accessToken = fragmentParams.get('access_token');
+          const refreshToken = fragmentParams.get('refresh_token');
+
+          console.log('🔥 [OAuth] 추출된 코드:', code);
+          console.log('🔥 [OAuth] 추출된 access_token:', accessToken ? '있음' : '없음');
+          console.log('🔥 [OAuth] 오류:', error);
+
+          if (code) {
+            // Authorization Code Flow - 코드 반환
+            console.log('🔥 [OAuth] Authorization Code Flow - 코드:', code);
+            resolve(code);
+          } else if (accessToken && refreshToken) {
+            // Implicit Flow - 토큰 직접 반환
+            console.log('🔥 [OAuth] Implicit Flow - 토큰 직접 받음');
+            resolve({ 
+              type: 'tokens',
+              access_token: accessToken,
+              refresh_token: refreshToken,
+              fragment_params: Object.fromEntries(fragmentParams.entries())
+            });
+          } else if (error) {
+            // 인증 실패
+            console.error('🔥 [OAuth] 인증 실패:', error);
+            resolve(null);
+          } else {
+            // 코드도 토큰도 에러도 없음
+            console.warn('🔥 [OAuth] 코드, 토큰, 에러가 모두 없음');
+            resolve(null);
+          }
+
+          authWindow?.close();
+        } catch (parseError) {
+          console.error('🔥 [OAuth] URL 파싱 오류:', parseError);
+          resolve(null);
+          authWindow?.close();
+        }
+      }
+    };
+
+    // navigation 이벤트 리스너
+    authWindow.webContents.on('will-navigate', (event, url) => {
+      handleRedirect(url);
+    });
+
+    authWindow.webContents.on('did-navigate', (event, url) => {
+      handleRedirect(url);
+    });
+
+    // 창 닫힘 처리
+    authWindow.on('closed', () => {
+      authWindow = null;
+      resolve(null);
+    });
+  });
+}
+
+// 🔥 현재 세션 정보 가져오기 IPC 핸들러 추가
+ipcMain.handle('auth:get-session', async (event) => {
+  try {
+    console.log('🔍 [auth:get-session] 현재 세션 정보 요청');
+    
+    // Supabase에서 현재 세션 정보 가져오기
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error) {
+      console.warn('🔍 [auth:get-session] 세션 정보 가져오기 실패:', error);
+      return { success: false, user: null, error: error };
+    }
+    
+    console.log('🔍 [auth:get-session] 세션 정보:', user?.email || 'No user');
+    
+    return { success: true, user: user };
+  } catch (error) {
+    console.error('🔍 [auth:get-session] 세션 정보 오류:', error);
+    return { success: false, user: null, error: error };
+  }
+});
+
+// 🔥 로그아웃 IPC 핸들러 추가
+ipcMain.handle('auth:logout', async (event) => {
+  try {
+    console.log('🔥 [auth:logout] 로그아웃 시작 (메인 프로세스)');
+    
+    // Supabase 세션 종료
+    const { error } = await supabase.auth.signOut();
+    
+    if (error) {
+      console.error('🔥 [auth:logout] 로그아웃 실패:', error);
+      throw error;
+    }
+    
+    console.log('🔥 [auth:logout] 메인 프로세스 로그아웃 성공');
+    
+    // 🔥 중요: 렌더러 프로세스에 로그아웃 알림
+    if (mainWindow) {
+      mainWindow.webContents.send('auth:logged-out');
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('🔥 [auth:logout] 로그아웃 오류:', error);
+    return { success: false, error: error };
+  }
+});
+
+// IPC 핸들러 추가
+ipcMain.handle('auth:social-login', async (event, provider: string) => {
+  try {
+    console.log(`🔥 [auth:social-login] ${provider} 소셜 로그인 시작`);
+    
+    // Supabase OAuth URL 생성
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: provider as any,
+      options: {
+        // 일렉트론용 커스텀 redirect URL
+        redirectTo: `https://mcrzlwriffyulnswfckt.supabase.co/auth/v1/callback`,
+        skipBrowserRedirect: true, // 중요: 자동 브라우저 열기 방지
+      },
+    });
+
+    if (error || !data?.url) {
+      console.error('🔥 [auth:social-login] OAuth URL 생성 실패:', error);
+      throw error || new Error('No auth URL');
+    }
+
+    console.log('🔥 [auth:social-login] OAuth URL 생성 성공:', data.url);
+
+    // OAuth 창에서 인증 진행
+    const result = await createAuthWindow(data.url);
+    console.log('🔥 [auth:social-login] 인증 결과:', result);
+
+    if (result) {
+      if (typeof result === 'string') {
+        // Authorization Code Flow - 코드로 세션 교환
+        const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(result);
+
+        if (sessionError) {
+          console.error('🔥 [auth:social-login] 세션 교환 실패:', sessionError);
+          throw sessionError;
+        }
+
+        console.log('🔥 [auth:social-login] 세션 교환 성공:', sessionData?.user?.email);
+        
+        // 🔥 중요: 메인 윈도우에 세션 정보 전달
+        if (mainWindow) {
+          mainWindow.webContents.send('auth:session-updated', {
+            user: sessionData?.user,
+            session: sessionData?.session
+          });
+        }
+
+        return { success: true, user: sessionData?.user };
+      } else if (result.type === 'tokens') {
+        // Implicit Flow - 토큰으로 직접 세션 설정
+        const { access_token, refresh_token } = result;
+        
+        console.log('🔥 [auth:social-login] 토큰으로 세션 설정 중...');
+        
+        try {
+          // Supabase에 토큰을 설정하여 세션 생성
+          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+            access_token,
+            refresh_token
+          });
+
+          if (sessionError) {
+            console.error('🔥 [auth:social-login] 토큰 세션 설정 실패:', sessionError);
+            throw sessionError;
+          }
+
+          console.log('🔥 [auth:social-login] 토큰 세션 설정 성공:', sessionData?.user?.email);
+          
+          // 🔥 중요: 메인 윈도우에 세션 정보 전달
+          if (mainWindow) {
+            mainWindow.webContents.send('auth:session-updated', {
+              user: sessionData?.user,
+              session: sessionData?.session
+            });
+          }
+
+          return { success: true, user: sessionData?.user };
+        } catch (tokenError) {
+          console.error('🔥 [auth:social-login] 토큰 처리 오류:', tokenError);
+          throw tokenError;
+        }
+      }
+    }
+
+    return { success: false, error: 'Authentication cancelled' };
+  } catch (error) {
+    console.error('🔥 [auth:social-login] 소셜 로그인 오류:', error);
+    return { success: false, error: error};
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const installExtensions = async () => {
   try {
@@ -194,7 +446,7 @@ app.whenReady()
   .then(async () => {
     registerWindowApi();
     if (isDebug) await installExtensions();
-    
+
     // 🔥 개발자 도구 단축키 등록 (복수 등록으로 안정성 향상)
     try {
       const f12Result = globalShortcut.register('F12', () => {
@@ -242,11 +494,11 @@ app.whenReady()
         }
       });
       console.log('✅ Ctrl+Shift+J 단축키 등록:', ctrlShiftJResult ? '성공' : '실패');
-      
+
     } catch (error) {
       console.error('❌ 개발자 도구 단축키 등록 실패:', error);
     }
-    
+
     // store.getState().INIT_API_KEY();
     // store.getState().SET_API_KEY(
     //   "sk-proj-...",
@@ -417,8 +669,8 @@ function setupDevToolsIPCHandlers() {
       if (focusedWindow && !focusedWindow.isDestroyed()) {
         const isOpen = focusedWindow.webContents.isDevToolsOpened();
         console.log(`🔍 개발자 도구 상태 확인: ${isOpen ? '열림' : '닫힘'}`);
-        return { 
-          success: true, 
+        return {
+          success: true,
           isOpen: isOpen
         };
       }
@@ -426,10 +678,10 @@ function setupDevToolsIPCHandlers() {
       return { success: false, error: 'No available window', isOpen: false };
     } catch (error) {
       console.error('❌ devtools:status 에러:', error);
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
-        isOpen: false 
+        isOpen: false
       };
     }
   });
@@ -605,80 +857,149 @@ ipcMain.handle('mcp:getSessionId', async (event, config) => {
 });
 
 // 워크플로우 실행
-// ipcMain.handle('workflow:execute', async (event, payload) => {
-//   console.log('🔥 [main] workflow:execute 핸들러 시작');
-//   console.log('📨 [main] 받은 payload:', JSON.stringify(payload, null, 2));
+ipcMain.handle('workflow:execute', async (event, payload) => {
+  console.log('🔥 [main] workflow:execute 핸들러 시작');
+  console.log('📨 [main] 받은 payload:', JSON.stringify(payload, null, 2));
 
-//   const { workflowId, nodes, edges, triggerId, context } = payload;
-//   const results: Record<string, any> = {};
-//   let currentContext = context || {};
+  const { workflowId, nodes, edges, triggerId, context } = payload;
+  const results: Record<string, any> = {};
+  let currentContext = context || {};
 
-//   console.log(`🎯 [main] 처리할 노드 개수: ${nodes.length}`);
+  console.log(`🎯 [main] 처리할 노드 개수: ${nodes.length}`);
 
-//   // 🔥 새로운 workflow 시스템 사용
-//   const claudeIntegration = new ClaudeDesktopIntegration();
-//   const executorFactory = new NodeExecutorFactory(claudeIntegration);
-//   const executionContext = new ExecutionContext();
+  // 🔥 새로운 workflow 시스템 사용
+  const claudeIntegration = new ClaudeDesktopIntegration();
+  const executorFactory = new NodeExecutorFactory(claudeIntegration);
+  const executionContext = new ExecutionContext();
 
-//   // 기존 context 데이터가 있으면 ExecutionContext에 복사
-//   if (currentContext) {
-//     Object.entries(currentContext).forEach(([key, value]) => {
-//       executionContext.set(key, value);
-//     });
-//   }
+  // 기존 context 데이터가 있으면 ExecutionContext에 복사
+  if (currentContext) {
+    Object.entries(currentContext).forEach(([key, value]) => {
+      executionContext.set(key, value);
+    });
+  }
 
-//   for (const node of nodes) {
-//     console.log(`🔄 [main] 노드 ${node.id} (${node.type}) 처리 시작`);
-//     console.log(`📊 [main] 노드 데이터:`, {
-//       id: node.id,
-//       type: node.type,
-//       'data': node.data,
-//       'data.config': node.data?.config,
-//       'data.name': node.data?.name
-//     });
+  for (const node of nodes) {
+    console.log(`🔄 [main] 노드 ${node.id} (${node.type}) 처리 시작`);
+    console.log(`📊 [main] 노드 데이터:`, {
+      id: node.id,
+      type: node.type,
+      'data': node.data,
+      'data.config': node.data?.config,
+      'data.name': node.data?.name
+    });
 
-//     try {
-//       const executor = executorFactory.create(node);
-//       console.log(`⚡ [main] NodeExecutor 생성됨: ${executor ? '성공' : '실패'}`);
+    try {
+      // 🔥 서버 노드인 경우 MCP 설정 형식으로 변환
+      let nodeToProcess = node;
 
-//       if (executor && executor.execute) {
-//         const executePayload = {
-//           nodeId: String(node.id),
-//           context: executionContext,
-//           nodes,
-//           edges,
-//           triggerId
-//         };
+      if (node.type === 'server' && node.data) {
+        console.log(`🔧 [main] 서버 노드 데이터 변환 시작`);
 
-//         const result = await executor.execute(executePayload);
-//         console.log(`✅ [main] 노드 ${node.id} 실행 완료:`, result);
+        // 🔥 mcp_install_methods 우선 사용 (실제 설치된 방법)
+        let mcpConfig = null;
+        if (node.data.mcp_install_methods) {
+          const installMethod = node.data.mcp_install_methods;
+          if (installMethod.command && installMethod.args) {
+            mcpConfig = {
+              command: installMethod.command,
+              args: installMethod.args,
+              env: installMethod.env || {}
+            };
+            console.log(`✅ [main] mcp_install_methods 사용: ${installMethod.command}`);
+          }
+        }
 
-//         results[node.id] = result;
-//         executionContext.set(String(node.id), result);
-//         Object.assign(currentContext, result);
-//       } else {
-//         console.log(`⚠️ [main] 노드 ${node.id} executor가 없거나 execute 메서드가 없음`);
-//       }
-//     } catch (error: unknown) {
-//       let message = 'Unknown error';
-//       if (error && typeof error === 'object' && 'message' in error) {
-//         message = (error as any).message;
-//       } else if (typeof error === 'string') {
-//         message = error;
-//       }
-//       console.error(`❌ [main] 노드 ${node.id} 실행 실패:`, message);
-//       results[node.id] = { error: true, message };
-//       break;
-//     }
-//   }
+        // fallback: mcp_configs에서 npx 우선 선택
+        if (!mcpConfig && node.data.mcp_configs && Array.isArray(node.data.mcp_configs)) {
+          // 🔥 강제로 순서대로만 찾기 - is_recommended 완전 무시
+          const priorities = ['npx', 'npm', 'pip', 'uvx', 'uv', 'python', 'docker'];
 
-//   console.log('🏁 [main] workflow:execute 완료, 최종 결과:', currentContext);
+          for (const priority of priorities) {
+            const config = node.data.mcp_configs.find((config: any) => config.command === priority);
+            if (config) {
+              mcpConfig = config;
+              break;
+            }
+          }
 
-//   return {
-//     success: true,
-//     finalData: currentContext,
-//   };
-// });
+          // 위에서 못 찾으면 첫 번째 사용
+          if (!mcpConfig) {
+            mcpConfig = node.data.mcp_configs[0];
+          }
+
+          console.log(`✅ [main] mcp_configs 사용: ${mcpConfig?.command}`);
+        }
+
+        if (mcpConfig) {
+          // 노드 데이터를 MCP 형식으로 변환
+          nodeToProcess = {
+            ...node,
+            data: {
+              ...node.data,
+              // MCP 설정 형식 추가
+              mcpConfig: {
+                command: mcpConfig.command,
+                args: mcpConfig.args,
+                env: mcpConfig.env || {}
+              },
+              // 서버 이름 추가
+              serverName: node.data.mcp_servers?.name || `server_${node.id}`,
+              // 원본 데이터도 보존
+              originalData: node.data
+            }
+          };
+
+          console.log(`✅ [main] 서버 노드 MCP 설정 변환 완료:`, {
+            serverName: nodeToProcess.data.serverName,
+            mcpConfig: nodeToProcess.data.mcpConfig
+          });
+        } else {
+          console.warn(`⚠️ [main] 서버 노드 ${node.id}에 MCP 설정을 찾을 수 없음`);
+        }
+      }
+
+      const executor = executorFactory.create(nodeToProcess);
+      console.log(`⚡ [main] NodeExecutor 생성됨: ${executor ? '성공' : '실패'}`);
+
+      if (executor && executor.execute) {
+        const executePayload = {
+          nodeId: String(node.id),
+          context: executionContext,
+          nodes,
+          edges,
+          triggerId
+        };
+
+        const result = await executor.execute(executePayload);
+        console.log(`✅ [main] 노드 ${node.id} 실행 완료:`, result);
+
+        results[node.id] = result;
+        executionContext.set(String(node.id), result);
+        Object.assign(currentContext, result);
+      } else {
+        console.log(`⚠️ [main] 노드 ${node.id} executor가 없거나 execute 메서드가 없음`);
+      }
+    } catch (error: unknown) {
+      let message = 'Unknown error';
+      if (error && typeof error === 'object' && 'message' in error) {
+        message = (error as any).message;
+      } else if (typeof error === 'string') {
+        message = error;
+      }
+      console.error(`❌ [main] 노드 ${node.id} 실행 실패:`, message);
+      results[node.id] = { error: true, message };
+      break;
+    }
+  }
+
+  console.log('🏁 [main] workflow:execute 완료, 최종 결과:', currentContext);
+
+  return {
+    success: true,
+    finalData: currentContext,
+  };
+});
 
 // Claude 관련 핸들러
 ipcMain.handle('claude:getAllServers', () => {

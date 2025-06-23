@@ -122,6 +122,24 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
       const executionResult = await executeWorkflow(id, nodes, edges);
       console.log('워크플로우 실행 결과:', executionResult);
 
+      // executionResult가 없는 경우 기본값 설정
+      if (!executionResult) {
+        setLogs((prevLogs) => [...prevLogs.slice(-4), '❌ 워크플로우 실행 결과를 받지 못했습니다.']);
+        return;
+      }
+
+      // executionResult null/undefined 체크 추가
+      if (!executionResult) {
+        console.error('❌ [TriggerNode] executeWorkflow가 undefined를 반환했습니다');
+        setLogs((prevLogs) => [...prevLogs.slice(-4), '❌ 워크플로우 실행 실패: 결과가 없습니다']);
+        toast({
+          title: '워크플로우 실행 실패',
+          description: '워크플로우 엔진에서 결과를 반환하지 않았습니다',
+          variant: 'error',
+        });
+        throw new Error('워크플로우 실행 결과가 없습니다');
+      }
+
       // finalData 전체를 순회하며 isLast와 message가 있는 객체를 찾는다
       if (executionResult.finalData) {
         Object.entries(executionResult.finalData).forEach(([k, v]) => {
