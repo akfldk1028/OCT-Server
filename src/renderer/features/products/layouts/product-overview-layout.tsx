@@ -85,8 +85,12 @@ export default function ProductOverviewLayout() {
     isLoggedIn: boolean;
   }>();
   
+  console.log('🎭 [ProductOverviewLayout] product', product);
+
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  console.log('🎭 [ProductOverviewLayout] product install_methods:', product.install_methods);
 
   // 이니셜과 색깔 생성
   const initials = product.fallback_avatar_initials || generateInitials(product.name);

@@ -29,7 +29,8 @@ export const recordInstallStart = async (
   serverId: string, 
   serverName: string, 
   userProfileId?: string, 
-  selectedMethod?: any
+  selectedMethod?: any,
+  userEnvVariables?: Record<string, string> | null
 ) => {
   try {
     const client = getSupabaseClient();
@@ -73,6 +74,7 @@ export const recordInstallStart = async (
       install_method_id: installMethodId,
       user_platform: 'electron',
       user_client: 'oct-client',
+      user_env_variables: userEnvVariables,
     });
 
     console.log('✅ [recordInstallStart] 설치 시작 기록 생성 완료:', usageRecord);

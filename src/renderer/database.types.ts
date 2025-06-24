@@ -792,6 +792,7 @@ export type Database = {
           total_runs: number | null
           updated_at: string
           user_client: string | null
+          user_env_variables: Json | null
           user_platform: string | null
           user_rating: number | null
           user_review: string | null
@@ -820,6 +821,7 @@ export type Database = {
           total_runs?: number | null
           updated_at?: string
           user_client?: string | null
+          user_env_variables?: Json | null
           user_platform?: string | null
           user_rating?: number | null
           user_review?: string | null
@@ -848,6 +850,7 @@ export type Database = {
           total_runs?: number | null
           updated_at?: string
           user_client?: string | null
+          user_env_variables?: Json | null
           user_platform?: string | null
           user_rating?: number | null
           user_review?: string | null
@@ -1967,7 +1970,7 @@ export const Constants = {
         "past_due",
         "canceled",
         "unpaid",
-        "paused",`1     `
+        "paused",
       ],
       subscription_tier: ["free", "pro", "enterprise"],
     },

@@ -101,7 +101,17 @@ export const installerStore = createStore<InstallerState & {
     // 🔥 사용자 MCP 사용 기록 생성 (설치 시작)
     let usageRecord = null;
     try {
-      usageRecord = await recordInstallStart(serverName, config.package || config.name || serverName, userProfileId, selectedInstallMethod);
+      // 환경변수 추출 (config에서 가져오기)
+      const userEnvVariables = config.env || config.environment || null;
+      console.log('🌍 [installServer] 환경변수 전달:', userEnvVariables);
+      
+      usageRecord = await recordInstallStart(
+        serverName, 
+        config.package || config.name || serverName, 
+        userProfileId, 
+        selectedInstallMethod,
+        userEnvVariables
+      );
     } catch (recordError) {
       console.log('⚠️ [installServer] 사용 기록 생성 실패, 설치는 계속 진행:', recordError);
     }

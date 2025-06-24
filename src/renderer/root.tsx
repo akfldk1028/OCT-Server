@@ -231,7 +231,11 @@ export function Root() {
                 collapsed={true}
                 onMenuSelect={setSelectedMenu}
               />
-              <ChannelSidebar selectedMenu={selectedMenu} />
+              <ChannelSidebar 
+                selectedMenu={selectedMenu} 
+                servers={servers}
+                clients={clients}
+              />
             </>
           )}
           

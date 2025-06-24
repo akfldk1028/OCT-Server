@@ -503,6 +503,260 @@ function WorkflowCard({ workflow }: { workflow: any }) {
   );
 }
 
+// 🎴 Preview Card Components
+function WorkflowPreviewCard({ 
+  title, 
+  description, 
+  usage, 
+  category, 
+  icon 
+}: { 
+  title: string; 
+  description: string; 
+  usage: number; 
+  category: string; 
+  icon: string; 
+}) {
+  return (
+    <div className="group relative">
+      <div className="bg-card border border-border rounded-lg p-4 hover:border-primary/30 transition-all duration-200 hover:shadow-md h-[260px] flex flex-col">
+        
+        {/* 상단: 카테고리 라벨 */}
+        <div className="flex justify-end mb-2">
+          <span className="px-2 py-1 rounded text-xs font-medium bg-primary/10 text-primary">
+            {category}
+          </span>
+        </div>
+
+        {/* 중앙: 큰 아이콘 */}
+        <div className="flex items-center justify-center mb-3">
+          <span className="text-4xl">{icon}</span>
+        </div>
+
+        {/* 제목 */}
+        <h3 className="font-semibold text-sm text-card-foreground text-center mb-2 px-1" style={{
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          wordBreak: 'keep-all',
+          lineHeight: '1.3',
+          height: '2.6rem'
+        }}>
+          {title}
+        </h3>
+
+        {/* 설명 */}
+        <p className="text-xs text-muted-foreground text-center mb-2 px-1" style={{
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          wordBreak: 'keep-all',
+          lineHeight: '1.2',
+          height: '2.4rem'
+        }}>
+          {description}
+        </p>
+
+        {/* 사용량 */}
+        <div className="text-xs text-muted-foreground text-center mb-3">
+          👥 {usage.toLocaleString()} users
+        </div>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* 액션 버튼 */}
+        <div className="flex items-center space-x-2 mt-auto">
+          <button
+            className="flex-1 bg-primary text-white px-3 py-2 rounded font-medium text-sm transition-colors hover:opacity-90 flex items-center justify-center gap-1.5"
+          >
+            <Play className="h-3 w-3" />
+            Use Template
+          </button>
+          
+          <button className="px-2.5 py-2 border border-border text-muted-foreground rounded text-sm hover:bg-accent transition-colors">
+            <Eye className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ToolPreviewCard({ 
+  title, 
+  description, 
+  addedDays, 
+  author, 
+  downloads, 
+  icon 
+}: { 
+  title: string; 
+  description: string; 
+  addedDays: number; 
+  author: string; 
+  downloads: number; 
+  icon: string; 
+}) {
+  return (
+    <div className="group relative">
+      <div className="bg-card border border-border rounded-lg p-4 hover:border-primary/30 transition-all duration-200 hover:shadow-md h-[260px] flex flex-col">
+        
+        {/* 상단: 새로운 라벨 */}
+        <div className="flex justify-end mb-2">
+          <span className="px-2 py-1 rounded text-xs font-medium bg-emerald-100 text-emerald-700 border-emerald-200">
+            ✨ {addedDays} days ago
+          </span>
+        </div>
+
+        {/* 중앙: 큰 아이콘 */}
+        <div className="flex items-center justify-center mb-3">
+          <span className="text-4xl">{icon}</span>
+        </div>
+
+        {/* 제목 */}
+        <h3 className="font-semibold text-sm text-card-foreground text-center mb-2 px-1" style={{
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          wordBreak: 'keep-all',
+          lineHeight: '1.3',
+          height: '2.6rem'
+        }}>
+          {title}
+        </h3>
+
+        {/* 설명 */}
+        <p className="text-xs text-muted-foreground text-center mb-2 px-1" style={{
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          wordBreak: 'keep-all',
+          lineHeight: '1.2',
+          height: '2.4rem'
+        }}>
+          {description}
+        </p>
+
+        {/* 작성자와 다운로드 */}
+        <div className="text-xs text-muted-foreground text-center mb-3">
+          👤 {author} • ⬇️ {downloads}
+        </div>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* 액션 버튼 */}
+        <div className="flex items-center space-x-2 mt-auto">
+          <button
+            className="flex-1 bg-emerald-600 text-white px-3 py-2 rounded font-medium text-sm transition-colors hover:opacity-90 flex items-center justify-center gap-1.5"
+          >
+            <Plus className="h-3 w-3" />
+            Install
+          </button>
+          
+          <button className="px-2.5 py-2 border border-border text-muted-foreground rounded text-sm hover:bg-accent transition-colors">
+            <Eye className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GuidePreviewCard({ 
+  title, 
+  description, 
+  readTime, 
+  difficulty, 
+  icon 
+}: { 
+  title: string; 
+  description: string; 
+  readTime: string; 
+  difficulty: string; 
+  icon: string; 
+}) {
+  const getDifficultyColor = (diff: string) => {
+    switch (diff.toLowerCase()) {
+      case 'beginner': return 'bg-green-100 text-green-700 border-green-200';
+      case 'intermediate': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'advanced': return 'bg-red-100 text-red-700 border-red-200';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
+
+  return (
+    <div className="group relative">
+      <div className="bg-card border border-border rounded-lg p-4 hover:border-primary/30 transition-all duration-200 hover:shadow-md h-[260px] flex flex-col">
+        
+        {/* 상단: 난이도 라벨 */}
+        <div className="flex justify-end mb-2">
+          <span className={`px-2 py-1 rounded text-xs font-medium ${getDifficultyColor(difficulty)}`}>
+            {difficulty}
+          </span>
+        </div>
+
+        {/* 중앙: 큰 아이콘 */}
+        <div className="flex items-center justify-center mb-3">
+          <span className="text-4xl">{icon}</span>
+        </div>
+
+        {/* 제목 */}
+        <h3 className="font-semibold text-sm text-card-foreground text-center mb-2 px-1" style={{
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          wordBreak: 'keep-all',
+          lineHeight: '1.3',
+          height: '2.6rem'
+        }}>
+          {title}
+        </h3>
+
+        {/* 설명 */}
+        <p className="text-xs text-muted-foreground text-center mb-2 px-1" style={{
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          wordBreak: 'keep-all',
+          lineHeight: '1.2',
+          height: '2.4rem'
+        }}>
+          {description}
+        </p>
+
+        {/* 읽기 시간 */}
+        <div className="text-xs text-muted-foreground text-center mb-3">
+          ⏱️ {readTime}
+        </div>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* 액션 버튼 */}
+        <div className="flex items-center space-x-2 mt-auto">
+          <button
+            className="flex-1 bg-blue-600 text-white px-3 py-2 rounded font-medium text-sm transition-colors hover:opacity-90 flex items-center justify-center gap-1.5"
+          >
+            📖 Read Guide
+          </button>
+          
+          <button className="px-2.5 py-2 border border-border text-muted-foreground rounded text-sm hover:bg-accent transition-colors">
+            <Clock className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // 🔥 Outlet context 타입 정의 (root.tsx에서 전달되는 데이터)
 type OutletContext = {
   isLoggedIn: boolean;
@@ -715,87 +969,145 @@ export default  function HomePage() {
             ))}
           </div>
         </BlurFade>
-        <BlurFade delay={0.25} duration={1} inView>
-          <div className="space-y-10 relative md:h-[50vh] flex flex-col justify-center items-center overflow-hidden ">
-            <div className="relative flex  flex-col justify-center items-center  md:p-64 z-50 md:bg-[radial-gradient(circle,hsl(var(--background))_40%,transparent_100%)] text-center md:text-left">
-              <h2 className="md:text-5xl text-3xl font-bold leading-tight tracking-tight ">
-                IdeasGPT
+        
+        {/* 🔥 Popular Workflows Section */}
+        <BlurFade delay={0.4} duration={1} inView>
+          <div className="grid grid-cols-1 w-full md:grid-cols-3 gap-4">
+            <div className="space-y-2.5 text-center md:text-left md:space-y-0">
+              <h2 className="text-3xl md:text-5xl font-bold leading-10 md:leading-tight tracking-tight">
+                Popular Workflows
               </h2>
-
-              <p className="max-w-2xl md:text-xl font-light text-foreground">
-                AI generated startup ideas you can build.
+              <p className="text-lg md:text-xl font-light text-foreground">
+                Discover the most used automation workflows by our community
               </p>
-
-              <Button variant="link" asChild className="text-lg pl-0">
-                <Link to="/ideas">View all ideas &rarr;</Link>
-              </Button>
-            </div>
-            <div className="md:absolute w-full flex justify-between md:h-full h-[75vh]  top-0 left-0">
-
-
-              <div className="hidden md:block pointer-events-none absolute right-0 h-10 w-full top-0 z-10 bg-gradient-to-b from-white dark:from-background"></div>
-              <div className="hidden md:block pointer-events-none absolute left-0 h-10 w-full bottom-10 z-10 bg-gradient-to-t from-white dark:from-background"></div>
-            </div>
-          </div>
-        </BlurFade>
-
-        <BlurFade delay={0.25} duration={1} inView>
-          <div className="space-y-10 grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-10">
-            <div className="self-center text-center md:text-left">
-              <h2 className="md:text-5xl text-3xl font-bold leading-tight tracking-tight ">
-                Latest
-              </h2>
-              <p className="max-w-2xl md:text-xl font-light text-foreground">
-                The latest discussions from our community.
-              </p>
-              <Button variant="link" asChild className="text-lg pl-0">
-                <Link to="/community" className="pl-0">
-                  Read all discussions &rarr;
+              <Button variant="link" asChild className="text-lg p-0">
+                <Link to="/jobs/node">
+                  Create your workflow &rarr;
                 </Link>
               </Button>
             </div>
-            <div className="relative col-span-2 flex flex-col md:[perspective:500px] md:pb-40  overflow-hidden md:*:[transform:translateZ(-0px)_rotateY(-20deg)_rotateZ(10deg)]">
-
-
-
-            </div>
+            {/* Sample workflow cards */}
+            <WorkflowPreviewCard
+              title="AI Code Review"
+              description="Automatically review code with Claude and generate suggestions"
+              usage={1250}
+              category="Development"
+              icon="🤖"
+            />
+            <WorkflowPreviewCard
+              title="Smart Documentation"
+              description="Generate and maintain docs from your codebase automatically"
+              usage={890}
+              category="Documentation"
+              icon="📚"
+            />
           </div>
         </BlurFade>
+
+        {/* 🛠️ New Tools Section */}
+        <BlurFade delay={0.6} duration={1} inView>
+          <div className="grid grid-cols-1 w-full md:grid-cols-3 gap-4">
+            <div className="space-y-2.5 text-center md:text-left md:space-y-0">
+              <h2 className="text-3xl md:text-5xl font-bold leading-10 md:leading-tight tracking-tight">
+                New Tools
+              </h2>
+              <p className="text-lg md:text-xl font-light text-foreground">
+                Latest MCP servers and extensions added to our ecosystem
+              </p>
+              <Button variant="link" asChild className="text-lg p-0">
+                <Link to="/products">
+                  Browse all tools &rarr;
+                </Link>
+              </Button>
+            </div>
+            {/* Sample tool cards */}
+            <ToolPreviewCard
+              title="Weather API Server"
+              description="Get real-time weather data with advanced forecasting"
+              addedDays={2}
+              author="weather-team"
+              downloads={156}
+              icon="🌤️"
+            />
+            <ToolPreviewCard
+              title="Database Analyzer"
+              description="Analyze and optimize your database performance automatically"
+              addedDays={5}
+              author="db-experts"
+              downloads={89}
+              icon="📊"
+            />
+          </div>
+        </BlurFade>
+
+        {/* 📚 MCP Guide Section */}
+        <BlurFade delay={0.8} duration={1} inView>
+          <div className="grid grid-cols-1 w-full md:grid-cols-3 gap-4">
+            <div className="space-y-2.5 text-center md:text-left md:space-y-0">
+              <h2 className="text-3xl md:text-5xl font-bold leading-10 md:leading-tight tracking-tight">
+                MCP Guide
+              </h2>
+              <p className="text-lg md:text-xl font-light text-foreground">
+                Step-by-step guides to master the Model Context Protocol
+              </p>
+              <Button variant="link" asChild className="text-lg p-0">
+                <Link to="/guide">
+                  View all guides &rarr;
+                </Link>
+              </Button>
+            </div>
+            {/* Sample guide cards */}
+            <GuidePreviewCard
+              title="Getting Started"
+              description="Learn the basics of MCP and set up your first server"
+              readTime="5 min read"
+              difficulty="Beginner"
+              icon="🚀"
+            />
+            <GuidePreviewCard
+              title="Advanced Workflows"
+              description="Build complex automation with multiple MCP servers"
+              readTime="15 min read"
+              difficulty="Advanced"
+              icon="⚡"
+            />
+          </div>
+        </BlurFade>
+        
+
 
         <BlurFade delay={0.25} duration={1} inView>
           <div className="rounded-lg border overflow-hidden -mt-20 shadow-xl group">
             <div className="relative flex h-[500px] w-full flex-col items-center justify-center overflow-hidden">
               <div className="flex relative z-10 bg-background w-full justify-center items-center flex-col -mt-24">
                 <h2 className="md:text-5xl text-3xl font-bold leading-tight tracking-tight ">
-                  Find
+                  MCP Guide
                 </h2>
                 <p className="max-w-2xl md:text-xl font-light text-foreground">
-                  Join a team looking for .
+                  How to start a project with MCP
                 </p>
                 <Button variant="link" asChild className="text-lg pl-0">
                   <Link to="/cofounders" className="pl-0">
-                    Find your new team &rarr;
+                    Start a Project &rarr;
                   </Link>
                 </Button>
               </div>
               <RetroGrid />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:p-10 p-5 -mt-32 md:-mt-14  dark:bg-background bg-white">
-
-            </div>
+   
           </div>
         </BlurFade>
-        <BlurFade delay={0.25} duration={1} inView>
+        {/* <BlurFade delay={0.25} duration={1} inView>
           <div className="md:-mt-44 overflow-hidden ">
             <div className="flex h-[75vh] relative flex-col justify-center items-center text-center md:text-left">
               <h2 className="md:text-5xl text-3xl font-bold leading-tight tracking-tight ">
-                Latest jobs
+                MCP 개발 기회
               </h2>
               <p className="max-w-2xl md:text-xl font-light text-foreground">
-                Find your dream job.
+                MCP 생태계에서 새로운 커리어를 시작하세요
               </p>
               <Button variant="link" asChild className="text-lg z-10 md:pl-0">
-                <Link to="/jobs">View all jobs &rarr;</Link>
+                <Link to="/jobs">개발 기회 보기 &rarr;</Link>
               </Button>
               <Ripple className="bg-transparent rounded-lg" />
             </div>
@@ -803,7 +1115,7 @@ export default  function HomePage() {
 
             </div>
           </div>
-        </BlurFade>
+        </BlurFade> */}
       </div>
     </>
   );

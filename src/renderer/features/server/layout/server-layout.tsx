@@ -45,7 +45,14 @@ export default function ServerLayout() {
   // 🔥 userId가 있을 때만 서버 목록을 가져오기
   useEffect(() => {
     const fetchServers = async () => {
+      console.log('🔍 [useEffect] 서버 로드 시도:', {
+        '👤 userId': userId,
+        '🔑 isLoggedIn': isLoggedIn,
+        '❓ userId 존재': !!userId
+      });
+
       if (!userId) {
+        console.log('⚠️ [useEffect] userId가 없어서 서버 목록을 가져오지 않음');
         setServers([]);
         return;
       }

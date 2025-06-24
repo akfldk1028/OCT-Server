@@ -370,12 +370,14 @@ export const createUserMcpUsage = async (
     install_method_id,
     user_platform = 'electron',
     user_client = 'oct-client',
+    user_env_variables,
   }: {
     profile_id: string;
     original_server_id: number;
     install_method_id?: number | null;
     user_platform?: string;
     user_client?: string;
+    user_env_variables?: Record<string, string> | null;
   },
 ) => {
   console.log('🚀 [createUserMcpUsage] 설치 기록 생성:', {
@@ -383,7 +385,8 @@ export const createUserMcpUsage = async (
     original_server_id,
     install_method_id,
     user_platform,
-    user_client
+    user_client,
+    user_env_variables
   });
 
   const { data, error } = await client
@@ -397,6 +400,7 @@ export const createUserMcpUsage = async (
       execution_status: 'never_run',
       user_platform,
       user_client,
+      user_env_variables: user_env_variables || null,
     })
     .select()
     .single();
@@ -812,4 +816,57 @@ export const getUserServerAllInstallRecords = async (
   });
   
   return data || [];
+};
+
+// 🔥 사용자의 최근 성공한 환경변수 가져오기
+export const getUserLatestEnvVariables = async (
+  client: SupabaseClient<Database>,
+  {
+    profile_id,
+    original_server_id,
+    install_method_id,
+  }: {
+    profile_id: string;
+    original_server_id: number;
+    install_method_id?: number | null;
+  },
+) => {
+  console.log('🔍 [getUserLatestEnvVariables] 최근 환경변수 조회:', {
+    profile_id,
+    original_server_id,
+    install_method_id
+  });
+
+  let query = client
+    .from('user_mcp_usage')
+    .select('user_env_variables, install_completed_at, install_method_id')
+    .eq('profile_id', profile_id)
+    .eq('original_server_id', original_server_id)
+    .eq('install_status', 'success')
+    .not('user_env_variables', 'is', null)
+    .order('install_completed_at', { ascending: false });
+
+  // install_method_id가 지정된 경우 필터링
+  if (install_method_id !== undefined) {
+    if (install_method_id === null) {
+      query = query.is('install_method_id', null);
+    } else {
+      query = query.eq('install_method_id', install_method_id);
+    }
+  }
+
+  const { data, error } = await query.limit(1).single();
+    
+  if (error) {
+    // 데이터가 없는 경우는 정상 (처음 설치)
+    if (error.code === 'PGRST116') {
+      console.log('📝 [getUserLatestEnvVariables] 이전 환경변수 없음 (처음 설치)');
+      return null;
+    }
+    console.error('❌ [getUserLatestEnvVariables] 환경변수 조회 실패:', error);
+    throw error;
+  }
+  
+  console.log('✅ [getUserLatestEnvVariables] 이전 환경변수 조회 완료:', data?.user_env_variables);
+  return data?.user_env_variables || null;
 };

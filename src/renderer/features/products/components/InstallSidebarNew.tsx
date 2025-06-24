@@ -93,59 +93,93 @@ export function InstallSidebarNew({
   });
 
   // 🔥 MCPServerDetailView에서는 install_methods 사용
-  const installMethods = product.install_methods
-  if (!installMethods || !Array.isArray(installMethods) || installMethods.length === 0) {
-    console.log('⚠️ [InstallSidebarNew] install_methods가 없음');
+  const installMethods = product.install_methods || []
+  const configOptions = product.config_options || []
+  
+  // 🚀 install_methods가 빈 배열이면 zero-install 또는 config_options 사용
+  const isZeroInstall = installMethods.length === 0
+  
+  console.log('🔍 [InstallSidebarNew] 설치 방법 분석:', {
+    '📦 install_methods 길이': installMethods.length,
+    '⚙️ config_options 길이': configOptions.length,
+    '🚀 isZeroInstall': isZeroInstall
+  });
+  
+  // config_options도 없으면 진짜 설치 불가
+  if (!isZeroInstall && installMethods.length === 0 && configOptions.length === 0) {
+    console.log('🚫 [InstallSidebarNew] 설치 방법이 전혀 없음');
     return null;
   }
 
-  // 🔥 is_zero_install 체크 및 설치 방법 전처리
+  // 🔥 설치 방법 전처리 - install_methods와 config_options 통합
   const processedMethods: any[] = []
   
-  installMethods.forEach((method) => {
-    console.log('🔍 [processedMethods] 설치 방법 처리 중:', method);
+  // 🚀 Zero-install인 경우 특별 처리
+  if (isZeroInstall) {
+    console.log('⚡ [processedMethods] Zero-install 모드 - config_options 사용');
     
-    // 🚀 Zero-install 우선 처리
-    if (method.is_zero_install) {
-      console.log('⚡ [processedMethods] Zero-install 방법 발견:', method);
-      processedMethods.unshift(method); // 맨 앞에 추가
-      return;
-    }
-    
-    // 🔨 Multi-command 처리 (예: Docker build)
-    if (method.is_multi_command && method.multi_command) {
-      console.log('🔧 [processedMethods] Multi-command 처리:', method.multi_command);
-      const multiCmd = method.multi_command;
+    // config_options를 install_methods 형태로 변환
+    configOptions.forEach((config) => {
+      processedMethods.push({
+        command: config.command,
+        args: config.args,
+        env: config.env || {},
+                 platform: config.platform || 'unknown',
+         config_name: config.config_name,
+         is_recommended: config.is_recommended,
+         is_zero_install: true, // zero-install 마킹
+         description: `${(config.platform || 'unknown').toUpperCase()}로 설치`
+      });
+      console.log('🔧 [processedMethods] config_options에서 변환:', config);
+    });
+  } else {
+    // 🎯 일반 install_methods 처리
+    installMethods.forEach((method) => {
+      console.log('🔍 [processedMethods] 설치 방법 처리 중:', method);
       
-      if (multiCmd.commands && Array.isArray(multiCmd.commands)) {
-        multiCmd.commands.forEach((cmd: any) => {
-          processedMethods.push({
-            ...method,
-            command: cmd.command,
-            args: cmd.args,
-            env: multiCmd.env || method.env || {}
-          });
-        });
+      // 🚀 Zero-install 우선 처리
+      if (method.is_zero_install) {
+        console.log('⚡ [processedMethods] Zero-install 방법 발견:', method);
+        processedMethods.unshift(method); // 맨 앞에 추가
+        return;
       }
-    }
-    // 🎯 일반 단일 명령어 처리
-    else if (method.command) {
-      processedMethods.push(method);
-    }
-    // 🚀 Zero-install 서버는 command가 없어도 처리
-    else if (method.is_zero_install) {
-      console.log('⚡ [processedMethods] Zero-install 서버 (command 없음):', method);
-      processedMethods.push(method);
-    }
-    // 📝 명령어가 없는 경우 로그만 출력
-    else {
-      console.log('⚠️ [processedMethods] 명령어가 없는 설치 방법:', method);
-    }
-  });
+      
+      // 🔨 Multi-command 처리 (예: Docker build)
+      if (method.is_multi_command && method.multi_command) {
+        console.log('🔧 [processedMethods] Multi-command 처리:', method.multi_command);
+        const multiCmd = method.multi_command;
+        
+        if (multiCmd.commands && Array.isArray(multiCmd.commands)) {
+          multiCmd.commands.forEach((cmd: any) => {
+            processedMethods.push({
+              ...method,
+              command: cmd.command,
+              args: cmd.args,
+              env: multiCmd.env || method.env || {}
+            });
+          });
+        }
+      }
+      // 🎯 일반 단일 명령어 처리
+      else if (method.command) {
+        processedMethods.push(method);
+      }
+      // 🚀 Zero-install 서버는 command가 없어도 처리
+      else if (method.is_zero_install) {
+        console.log('⚡ [processedMethods] Zero-install 서버 (command 없음):', method);
+        processedMethods.push(method);
+      }
+      // 📝 명령어가 없는 경우 로그만 출력
+      else {
+        console.log('⚠️ [processedMethods] 명령어가 없는 설치 방법:', method);
+      }
+    });
+  }
 
   console.log('📋 [processedMethods] 처리된 설치 방법들:', processedMethods);
 
-  if (processedMethods.length === 0) {
+  // 🚨 processedMethods가 비어있어도 사이드바는 열어야 함 (zero-install 안내)
+  if (processedMethods.length === 0 && !isZeroInstall) {
     console.log('🚫 [InstallSidebarNew] 처리 가능한 설치 방법이 없음');
     return null;
   }
@@ -187,10 +221,23 @@ export function InstallSidebarNew({
 
   console.log('📋 [InstallSidebarNew] 명령어 그룹:', Object.keys(commandGroups));
 
-  // commandGroups가 비어있는지 확인
-  if (Object.keys(commandGroups).length === 0) {
-    console.log('🚫 [InstallSidebarNew] commandGroups가 비어있음');
+  // 🚨 Zero-install인 경우 빈 그룹이어도 사이드바 표시
+  if (Object.keys(commandGroups).length === 0 && !isZeroInstall) {
+    console.log('🚫 [InstallSidebarNew] commandGroups가 비어있음 (non-zero-install)');
     return null;
+  }
+  
+  // 🚀 Zero-install인데 그룹이 비어있으면 기본 안내 표시
+  if (Object.keys(commandGroups).length === 0 && isZeroInstall) {
+    console.log('⚡ [InstallSidebarNew] Zero-install 모드 - 기본 안내 표시');
+    // Zero-install용 기본 그룹 생성
+    commandGroups['zero-install'] = [{
+      command: null,
+      args: [],
+      env: {},
+      is_zero_install: true,
+      description: 'Zero-Install Server (설치 불필요)'
+    }];
   }
 
   // 모든 명령어 옵션을 한 배열로 평탄화
@@ -533,13 +580,28 @@ export function InstallSidebarNew({
       return;
     }
 
-    // 현재 명령어의 환경 변수 가져오기
-    const commandEnvVars = envValues[command] || {}
-    console.log(`🌍 [handleInstall] 환경 변수:`, commandEnvVars);
-
     // 현재 명령어에 해당하는 설치 방법 찾기
     const currentMethods = commandGroups[command] || []
     const currentMethod = currentMethods[0] // 첫 번째 방법 사용
+    
+    // 🔥 환경 변수 처리: 사용자 입력값이 없으면 기본값 사용
+    const defaultEnvVars = currentMethod?.env || {}
+    const userEnvVars = envValues[command] || {}
+    
+    // 사용자가 입력하지 않은 환경변수는 기본값으로 채우기
+    const commandEnvVars = { ...defaultEnvVars }
+    Object.keys(defaultEnvVars).forEach(key => {
+      if (userEnvVars[key] && userEnvVars[key].trim() !== '') {
+        commandEnvVars[key] = userEnvVars[key]
+      }
+      // 기본값이 이미 commandEnvVars에 설정되어 있음
+    })
+    
+    console.log(`🌍 [handleInstall] 환경 변수:`, {
+      '🔧 defaultEnvVars': defaultEnvVars,
+      '👤 userEnvVars': userEnvVars,
+      '🎯 commandEnvVars': commandEnvVars
+    });
     
     console.log(`🔧 [handleInstall] 현재 명령어의 설치 방법:`, {
       command,
@@ -805,17 +867,20 @@ export function InstallSidebarNew({
                         <div key={key} className="grid gap-2">
                           <Label htmlFor={`env-${cmd}-${key}`} className="font-medium">
                             {key}
+                            <span className="text-sm text-muted-foreground ml-2">
+                              (기본값: {String(defaultValue)})
+                            </span>
                           </Label>
                           <Input
                             id={`env-${cmd}-${key}`}
-                            value={commandEnvValues[key] || String(defaultValue)}
+                            value={commandEnvValues[key] || ''}
                             onChange={(e) => handleEnvChange(cmd, key, e.target.value)}
                             className={
                               commandErrors.includes(key)
                                 ? "border-red-500 focus:border-red-500"
                                 : ""
                             }
-                            placeholder={`Enter your ${key}`}
+                            placeholder={String(defaultValue) || `Enter your ${key}`}
                             disabled={isInstalling}
                           />
                           {commandErrors.includes(key) && (
