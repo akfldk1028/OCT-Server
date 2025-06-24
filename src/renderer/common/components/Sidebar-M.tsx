@@ -138,33 +138,33 @@ export default function Sidebar({
         },
       ],
     },
-    {
-      name: 'Chat',
-      to: '/chat',
-      icon: <MessageSquare className="w-4 h-4" />,
-      items: [
-        {
-          name: 'New Chat',
-          description: 'Start a new conversation',
-          action: () => createNewChat(),
-        },
-        {
-          name: 'Chat History',
-          description: 'View previous conversations',
-          to: '/chat/history',
-        },
-        {
-          name: 'AI Models',
-          description: 'Configure AI models',
-          to: '/chat/models',
-        },
-        {
-          name: 'Settings',
-          description: 'Chat settings and preferences',
-          to: '/chat/settings',
-        },
-      ],
-    },
+    // {
+    //   name: 'Chat',
+    //   to: '/chat',
+    //   icon: <MessageSquare className="w-4 h-4" />,
+    //   items: [
+    //     {
+    //       name: 'New Chat',
+    //       description: 'Start a new conversation',
+    //       action: () => createNewChat(),
+    //     },
+    //     {
+    //       name: 'Chat History',
+    //       description: 'View previous conversations',
+    //       to: '/chat/history',
+    //     },
+    //     {
+    //       name: 'AI Models',
+    //       description: 'Configure AI models',
+    //       to: '/chat/models',
+    //     },
+    //     {
+    //       name: 'Settings',
+    //       description: 'Chat settings and preferences',
+    //       to: '/chat/settings',
+    //     },
+    //   ],
+    // },
     {
       name: 'Community',
       to: '/overlay',

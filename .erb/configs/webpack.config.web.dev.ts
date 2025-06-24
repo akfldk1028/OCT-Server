@@ -13,6 +13,9 @@ import checkNodeEnv from '../scripts/check-node-env';
 import dotenv from 'dotenv';
 dotenv.config();
 
+// 🔥 package.json에서 버전 정보 가져오기
+const packageJson = require('../../package.json');
+
 
 // When an ESLint server is running, we can't set the NODE_ENV so we'll check if it's
 // at the dev webpack config is not accidentally run in a production environment
@@ -173,6 +176,8 @@ const configuration: webpack.Configuration = {
     new webpack.DefinePlugin({
       'process.env.SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL),
       'process.env.SUPABASE_ANON_KEY': JSON.stringify(process.env.SUPABASE_ANON_KEY),
+      // 🔥 앱 버전 정보 주입
+      'process.env.APP_VERSION': JSON.stringify(packageJson.version),
     }),
 
     new webpack.LoaderOptionsPlugin({

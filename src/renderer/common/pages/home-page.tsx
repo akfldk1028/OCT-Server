@@ -519,8 +519,8 @@ type OutletContext = {
 export default  function HomePage() {
   const { products } = useLoaderData() as HomePageLoaderData;
   
-  // 웹 환경에서는 하드코딩된 버전 사용 (process 객체 문제 해결)
-  const appVersion = '0.0.1';
+  // 🔥 package.json에서 동적으로 버전 가져오기
+  const appVersion = process.env.APP_VERSION || '0.0.1';
   // 🔥 root.tsx에서 전달된 모든 데이터 사용
   const { isLoggedIn, userId, servers, clients, workflows } = useOutletContext<OutletContext>();
   const [claudeServers, setClaudeServers] = useState<string[]>([]);

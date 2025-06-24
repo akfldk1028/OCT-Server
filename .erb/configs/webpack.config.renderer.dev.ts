@@ -11,6 +11,9 @@ import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
 import checkNodeEnv from '../scripts/check-node-env';
 
+// 🔥 package.json에서 버전 정보 가져오기
+const packageJson = require('../../package.json');
+
 // When an ESLint server is running, we can't set the NODE_ENV so we'll check if it's
 // at the dev webpack config is not accidentally run in a production environment
 if (process.env.NODE_ENV === 'production') {
@@ -179,6 +182,11 @@ const configuration: webpack.Configuration = {
     new webpack.EnvironmentPlugin({
       NODE_ENV: 'development',
       PLATFORM: isWebMode ? 'web' : 'electron',
+    }),
+
+    // 🔥 앱 버전 정보 주입
+    new webpack.DefinePlugin({
+      'process.env.APP_VERSION': JSON.stringify(packageJson.version),
     }),
 
     new webpack.LoaderOptionsPlugin({

@@ -119,8 +119,12 @@ export function CustomTitleBar({ title = "OCT Server", showMenuButton = true }: 
             )}
           </div>
         )}
-        <div className="text-sm font-semibold text-[#E8F5E9] ml-1">
+        <div className="text-sm font-semibold text-[#E8F5E9] ml-1 flex items-center gap-2">
           {title}
+          {/* 🔥 앱 버전 표시 */}
+          <span className="text-xs text-[#E8F5E9]/70 font-normal">
+            v{process.env.APP_VERSION || '0.0.1'}
+          </span>
         </div>
       </div>
 

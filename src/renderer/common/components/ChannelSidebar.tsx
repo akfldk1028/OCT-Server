@@ -180,33 +180,33 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
             //Template 추가해야함
           ]
         };
-      case 'Chat':
-        return {
-          title: 'Chat & AI',
-          sections: [
-            { 
-              name: 'Conversations', 
-              type: 'chatList',
-              items: [] // ChatList 컴포넌트로 특별 처리
-            },
-            { 
-              name: 'Quick Actions', 
-              items: [
-                { name: 'New Chat', action: 'createNewChat' },
-                { name: 'Chat History', path: '/chat/history' },
-                { name: 'Clear All Chats', action: 'clearAllChats' }
-              ]
-            },
-            { 
-              name: 'AI Settings', 
-              items: [
-                { name: 'AI Models', path: '/chat/models' },
-                { name: 'Chat Settings', path: '/chat/settings' },
-                { name: 'API Configuration', path: '/chat/api' }
-              ]
-            },
-          ]
-        };
+      // case 'Chat':
+      //   return {
+      //     title: 'Chat & AI',
+      //     sections: [
+      //       { 
+      //         name: 'Conversations', 
+      //         type: 'chatList',
+      //         items: [] // ChatList 컴포넌트로 특별 처리
+      //       },
+      //       { 
+      //         name: 'Quick Actions', 
+      //         items: [
+      //           { name: 'New Chat', action: 'createNewChat' },
+      //           { name: 'Chat History', path: '/chat/history' },
+      //           { name: 'Clear All Chats', action: 'clearAllChats' }
+      //         ]
+      //       },
+      //       { 
+      //         name: 'AI Settings', 
+      //         items: [
+      //           { name: 'AI Models', path: '/chat/models' },
+      //           { name: 'Chat Settings', path: '/chat/settings' },
+      //           { name: 'API Configuration', path: '/chat/api' }
+      //         ]
+      //       },
+      //     ]
+      //   };
       case 'Community':
         return {
           title: 'Community',
