@@ -25,6 +25,7 @@ import ProductOverviewLayout from './features/products/layouts/product-overview-
 import ProductOverviewPage from './features/products/pages/product-overview-page';
 import DailyLeaderboardPage from "@/renderer/features/products/pages/daily-leaderboard-page";
 import CategoriesPage, { loader as CategoriesPageLoader } from "@/renderer/features/products/pages/categories-page";
+import CategoryServersPage, { loader as CategoryServersPageLoader } from "@/renderer/features/products/pages/category-servers-page";
 
 import { loader as socialStartPageLoader } from "./features/auth/pages/social-start-page";
 import SocialCompletePage, { loader as socialCompletePageLoader } from "./features/auth/pages/social-complete-page";
@@ -178,6 +179,11 @@ const electronRouter = createHashRouter(
                   index: true,
                   element: <CategoriesPage />,
                   loader: CategoriesPageLoader,
+                },
+                {
+                  path: ':categoryName',
+                  element: <CategoryServersPage />,
+                  loader: CategoryServersPageLoader,
                 }
               ]
             }
@@ -375,6 +381,11 @@ const webRouter = createBrowserRouter(
                   index: true,
                   element: <CategoriesPage />,
                   loader: CategoriesPageLoader,
+                },
+                {
+                  path: ':categoryName',
+                  element: <CategoryServersPage />,
+                  loader: CategoryServersPageLoader,
                 }
               ]
             }

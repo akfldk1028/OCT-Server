@@ -60,6 +60,7 @@ export default function CategoryPage({ loaderData }: Route.ComponentProps) {
             votesCount={product.upvotes}
             isUpvoted={product.is_upvoted}
             promotedFrom={product.promoted_from}
+            localImagePath={null}
           />
         ))}
       </div>
