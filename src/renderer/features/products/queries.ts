@@ -368,6 +368,7 @@ export const createUserMcpUsage = async (
     profile_id,
     original_server_id,
     install_method_id,
+    config_id,
     user_platform = 'electron',
     user_client = 'oct-client',
     user_env_variables,
@@ -375,6 +376,7 @@ export const createUserMcpUsage = async (
     profile_id: string;
     original_server_id: number;
     install_method_id?: number | null;
+    config_id?: number | null; // 🔥 config_id 추가
     user_platform?: string;
     user_client?: string;
     user_env_variables?: Record<string, string> | null;
@@ -384,6 +386,7 @@ export const createUserMcpUsage = async (
     profile_id,
     original_server_id,
     install_method_id,
+    config_id, // 🔥 config_id 로그 추가
     user_platform,
     user_client,
     user_env_variables
@@ -395,6 +398,7 @@ export const createUserMcpUsage = async (
       profile_id,
       original_server_id,
       install_method_id,
+      config_id, // 🔥 config_id 추가
       install_status: 'attempted',
       install_attempted_at: new Date().toISOString(),
       execution_status: 'never_run',

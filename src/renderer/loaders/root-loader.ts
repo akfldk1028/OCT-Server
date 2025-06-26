@@ -3,7 +3,7 @@ import { makeSSRClient, supabase } from '../supa-client';
 import { getUserById } from '../features/users/queries';
 import { IS_ELECTRON } from '../utils/environment';
 import { getClients } from '../features/server/queries';
-import { getUserInstalledServers } from '../features/products/queries';
+import { getUserInstalledServers, getCategories } from '../features/products/queries';
 import { getUserWorkflows } from '../features/server/workflow-queries';
 import { analyzeWorkflowClientType } from '../utils/workflow-analysis';
 
@@ -18,6 +18,7 @@ export type LoaderData = {
   servers: any[];
   clients: any[];
   workflows: any[];
+  categories: Array<{ id: number; name: string; description: string }>; // 🔥 카테고리 데이터 추가
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs): Promise<LoaderData> => {
@@ -55,7 +56,16 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<LoaderDat
       }
     }
 
-    // 3. 로그인되지 않은 경우 빈 데이터 반환
+    // 3. 카테고리는 로그인 여부와 관계없이 로드 (공통 데이터)
+    let categories: Array<{ id: number; name: string; description: string }> = [];
+    try {
+      categories = await getCategories(supabase as any);
+      console.log('🔥 [Root Loader] 카테고리 로드 성공:', categories.length);
+    } catch (categoryError) {
+      console.warn('🔥 [Root Loader] 카테고리 로드 실패:', categoryError);
+    }
+
+    // 4. 로그인되지 않은 경우 빈 데이터 반환 (카테고리 제외)
     if (!user) {
       console.log('🔥 [Root Loader] 로그인되지 않음 - 빈 데이터 반환');
       return {
@@ -64,6 +74,7 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<LoaderDat
         servers: [],
         clients: [],
         workflows: [],
+        categories,
       };
     }
 
@@ -134,6 +145,7 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<LoaderDat
       servers: installedServers || [],
       clients: clients || [],
       workflows: workflows || [],
+      categories, // 🔥 카테고리 데이터 추가
     };
 
     console.log('🔥 [Root Loader] 최종 결과:', {
@@ -154,6 +166,7 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<LoaderDat
       servers: [],
       clients: [],
       workflows: [],
+      categories: [], // 🔥 에러 시에도 빈 카테고리 배열 반환
     };
   }
 }; 

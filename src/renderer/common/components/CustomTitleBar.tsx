@@ -6,7 +6,7 @@ interface CustomTitleBarProps {
   showMenuButton?: boolean;
 }
 
-export function CustomTitleBar({ title = "OCT Server", showMenuButton = true }: CustomTitleBarProps) {
+export function CustomTitleBar({ title = "Contextor", showMenuButton = true }: CustomTitleBarProps) {
   const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
 
@@ -19,7 +19,7 @@ export function CustomTitleBar({ title = "OCT Server", showMenuButton = true }: 
           setIsDevToolsOpen(status?.isOpen || false);
         }
       } catch (error) {
-        console.warn('개발자 도구 상태 확인 실패:', error);
+        console.warn('Developer Tools Status Check Failed:', error);
       }
     };
 
@@ -56,7 +56,7 @@ export function CustomTitleBar({ title = "OCT Server", showMenuButton = true }: 
         setIsDevToolsOpen(status?.isOpen || false);
       }
     } catch (error) {
-      console.error('개발자 도구 토글 실패:', error);
+      console.error('Developer Tools Toggle Failed:', error);
     }
     setShowContextMenu(false);
   };
@@ -85,7 +85,7 @@ export function CustomTitleBar({ title = "OCT Server", showMenuButton = true }: 
             <button 
               className="titlebar-no-drag bg-transparent border-none text-[#E8F5E9] cursor-pointer flex items-center justify-center p-2 mr-2 rounded transition-colors duration-150 hover:bg-[#E8F5E9]/10"
               onClick={handleMenuClick}
-              title="개발자 메뉴"
+              title="Developer Menu"
             >
               <Menu size={16} />
             </button>
@@ -98,7 +98,7 @@ export function CustomTitleBar({ title = "OCT Server", showMenuButton = true }: 
                   className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
                 >
                   <RotateCcw size={14} />
-                  새로고침 (Ctrl+R)
+                  Refresh (Ctrl+R)
                 </button>
                 <button
                   onClick={handleToggleDevTools}
@@ -109,11 +109,11 @@ export function CustomTitleBar({ title = "OCT Server", showMenuButton = true }: 
                   }`}
                 >
                   <Code size={14} />
-                  {isDevToolsOpen ? '개발자 도구 닫기' : '개발자 도구 열기'} (F12)
+                  {isDevToolsOpen ? 'Close Developer Tools' : 'Open Developer Tools'} (F12)
                 </button>
                 <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                 <div className="px-3 py-1 text-xs text-gray-500 dark:text-gray-400">
-                  단축키: F12, Ctrl+Shift+I
+                  Shortcuts: F12, Ctrl+Shift+I
                 </div>
               </div>
             )}
@@ -138,21 +138,21 @@ export function CustomTitleBar({ title = "OCT Server", showMenuButton = true }: 
         <button 
           className="titlebar-no-drag bg-transparent border-none text-[#E8F5E9] cursor-pointer flex items-center justify-center w-[46px] h-8 transition-colors duration-150 hover:bg-[#E8F5E9]/10"
           onClick={handleMinimize}
-          title="최소화"
+          title="Minimize"
         >
           <Minus size={16} />
         </button>
         <button 
           className="titlebar-no-drag bg-transparent border-none text-[#E8F5E9] cursor-pointer flex items-center justify-center w-[46px] h-8 transition-colors duration-150 hover:bg-[#E8F5E9]/10"
           onClick={handleMaximize}
-          title="최대화"
+          title="Maximize"
         >
           <Square size={16} />
         </button>
         <button 
           className="titlebar-no-drag bg-transparent border-none text-[#E8F5E9] cursor-pointer flex items-center justify-center w-[46px] h-8 transition-colors duration-150 hover:bg-red-600 hover:text-white"
           onClick={handleClose}
-          title="닫기"
+          title="Close"
         >
           <X size={16} />
         </button>

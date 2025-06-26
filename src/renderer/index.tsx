@@ -55,6 +55,8 @@ import ChatLayout, { loader as chatLayoutLoader } from './features/chat/layouts/
 import ChatPage from './features/chat/pages/chat-page';
 import ChatRoomPage from './features/chat/pages/chat-room-page';
 import TestSharePage from './features/server/pages/test-share-page';
+import EnvLayout, { loader as envLayoutLoader } from './features/env/layout/env-layout';
+import EnvPage from './features/env/pages/Env-page';
 
 console.log('📍 Loaded renderer entry index.tsx');
 
@@ -151,24 +153,26 @@ const electronRouter = createHashRouter(
           
               ]
             },
-            {
-              path: 'leaderboards',
-              element: <LeaderboardLayout />,
-              loader: leaderboardLoader,
-              children: [
-                {
-                  index: true,
-                  element: <LeaderboardPage />,
-                  loader: LeaderboardPageLoader,
-                },
-                {
-                  path: 'daily/:year/:month/:day',
-                  element: <DailyLeaderboardPage />,
-                },
-              ],
-            },
+            // {
+            //   path: 'leaderboards',
+            //   element: <LeaderboardLayout />,
+            //   loader: leaderboardLoader,
+            //   children: [
+            //     {
+            //       index: true,
+            //       element: <LeaderboardPage />,
+            //       loader: LeaderboardPageLoader,
+            //     },
+            //     {
+            //       path: 'daily/:year/:month/:day',
+            //       element: <DailyLeaderboardPage />,
+            //     },
+            //   ],
+            // },
             {
               path: 'categories',
+              element: <LeaderboardLayout />,
+              loader: leaderboardLoader,
               children: [
                 {
                   index: true,
@@ -240,6 +244,17 @@ const electronRouter = createHashRouter(
               path: 'share/:shareToken',
               element: <TestSharePage />,
             }
+          ]
+        },
+        {
+          path: 'env',
+          element: <EnvLayout />,
+          loader: envLayoutLoader,
+          children: [
+            {
+              index: true,
+              element: <EnvPage />,
+            },
           ]
         }
       ],

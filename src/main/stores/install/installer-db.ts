@@ -58,20 +58,30 @@ export const recordInstallStart = async (
     // 🔥 설치 방법 ID 찾기
     let installMethodId = null;
     try {
-      installMethodId = await findInstallMethodId(client, {
-        original_server_id: originalServerId,
-        selectedMethod: selectedMethod
-      });
-      console.log('🔍 [recordInstallStart] 찾은 설치 방법 ID:', installMethodId);
+      // 🚀 Zero-install인 경우 config_id 직접 사용
+      if (selectedMethod?.is_zero_install && (selectedMethod?.config_id || selectedMethod?.id)) {
+        installMethodId = selectedMethod.config_id || selectedMethod.id;
+        console.log('⚡ [recordInstallStart] Zero-install config_id 직접 사용:', installMethodId);
+      } else {
+        // 🔧 일반 설치 방법의 경우 DB에서 찾기
+        installMethodId = await findInstallMethodId(client, {
+          original_server_id: originalServerId,
+          selectedMethod: selectedMethod
+        });
+        console.log('🔍 [recordInstallStart] DB에서 찾은 설치 방법 ID:', installMethodId);
+      }
     } catch (error) {
       console.log('⚠️ [recordInstallStart] 설치 방법 ID 찾기 실패:', error);
     }
 
-    // 사용자 MCP 사용 기록 생성
+    // 🔥 Zero-install인 경우 config_id 사용, 일반 설치는 install_method_id 사용
+    const isZeroInstall = selectedMethod?.is_zero_install;
+    
     const usageRecord = await createUserMcpUsage(client, {
       profile_id: profileId,
       original_server_id: originalServerId,
-      install_method_id: installMethodId,
+      install_method_id: isZeroInstall ? null : installMethodId,
+      config_id: isZeroInstall ? installMethodId : null, // 🚀 Zero-install면 config_id에 넣기
       user_platform: 'electron',
       user_client: 'oct-client',
       user_env_variables: userEnvVariables,

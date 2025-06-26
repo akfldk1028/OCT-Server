@@ -89,11 +89,11 @@ export default function Sidebar({
       to: '/products',
       icon: <Package className="w-4 h-4" />,
       items: [
-        {
-          name: 'Leaderboards',
-          description: 'See the top performers in your community',
-          to: '/products/leaderboards',
-        },
+        // {
+        //   name: 'Leaderboards',
+        //   description: 'See the top performers in your community',
+        //   to: '/products/leaderboards',
+        // },
         {
           name: 'Categories',
           description: 'See the top categories in your community',
@@ -193,19 +193,19 @@ export default function Sidebar({
       ],
     },
     {
-      name: 'Tools',
-      to: '/teams',
+      name: 'Env',
+      to: '/env',
       icon: <Wrench className="w-4 h-4" />,
       items: [
         {
-          name: 'All Teams',
-          description: 'See all teams in our community',
-          to: '/teams',
+          name: 'All Envs',
+          description: 'See all envs in our community',
+          to: '/env',
         },
         {
-          name: 'Create a Team',
-          description: 'Create a team in our community',
-          to: '/teams/create',
+          name: 'Create a Env',
+          description: 'Create a env in our community',
+          to: '/env/create',
         },
       ],
     },

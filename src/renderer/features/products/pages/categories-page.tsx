@@ -1,22 +1,31 @@
 import { Hero } from "../../../common/components/hero";
-import { CategoryCard } from "../components/category-card";
+import { ProductCard } from "../components/product-card";
 import { type LoaderFunctionArgs, type MetaFunction, useLoaderData, useSearchParams, Link } from "react-router";
 import { getCategories } from "../queries";
 import { makeSSRClient } from "../../../supa-client";
 import { Button } from "../../../common/components/ui/button";
-import { X } from "lucide-react";
+import { X, ChevronRight } from "lucide-react";
 import { cn } from "../../../lib/utils";
+import { Badge } from "../../../common/components/ui/badge";
 
 // 타입 정의
-type Category = {
+type MCPServer = {
   id: number;
   name: string;
   description: string;
+  categories: string;
+  tags: string;
+  activity_status: string;
+  popularity_category: string;
+  stars: number;
+  forks: number;
+  repository_url: string;
+  unique_id: string;
 };
 
 // 로더 데이터 타입 정의
 type CategoriesPageLoaderData = {
-  categories: Category[];
+  serversByCategory: Record<string, MCPServer[]>;
   uniqueTags: string[];
   uniqueStatuses: string[];
   uniquePopularities: string[];
@@ -24,24 +33,52 @@ type CategoriesPageLoaderData = {
 };
 
 export const meta: MetaFunction = () => [
-  { title: "Categories | MCP 서버 목록" },
-  { name: "description", content: "카테고리별 MCP 서버 찾아보기" },
+  { title: "Categories | MCP Server Directory" },
+  { name: "description", content: "Find MCP servers by category" },
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { client } = makeSSRClient(request);
 
-  // 카테고리 데이터 가져오기
-  const categories = await getCategories(client);
-
-  // 서버에서 고유한 태그, 상태, 인기도 정보를 가져옴
-  const { data: serverData } = await client
+  // 모든 MCP 서버 데이터 가져오기
+  const { data: allServers } = await client
     .from('mcp_server_categories_view')
-    .select('tags, activity_status, popularity_category, categories');
+    .select('*')
+    .not('categories', 'is', null);
+
+  // 카테고리별로 서버 그룹화
+  const serversByCategory: Record<string, MCPServer[]> = {};
+  
+  (allServers || []).forEach((server: any) => {
+    if (server.categories) {
+      const categories = server.categories.split(',').map((cat: string) => cat.trim());
+      categories.forEach((category: string) => {
+        if (!serversByCategory[category]) {
+          serversByCategory[category] = [];
+        }
+        // 중복 방지
+        if (!serversByCategory[category].find(s => s.id === server.id)) {
+          serversByCategory[category].push({
+            id: server.id,
+            name: server.name,
+            description: server.description,
+            categories: server.categories,
+            tags: server.tags || '',
+            activity_status: server.activity_status || '',
+            popularity_category: server.popularity_category || '',
+            stars: server.stars || 0,
+            forks: server.forks || 0,
+            repository_url: server.repository_url || '',
+            unique_id: server.unique_id || server.id.toString(),
+          });
+        }
+      });
+    }
+  });
 
   // 고유 태그 추출
   const uniqueTags = Array.from(new Set(
-    (serverData || [])
+    (allServers || [])
       .filter(item => item.tags)
       .flatMap(item => item.tags.split(',').map(tag => tag.trim()))
       .filter(tag => tag)
@@ -49,28 +86,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // 고유 상태 추출
   const uniqueStatuses = Array.from(new Set(
-    (serverData || [])
+    (allServers || [])
       .filter(item => item.activity_status)
       .map(item => item.activity_status)
   ));
 
   // 고유 인기도 카테고리 추출
   const uniquePopularities = Array.from(new Set(
-    (serverData || [])
+    (allServers || [])
       .filter(item => item.popularity_category)
       .map(item => item.popularity_category)
   ));
 
   // 고유 카테고리 타입 추출
   const uniqueCategoryTypes = Array.from(new Set(
-    (serverData || [])
+    (allServers || [])
       .filter(item => item.categories)
       .flatMap(item => item.categories.split(',').map(cat => cat.trim()))
       .filter(Boolean)
   ));
 
   return {
-    categories,
+    serversByCategory,
     uniqueTags,
     uniqueStatuses,
     uniquePopularities,
@@ -80,7 +117,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function CategoriesPage() {
   const {
-    categories,
+    serversByCategory,
     uniqueTags,
     uniqueStatuses,
     uniquePopularities,
@@ -104,34 +141,111 @@ export default function CategoriesPage() {
   const popularity = searchParams.get("popularity") || "";
   const categoryType = searchParams.get("category") || "";
 
+  // 🔥 필터링된 카테고리 계산
+  const filteredCategories = Object.entries(serversByCategory).filter(([categoryName, servers]) => {
+    // 카테고리 타입 필터링
+    if (categoryType) {
+      const matchesCategory = 
+        categoryName.toLowerCase().includes(categoryType.toLowerCase()) ||
+        categoryType.toLowerCase().includes(categoryName.toLowerCase());
+      
+      if (!matchesCategory) return false;
+    }
+    
+    // 태그, 상태, 인기도로 서버 필터링
+    const hasMatchingServers = servers.some(server => {
+      if (tag && (!server.tags || !server.tags.toLowerCase().includes(tag.toLowerCase()))) {
+        return false;
+      }
+      if (status && server.activity_status !== status) {
+        return false;
+      }
+      if (popularity && server.popularity_category !== popularity) {
+        return false;
+      }
+      return true;
+    });
+    
+    return hasMatchingServers;
+  });
+
   return (
     <div className="space-y-8">
-      <Hero title="카테고리" subtitle="카테고리별 MCP 서버 찾아보기" />
+      <Hero title="Categories" subtitle="Find MCP servers by category" />
       
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 items-start">
-        {/* 🔥 카테고리 그리드 */}
-        <div className="xl:col-span-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {categories.map((category) => (
-              <CategoryCard
-                key={category.id}
-                id={category.id}
-                name={category.name}
-                description={category.description}
-              />
-            ))}
-            {categories.length === 0 && (
-              <div className="col-span-full text-center py-8">
-                <p className="text-lg font-semibold text-muted-foreground">
-                  조건에 맞는 카테고리가 없습니다. 필터를 수정하거나{" "}
-                  <Button variant="link" asChild className="p-0 text-lg">
-                    <Link to="/products/categories">초기화</Link>
-                  </Button>{" "}
-                  하세요.
-                </p>
+        {/* 🔥 카테고리별 MCP 서버 목록 */}
+        <div className="xl:col-span-3 space-y-12">
+          {filteredCategories.map(([categoryName, servers]) => {
+            // 필터링된 서버들만 표시
+            const filteredServers = servers.filter(server => {
+              if (tag && (!server.tags || !server.tags.toLowerCase().includes(tag.toLowerCase()))) {
+                return false;
+              }
+              if (status && server.activity_status !== status) {
+                return false;
+              }
+              if (popularity && server.popularity_category !== popularity) {
+                return false;
+              }
+              return true;
+            });
+
+            if (filteredServers.length === 0) return null;
+
+            return (
+              <div key={categoryName} className="space-y-4">
+                {/* 카테고리 헤더 */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-bold capitalize">{categoryName}</h2>
+                    <Badge variant="secondary">{filteredServers.length} servers</Badge>
+                  </div>
+                  <Button variant="ghost" asChild>
+                    <Link 
+                      to={`/products/categories/${encodeURIComponent(categoryName)}`}
+                      className="flex items-center gap-1 text-sm"
+                    >
+                      View All <ChevronRight className="w-4 h-4" />
+                    </Link>
+                  </Button>
+                </div>
+
+                {/* MCP 서버 카드들 - 최대 6개만 표시 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredServers.slice(0, 6).map((server) => (
+                    <ProductCard
+                      key={server.id}
+                      id={server.id}
+                      uniqueId={server.unique_id}
+                      name={server.name}
+                      description={server.description}
+                      stars={server.stars}
+                      forks={server.forks}
+                      githubUrl={server.repository_url}
+                      reviewsCount={null}
+                      viewsCount={null}
+                      votesCount={null}
+                      isUpvoted={null}
+                      promotedFrom={null}
+                    />
+                  ))}
+                </div>
               </div>
-            )}
-          </div>
+            );
+          })}
+
+          {filteredCategories.length === 0 && (
+            <div className="col-span-full text-center py-12">
+              <p className="text-lg font-semibold text-muted-foreground">
+                No MCP servers found. Please modify the filters or{" "}
+                <Button variant="link" asChild className="p-0 text-lg">
+                  <Link to="/products/categories">Reset</Link>
+                                  </Button>
+                  .
+              </p>
+            </div>
+          )}
         </div>
 
         {/* 🔥 필터 사이드바 */}
@@ -140,7 +254,7 @@ export default function CategoriesPage() {
           {uniqueCategoryTypes.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="font-medium">카테고리 타입</h4>
+                <h4 className="font-medium">Category Type</h4>
                 {categoryType && (
                   <Button
                     variant="ghost"
@@ -171,7 +285,7 @@ export default function CategoriesPage() {
           {uniqueTags.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="font-medium">태그</h4>
+                <h4 className="font-medium">Tags</h4>
                 {tag && (
                   <Button
                     variant="ghost"
@@ -202,7 +316,7 @@ export default function CategoriesPage() {
           {uniqueStatuses.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="font-medium">상태</h4>
+                <h4 className="font-medium">Status</h4>
                 {status && (
                   <Button
                     variant="ghost"
@@ -233,7 +347,7 @@ export default function CategoriesPage() {
           {uniquePopularities.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="font-medium">인기도</h4>
+                <h4 className="font-medium">Popularity</h4>
                 {popularity && (
                   <Button
                     variant="ghost"

@@ -19,6 +19,13 @@ import {
   Palette,
   Image,
   Hash as Counter,
+  Brain,
+  Code,
+  Database,
+  Wrench,
+  Cloud,
+  Bot,
+  Sparkles,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -32,6 +39,7 @@ interface ChannelSidebarProps {
   selectedMenu?: string | null; // 🔥 선택된 메뉴에 따라 내용 변경
   servers?: any[]; // 🔥 서버 데이터
   clients?: any[]; // 🔥 클라이언트 데이터
+  categories?: Array<{ id: number; name: string; description: string }>; // 🔥 동적 카테고리 데이터
   onNodeDragStart?: (event: React.DragEvent, nodeType: string) => void; // 🔥 노드 드래그 핸들러
 }
 
@@ -75,7 +83,7 @@ const nodeTypes = [
   },
 ];
 
-export default function ChannelSidebar({ className, selectedMenu, servers = [], clients = [], onNodeDragStart }: ChannelSidebarProps) {
+export default function ChannelSidebar({ className, selectedMenu, servers = [], clients = [], categories = [], onNodeDragStart }: ChannelSidebarProps) {
   const [sectionsExpanded, setSectionsExpanded] = useState<Record<string, boolean>>({
     '0': true,
     '1': true,
@@ -96,6 +104,30 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
     servers: servers.slice(0, 2), // 처음 2개만 로그
     clients: clients.slice(0, 2), // 처음 2개만 로그
   });
+
+  // 🔥 카테고리별 아이콘 매핑
+  const getCategoryIcon = (categoryName: string) => {
+    const name = categoryName.toLowerCase();
+    if (name.includes('ai') || name.includes('ml') || name.includes('artificial')) return Brain;
+    if (name.includes('web') || name.includes('frontend') || name.includes('react')) return Code;
+    if (name.includes('api') || name.includes('data') || name.includes('storage')) return Database;
+    if (name.includes('integration') || name.includes('tool') || name.includes('utility')) return Wrench;
+    if (name.includes('cloud') || name.includes('aws') || name.includes('azure')) return Cloud;
+    if (name.includes('bot') || name.includes('chat') || name.includes('automation')) return Bot;
+    return Sparkles; // 기본 아이콘
+  };
+
+  // 🔥 카테고리별 색상 매핑
+  const getCategoryColor = (categoryName: string) => {
+    const name = categoryName.toLowerCase();
+    if (name.includes('ai') || name.includes('ml')) return 'bg-gradient-to-r from-purple-500 to-pink-500';
+    if (name.includes('web') || name.includes('frontend')) return 'bg-gradient-to-r from-blue-500 to-cyan-500';
+    if (name.includes('api') || name.includes('data')) return 'bg-gradient-to-r from-green-500 to-emerald-500';
+    if (name.includes('integration') || name.includes('tool')) return 'bg-gradient-to-r from-orange-500 to-red-500';
+    if (name.includes('cloud')) return 'bg-gradient-to-r from-sky-500 to-indigo-500';
+    if (name.includes('bot') || name.includes('communication') || name.includes('automation'))return 'bg-gradient-to-r from-violet-500 to-purple-500';
+    return 'bg-gradient-to-r from-gray-500 to-slate-500'; // 기본 색상
+  };
 
   // 🔥 서버 드래그 핸들러 (원본 ServerTab과 완전히 동일)
   const handleServerDrag = (event: React.DragEvent, server: any) => {
@@ -122,7 +154,7 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
     event.dataTransfer.setData('text/plain', nodeType);
     console.log('[ChannelSidebar] 드래그 시작:', nodeType);
   };
-
+// 카테고리별 // 인기 워크플로우// 
   // 🔥 선택된 메뉴에 따른 타이틀과 내용 변경 (실제 라우팅 연동)
   const getMenuContent = () => {
     switch (selectedMenu) {
@@ -130,23 +162,24 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
         return {
           title: 'Products',
           sections: [
-            { 
-              name: 'Leaderboards', 
-              items: [
-                { name: 'All Leaderboards', path: '/products/leaderboards' },
+            // { 
+              // name: 'Leaderboards', 
+              // items: [
+                // { name: 'All Leaderboards', path: '/products/leaderboards' },
                 // { name: 'Daily Rankings', path: '/products/leaderboards?period=daily' },
                 // { name: 'Weekly Rankings', path: '/products/leaderboards?period=weekly' },
                 // { name: 'Monthly Rankings', path: '/products/leaderboards?period=monthly' }
-              ]
-            },
+              // ]
+            // },
             { 
               name: 'Categories', 
               items: [
                 { name: 'All Categories', path: '/products/categories' },
-                // { name: 'AI/ML', path: '/products/categories?category=AI/ML' },
-                // { name: 'Web Dev', path: '/products/categories?category=Web Dev' },
-                // { name: 'Mobile', path: '/products/categories?category=Mobile' },
-                // { name: 'DevTools', path: '/products/categories?category=DevTools' }
+                // 🔥 동적 카테고리 생성 - 최대 8개까지만 표시
+                ...categories.slice(0, 8).map(category => ({
+                  name: category.name.charAt(0).toUpperCase() + category.name.slice(1).toLowerCase(),
+                  path: `/products/categories?category=${encodeURIComponent(category.name)}`
+                }))
               ]
             },
             { 
@@ -229,20 +262,20 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
             },
           ]
         };
-      case 'Tools':
+      case 'Env':
         return {
-          title: 'Tools & Teams',
+          title: 'Env',
           sections: [
             { 
-              name: 'Teams', 
+              name: 'Env', 
               items: [
-                // { name: 'All Teams', path: '/teams' },
-                // { name: 'Create Team', path: '/teams/create' },
-                // { name: 'My Teams', path: '/teams/my' }
+                { name: 'All Envs', path: '/env' },
+                { name: 'Create Env', path: '/env/create' },
+                // { name: 'My Envs', path: '/env/my' }
               ]
             },
             { 
-              name: 'Workspace', 
+              name: 'My workflow', 
               items: [
                 // { name: 'Shared Files', path: '/teams/files' },
                 // { name: 'Projects', path: '/teams/projects' },
@@ -253,10 +286,10 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
         };
       default:
         return {
-          title: 'OCT Server',
+          title: 'Contextor',
           sections: [
             { 
-              name: '채널', 
+              name: 'Channel', 
               items: [
                 { name: 'general', path: '/channels/general' },
                 { name: 'random', path: '/channels/random' },
@@ -265,7 +298,7 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
               ]
             },
             { 
-              name: '다이렉트 메시지', 
+              name: 'Direct Message', 
               items: [
                 { name: 'DongHyeon KIM', path: '/dm/1' },
                 { name: 'Bandi97', path: '/dm/2' },
@@ -595,27 +628,69 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
               {/* 🔥 일반 섹션 렌더링 */}
               {(section as any).type !== 'nodeEditor' && (section as any).type !== 'chatList' && sectionsExpanded[String(sectionIndex)] && (
                 <div className="ml-2 mt-1 space-y-1">
-                  {section.items.map((item: any, itemIndex: number) => (
-                    <button
-                      key={itemIndex}
-                      onClick={() => handleItemClick(item)}
-                      className="flex items-center justify-between gap-2 px-2 py-1 text-sm rounded hover:bg-sidebar-accent text-sidebar-foreground group w-full text-left transition-colors"
-                    >
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        {selectedMenu === 'Community' || (!selectedMenu && section.name === '채널') ? (
-                          <Hash className="h-4 w-4 text-muted-foreground" />
-                        ) : selectedMenu === 'Server' ? (
-                          <Users className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                  {section.items.map((item: any, itemIndex: number) => {
+                    // 🔥 Categories 섹션인 경우 특별 렌더링
+                    if (selectedMenu === 'Products' && section.name === 'Categories' && item.name !== 'All Categories') {
+                      const IconComponent = getCategoryIcon(item.name);
+                      const colorClass = getCategoryColor(item.name);
+                      
+                      return (
+                        <button
+                          key={itemIndex}
+                          onClick={() => handleItemClick(item)}
+                          className="w-full p-2 rounded-lg hover:scale-105 transition-all duration-200 group"
+                        >
+                          <div className="flex items-center gap-3">
+                            {/* 🔥 그라데이션 아이콘 배경 */}
+                            <div className={cn(
+                              "w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-lg",
+                              colorClass
+                            )}>
+                              <IconComponent className="w-4 h-4" />
+                            </div>
+                            
+                            {/* 🔥 카테고리 정보 */}
+                            <div className="flex-1 text-left">
+                              <div className="text-sm font-medium text-sidebar-foreground group-hover:text-foreground transition-colors">
+                                {item.name}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                MCP Servers
+                              </div>
+                            </div>
+                            
+                            {/* 🔥 화살표 */}
+                            <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                          </div>
+                        </button>
+                      );
+                    }
+                    
+                    // 🔥 기본 렌더링 (All Categories 포함)
+                    return (
+                      <button
+                        key={itemIndex}
+                        onClick={() => handleItemClick(item)}
+                        className="flex items-center justify-between gap-2 px-2 py-1 text-sm rounded hover:bg-sidebar-accent text-sidebar-foreground group w-full text-left transition-colors"
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          {selectedMenu === 'Community' || (!selectedMenu && section.name === 'Channel') ? (
+                            <Hash className="h-4 w-4 text-muted-foreground" />
+                          ) : selectedMenu === 'Server' ? (
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                          ) : selectedMenu === 'Products' && item.name === 'All Categories' ? (
+                            <Layers className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span className="truncate">{item.name}</span>
+                        </div>
+                        {item.action && (
+                          <span className="text-xs text-muted-foreground">⚡</span>
                         )}
-                        <span className="truncate">{item.name}</span>
-                      </div>
-                      {item.action && (
-                        <span className="text-xs text-muted-foreground">⚡</span>
-                      )}
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>

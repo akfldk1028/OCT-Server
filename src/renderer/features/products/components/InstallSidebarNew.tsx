@@ -124,11 +124,13 @@ export function InstallSidebarNew({
         command: config.command,
         args: config.args,
         env: config.env || {},
-                 platform: config.platform || 'unknown',
-         config_name: config.config_name,
-         is_recommended: config.is_recommended,
-         is_zero_install: true, // zero-install 마킹
-         description: `${(config.platform || 'unknown').toUpperCase()}로 설치`
+        platform: config.platform || 'unknown',
+        config_name: config.config_name,
+        is_recommended: config.is_recommended,
+        is_zero_install: true, // zero-install 마킹
+        description: `${(config.platform || 'unknown').toUpperCase()}로 설치`,
+        config_id: config.id, // 🔥 config_id 추가!
+        id: config.id // 🔥 id도 추가
       });
       console.log('🔧 [processedMethods] config_options에서 변환:', config);
     });
@@ -641,7 +643,7 @@ export function InstallSidebarNew({
               description: product.description,
               command: currentMethod?.command || (command === 'zero-install' ? null : command),
               args: currentMethod?.args || [],
-              install_method_id: null, // 🔥 나중에 recordInstallStart에서 설정됨
+              install_method_id: currentMethod?.config_id || currentMethod?.id || null, // 🔥 config_id 사용!
               ...commandEnvVars
             },
             preferredMethod: command,
@@ -677,7 +679,7 @@ export function InstallSidebarNew({
               dockerImage: currentMethod?.dockerImage,
               installCommand: currentMethod?.installCommand,
               version: currentMethod?.version,
-              install_method_id: null, // 🔥 나중에 recordInstallStart에서 설정됨
+              install_method_id: currentMethod?.config_id || currentMethod?.id || null, // 🔥 config_id 사용!
               ...commandEnvVars // 환경 변수 병합
             },
             preferredMethod: command,

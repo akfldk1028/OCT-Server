@@ -28,7 +28,7 @@ export { loader, ErrorBoundary };
 
 export function Root() {
   const loaderData = useLoaderData() as LoaderData | undefined;
-  const { user: initialUser, profile: initialProfile, servers = [], clients = [], workflows = [] } = loaderData ?? { user: null, profile: null, servers: [], clients: [], workflows: [] };  
+  const { user: initialUser, profile: initialProfile, servers = [], clients = [], workflows = [], categories = [] } = loaderData ?? { user: null, profile: null, servers: [], clients: [], workflows: [], categories: [] };  
   
   // 🔥 로그인 상태 동적 관리
   const [user, setUser] = useState(initialUser);
@@ -111,8 +111,8 @@ export function Root() {
       setSelectedMenu('Products');
     } else if (pathname.startsWith('/overlay') || pathname.startsWith('/community')) {
       setSelectedMenu('Community');
-    } else if (pathname.startsWith('/teams')) {
-      setSelectedMenu('Tools');
+    } else if (pathname.startsWith('/env')) {
+      setSelectedMenu('Env');
     }
   }, [pathname]);
 
@@ -194,6 +194,7 @@ export function Root() {
             servers,
             clients,
             workflows,
+            categories,
           }}
         />
       </div>
@@ -207,7 +208,7 @@ export function Root() {
         {/* 🌲 커스텀 타이틀바 - Electron에서만 표시 */}
         {!pathname.includes('/auth') && (
           <CustomTitleBar 
-            title="OCT Server"
+            title="Contextor"
             showMenuButton={true}
           />
         )}
@@ -235,6 +236,7 @@ export function Root() {
                 selectedMenu={selectedMenu} 
                 servers={servers}
                 clients={clients}
+                categories={categories}
               />
             </>
           )}
@@ -247,6 +249,7 @@ export function Root() {
                 'overflow-y-auto py-20 md:py-40 px-5 md:px-20': (!pathname.startsWith('/chat') && !pathname.includes('/auth/') && !pathname.includes('/server/node-page') && !(typeof window !== 'undefined' && (window as any).IS_ELECTRON && pathname === '/')),
                 'overflow-hidden py-0 md:py-0 px-0 md:px-0': pathname.includes('/jobs/node'),
                 'overflow-hidden py-10 md:py-10 px-5 md:px-10': pathname.includes('/jobs/inspector'),
+                'py-10 md:py-10 px-5 md:px-10': pathname.includes('/products/categories'),
                 'overflow-y-auto py-10 md:py-20 px-5 md:px-20': IS_ELECTRON && pathname === '/',
                 'overflow-hidden py-0 px-0 md:py-0 h-full bg-background': pathname.includes('/chat/'),
                 'transition-opacity animate-pulse': isLoading,
@@ -264,6 +267,7 @@ export function Root() {
                 servers,
                 clients,
                 workflows,
+                categories,
               }}
             />
           </main>
