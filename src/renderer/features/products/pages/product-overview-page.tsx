@@ -1,5 +1,5 @@
 import { useOutletContext } from "react-router";
-import { Sparkles, BookOpen, Zap, Target, Copy, Check } from "lucide-react";
+import { Sparkles, BookOpen, Zap, Target, Copy, Check, Globe } from "lucide-react";
 import { Card, CardContent } from "../../../common/components/ui/card";
 import { Badge } from "../../../common/components/ui/badge";
 import { Button } from "../../../common/components/ui/button";
@@ -273,6 +273,44 @@ export default function ProductOverviewPage() {
   // product에서 필요한 데이터 추출
   const enhanced_info = product.enhanced_info;
 
+  // 🌐 언어 전환 상태
+  const [selectedLanguage, setSelectedLanguage] = useState<'ko' | 'en' | 'ja'>('ko');
+
+  // 🌐 사용 가능한 언어들
+  const availableLanguages = [
+    { 
+      code: 'ko' as const, 
+      label: '한국어', 
+      flag: '🇰🇷', 
+      content: enhanced_info?.description_ko,
+      icon: 'KR'
+    },
+    { 
+      code: 'en' as const, 
+      label: 'English', 
+      flag: '🇺🇸', 
+      content: enhanced_info?.description_en,
+      icon: 'EN'
+    },
+    { 
+      code: 'ja' as const, 
+      label: '日本語', 
+      flag: '🇯🇵', 
+      content: enhanced_info?.description_ja,
+      icon: 'JP'
+    }
+  ].filter(lang => lang.content); // 내용이 있는 언어만 필터링
+
+  // 🌐 기본 언어 설정 (사용 가능한 첫 번째 언어)
+  useEffect(() => {
+    if (availableLanguages.length > 0) {
+      const hasKorean = availableLanguages.some(lang => lang.code === 'ko');
+      if (!hasKorean) {
+        setSelectedLanguage(availableLanguages[0].code);
+      }
+    }
+  }, [availableLanguages]);
+
   // 🔥 페이지 로드 시 스크롤을 맨 위로 (모든 가능한 스크롤 컨테이너 대상)
   useEffect(() => {
     const scrollToTop = () => {
@@ -313,13 +351,14 @@ export default function ProductOverviewPage() {
 
 
 
+  // 🌐 현재 선택된 언어의 콘텐츠 가져오기
+  const currentLanguage = availableLanguages.find(lang => lang.code === selectedLanguage);
+  const currentContent = currentLanguage?.content;
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* 주요 설명 카드 */}
- 
-
-      {/* 한국어 설명 (있을 경우) */}
-      {enhanced_info?.description_ko && (
+      {/* 다국어 설명 카드 */}
+      {availableLanguages.length > 0 && currentContent && (
         <Card className="border border-border bg-card hover:bg-card/80 transition-colors duration-200">
           <CardContent className="pt-6 pb-6 px-6">
             <div className="flex items-start gap-4">
@@ -329,24 +368,82 @@ export default function ProductOverviewPage() {
               </div>
               
               <div className="flex-1 min-w-0">
-                {/* 🔥 깔끔한 헤더 */}
-                <div className="flex items-center gap-3 mb-4">
-                  <h3 className="text-xl font-semibold text-foreground">설명</h3>
-                  <Badge variant="outline" className="text-xs font-medium">KR</Badge>
+                {/* 🔥 헤더와 언어 전환 버튼 */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-xl font-semibold text-foreground">설명</h3>
+                    <Badge variant="outline" className="text-xs font-medium">
+                      {currentLanguage?.icon}
+                    </Badge>
+                  </div>
+                  
+                  {/* 🌐 언어 전환 버튼들 */}
+                  {availableLanguages.length > 1 && (
+                    <div className="flex items-center gap-1">
+                      <Globe className="size-4 text-muted-foreground mr-2" />
+                      {availableLanguages.map((lang) => (
+                        <Button
+                          key={lang.code}
+                          variant={selectedLanguage === lang.code ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => setSelectedLanguage(lang.code)}
+                          className={`h-8 px-3 text-xs font-medium transition-all duration-200 ${
+                            selectedLanguage === lang.code 
+                              ? "bg-primary text-primary-foreground shadow-sm" 
+                              : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                          }`}
+                          title={lang.label}
+                        >
+                          <span className="mr-1.5">{lang.flag}</span>
+                          {lang.icon}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 
                 {/* 🔥 콘텐츠 */}
                 <div className="text-muted-foreground">
-                  <MarkdownRenderer content={enhanced_info.description_ko} />
+                  <MarkdownRenderer content={currentContent} />
                 </div>
+                
+                {/* 🔥 언어 정보 표시 */}
+                {availableLanguages.length > 1 && (
+                  <div className="mt-4 pt-3 border-t border-border/50">
+                    <p className="text-xs text-muted-foreground">
+                      현재 언어: <span className="font-medium">{currentLanguage?.label}</span>
+                      {availableLanguages.length > 1 && (
+                        <span className="ml-2">
+                          • 총 {availableLanguages.length}개 언어 지원
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
- 
-
+      {/* 🌐 언어가 없을 때 기본 메시지 */}
+      {availableLanguages.length === 0 && (
+        <Card className="border border-border bg-card">
+          <CardContent className="pt-6 pb-6 px-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-muted/50">
+                <BookOpen className="size-5 text-muted-foreground" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground mb-1">설명 없음</h3>
+                <p className="text-sm text-muted-foreground">
+                  이 서버에 대한 상세 설명이 아직 제공되지 않았습니다.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

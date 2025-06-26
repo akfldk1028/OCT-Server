@@ -129,6 +129,30 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
     return 'bg-gradient-to-r from-gray-500 to-slate-500'; // 기본 색상
   };
 
+  // 🎨 워크플로우 아이콘 매핑
+  const getWorkflowIcon = (workflowName: string) => {
+    const name = workflowName.toLowerCase();
+    if (name.includes('all')) return Layers;
+    if (name.includes('claude')) return Brain;
+    if (name.includes('local')) return Server;
+    if (name.includes('template')) return Code;
+    if (name.includes('popular')) return Sparkles;
+    if (name.includes('new')) return Plus;
+    return Play; // 기본 아이콘
+  };
+
+  // 🎨 워크플로우 색상 매핑
+  const getWorkflowColor = (workflowName: string) => {
+    const name = workflowName.toLowerCase();
+    if (name.includes('all')) return 'bg-gradient-to-r from-slate-500 to-gray-600';
+    if (name.includes('claude')) return 'bg-gradient-to-r from-orange-500 to-amber-500';
+    if (name.includes('local')) return 'bg-gradient-to-r from-emerald-500 to-teal-500';
+    if (name.includes('template')) return 'bg-gradient-to-r from-blue-500 to-indigo-500';
+    if (name.includes('popular')) return 'bg-gradient-to-r from-pink-500 to-rose-500';
+    if (name.includes('new')) return 'bg-gradient-to-r from-violet-500 to-purple-500';
+    return 'bg-gradient-to-r from-cyan-500 to-blue-500'; // 기본 색상
+  };
+
   // 🔥 서버 드래그 핸들러 (원본 ServerTab과 완전히 동일)
   const handleServerDrag = (event: React.DragEvent, server: any) => {
     // 드래그 시작 전에 모든 데이터 초기화
@@ -242,22 +266,22 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
       //   };
       case 'Community':
         return {
-          title: 'Community',
+          title: 'Workflows',
           sections: [
             { 
-              name: 'Discussions', 
+              name: 'My Workflows', 
               items: [
-                { name: 'All Posts', path: '/overlay' },
-                { name: 'Popular Posts', path: '/community?sorting=popular' },
-                { name: 'Recent Posts', path: '/community?sorting=newest' }
+                { name: 'All Workflows', path: '/workflows' },
+                { name: 'Claude Workflows', path: '/workflows?sorting=claude' },
+                { name: 'Local Workflows', path: '/workflows?sorting=local' }
               ]
             },
             { 
-              name: 'Create', 
+              name: 'Workflow Templates', 
               items: [
-                { name: 'Create Post', path: '/community/submit' },
-                { name: 'Share Link', path: '/community/share' },
-                { name: 'Ask Question', path: '/community/ask' }
+                { name: 'All Templates', path: '/workflows/templates' },
+                { name: 'Popular Templates', path: '/workflows/templates?sorting=popular' },
+                { name: 'New Templates', path: '/workflows/templates?sorting=newest' }
               ]
             },
           ]
@@ -270,18 +294,10 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
               name: 'Env', 
               items: [
                 { name: 'All Envs', path: '/env' },
-                { name: 'Create Env', path: '/env/create' },
+                // { name: 'Create Env', path: '/env/create' },
                 // { name: 'My Envs', path: '/env/my' }
               ]
-            },
-            { 
-              name: 'My workflow', 
-              items: [
-                // { name: 'Shared Files', path: '/teams/files' },
-                // { name: 'Projects', path: '/teams/projects' },
-                // { name: 'Settings', path: '/teams/settings' }
-              ]
-            },
+            }
           ]
         };
       default:
@@ -405,31 +421,55 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
       {activeNodeTab === 'client' && (
         <div className="space-y-2">
           {clients.length === 0 ? (
-            <div className="text-center text-sm text-muted-foreground py-4">
-              사용 가능한 클라이언트가 없습니다
+            <div className="text-center text-sm text-white/70 py-8 px-4">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-white/10 flex items-center justify-center">
+                <Users className="w-5 h-5 text-white/70" />
+              </div>
+              <p className="font-medium text-white">사용 가능한 클라이언트가 없습니다</p>
+              <p className="text-xs mt-1 opacity-70">클라이언트를 추가해보세요</p>
             </div>
           ) : (
             clients.map((client, index) => (
               <div
                 key={`client-${client.client_id || index}`}
-                className="flex items-center gap-2 p-2 bg-sidebar-accent/50 rounded-lg cursor-grab hover:bg-sidebar-accent transition-colors"
+                className="group relative flex items-center gap-3 p-3 bg-transparent rounded-xl cursor-grab hover:bg-white/10 hover:scale-105 transition-all duration-200"
                 draggable
                 onDragStart={(event) => handleDragStart(event, client.name)}
                 title={client.description}
               >
-                <img
-                  src={client.icon}
-                  alt={client.name}
-                  className="w-6 h-6 rounded object-contain"
-                  onError={(e) => {
-                    // 이미지 로드 실패시 fallback
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                  }}
-                />
+                {/* 🎨 클라이언트 아이콘 */}
+                <div className="relative flex-shrink-0">
+                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-white/10 flex items-center justify-center">
+                    <img
+                      src={client.icon}
+                      alt={client.name}
+                      className="w-full h-full object-cover rounded-xl"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        target.nextElementSibling?.classList.remove('hidden');
+                      }}
+                    />
+                    {/* Fallback 이니셜 */}
+                    <div 
+                      className="absolute inset-0 hidden rounded-xl flex items-center justify-center text-white font-bold text-sm"
+                      style={{ 
+                        backgroundColor: `hsl(${Math.abs(client.name?.charCodeAt(0) || 0) * 137.5 % 360}, 65%, 55%)`
+                      }}
+                    >
+                      {(client.name || 'CL').split(' ').map((word: string) => word.charAt(0)).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* 🎨 클라이언트 정보 */}
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{client.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">{client.tagline}</div>
+                  <h4 className="text-sm font-medium text-white truncate mb-1">
+                    {client.name}
+                  </h4>
+                  <p className="text-xs text-white/60 truncate">
+                    {client.tagline || client.description || 'MCP Clients'}
+                  </p>
                 </div>
               </div>
             ))
@@ -661,6 +701,43 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
                             
                             {/* 🔥 화살표 */}
                             <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                          </div>
+                        </button>
+                      );
+                    }
+
+                    // 🔥 Workflow 섹션인 경우 특별 렌더링 (Categories 스타일과 동일)
+                    if (selectedMenu === 'Community' && (section.name === 'My Workflows' || section.name === 'Workflow Templates')) {
+                      const IconComponent = getWorkflowIcon(item.name);
+                      const colorClass = getWorkflowColor(item.name);
+                      
+                      return (
+                        <button
+                          key={itemIndex}
+                          onClick={() => handleItemClick(item)}
+                          className="w-full p-2 rounded-lg hover:scale-105 transition-all duration-200 group"
+                        >
+                          <div className="flex items-center gap-3">
+                            {/* 🔥 그라데이션 아이콘 배경 */}
+                            <div className={cn(
+                              "w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-lg",
+                              colorClass
+                            )}>
+                              <IconComponent className="w-4 h-4" />
+                            </div>
+                            
+                            {/* 🔥 워크플로우 정보 */}
+                            <div className="flex-1 text-left">
+                              <div className="text-sm font-medium text-white group-hover:text-white/90 transition-colors">
+                                {item.name}
+                              </div>
+                              <div className="text-xs text-white/30">
+                                Workflows
+                              </div>
+                            </div>
+                            
+                            {/* 🔥 화살표 */}
+                            <ChevronRight className="w-4 h-4 text-white/60 group-hover:text-white/90 transition-colors" />
                           </div>
                         </button>
                       );

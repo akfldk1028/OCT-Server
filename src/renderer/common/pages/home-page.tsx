@@ -25,7 +25,7 @@ import { InitialAvatar } from "../components/ui/initial-avatar";
 import { type LoaderFunctionArgs } from "react-router";
 import {  IS_ELECTRON, IS_WEB } from '../../utils/environment';
 import { Server, Play, Eye, Clock, Edit, Plus } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ensureClaudeApi } from "../../lib/utils";
 import { MoreVertical, Trash2, Archive } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
@@ -322,6 +322,40 @@ function ServerTabGrid({
 
 // 🎴 모던 워크플로우 카드 컴포넌트
 function WorkflowCard({ workflow }: { workflow: any }) {
+  // 🎨 예쁜 색상 팔레트
+  const prettyColors = [
+    '#FF6B6B', // 코랄 레드
+    '#4ECDC4', // 터쿼이즈
+    '#45B7D1', // 스카이 블루
+    '#96CEB4', // 민트 그린
+    '#FFEAA7', // 라이트 옐로우
+    '#DDA0DD', // 플럼
+    '#98D8C8', // 민트
+    '#F7DC6F', // 골드
+    '#BB8FCE', // 라벤더
+    '#85C1E9', // 라이트 블루
+    '#F8C471', // 피치
+    '#82E0AA', // 라이트 그린
+    '#F1948A', // 살몬
+    '#85C1E9', // 파우더 블루
+    '#D7BDE2', // 라이트 퍼플
+  ];
+
+  // 워크플로우 이름을 기반으로 일관된 색상 선택
+  const getConsistentColor = (name: string) => {
+    if (!name) return prettyColors[0];
+    
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    const index = Math.abs(hash) % prettyColors.length;
+    return prettyColors[index];
+  };
+
+  const workflowColor = getConsistentColor(workflow.name);
+
   const formatDate = (dateString: string) => {
     try {
       return new Date(dateString).toLocaleDateString('ko-KR', {
@@ -419,7 +453,7 @@ function WorkflowCard({ workflow }: { workflow: any }) {
   return (
     <div className="group relative">
       {/* 깔끔한 카드 */}
-      <div className="bg-card border border-border rounded-lg p-4 hover:border-primary/30 transition-all duration-200 hover:shadow-md h-[260px] flex flex-col">
+      <div className="bg-card border border-border rounded-lg p-4 hover:border-primary/30 transition-all duration-200 hover:shadow-md h-[280px] flex flex-col">
         
         {/* 상단: 타입 라벨 */}
         <div className="flex justify-end mb-2">
@@ -428,20 +462,43 @@ function WorkflowCard({ workflow }: { workflow: any }) {
           </span>
         </div>
 
-        {/* 중앙: 큰 아이콘 */}
+        {/* 중앙: 워크플로우 이름 이니셜 박스 */}
         <div className="flex items-center justify-center mb-3">
-          {clientConfig.icon}
+          <div 
+            className="rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg"
+            style={{ 
+              backgroundColor: workflowColor,
+              width: '48px',
+              height: '48px'
+            }}
+          >
+                         {(() => {
+               const name = workflow.name || 'WF';
+               const words = name.split(' ').filter((word: string) => word.length > 0);
+               
+               if (words.length >= 2) {
+                 // 2단어 이상이면 각 단어의 첫 글자
+                 return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+               } else if (words.length === 1 && words[0].length >= 2) {
+                 // 1단어면 첫 2글자
+                 return words[0].slice(0, 2).toUpperCase();
+               } else {
+                 // 기본값
+                 return 'WF';
+               }
+             })()}
+          </div>
         </div>
 
-        {/* 제목 */}
+        {/* 제목 - 잘리지 않게 높이 증가 */}
         <h3 className="font-semibold text-sm text-card-foreground text-center mb-2 px-1" style={{
           display: '-webkit-box',
           WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical',
           overflow: 'hidden',
           wordBreak: 'keep-all',
-          lineHeight: '1.3',
-          height: '2.6rem'
+          lineHeight: '1.4',
+          height: '3.6rem'
         }}>
           {workflow.name || '제목 없음'}
         </h3>
@@ -455,7 +512,7 @@ function WorkflowCard({ workflow }: { workflow: any }) {
             overflow: 'hidden',
             wordBreak: 'keep-all',
             lineHeight: '1.2',
-            height: '2.4rem'
+            height: '2.7rem'
           }}>
             {workflow.description}
           </p>
@@ -778,6 +835,21 @@ export default  function HomePage() {
   // 🔥 root.tsx에서 전달된 모든 데이터 사용
   const { isLoggedIn, userId, servers, clients, workflows } = useOutletContext<OutletContext>();
   const [claudeServers, setClaudeServers] = useState<string[]>([]);
+
+  // 🎲 랜덤 제품 11개 선택 - useMemo로 한 번만 실행
+  const randomProducts = useMemo(() => {
+    if (!products || products.length === 0) return [];
+    
+    // Fisher-Yates 셔플 알고리즘으로 배열 섞기
+    const shuffled = [...products];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    
+    // 11개만 반환 (배열 길이가 11개보다 적으면 전체 반환)
+    return shuffled.slice(0, Math.min(11, shuffled.length));
+  }, [products]);
   
   // 🔥 워크플로우 클라이언트 타입 상태 관리
   const [workflowClientType, setWorkflowClientType] = useState<string>('all');
@@ -950,7 +1022,7 @@ export default  function HomePage() {
                 </Link>
               </Button>
             </div>
-            {products.map((product: Product, index: number) => (
+            {randomProducts.map((product: Product, index: number) => (
               <ProductCard
                 key={product.unique_id ?? index}
                 id={product.id}
