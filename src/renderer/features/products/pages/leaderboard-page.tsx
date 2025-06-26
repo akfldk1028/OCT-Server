@@ -84,6 +84,7 @@ export default function LeaderboardPage() {
                 githubUrl={product.github_url}
                 owner={product.owner}
                 repoName={product.repo_name}
+                localImagePath={(product as any).local_image_path || null}
               />
         ))}
         <Button variant="link" asChild className="text-lg self-center">

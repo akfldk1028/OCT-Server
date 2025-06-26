@@ -3,7 +3,7 @@ import { Code2, Terminal, FileJson, Wrench, ChevronDown, ChevronUp } from "lucid
 import { Card, CardContent, CardHeader, CardTitle } from "../../../common/components/ui/card";
 import { Badge } from "../../../common/components/ui/badge";
 import { Button } from "../../../common/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -16,6 +16,38 @@ export default function ProductToolsPage() {
     product: MCPServerDetailView;
     isLoggedIn: boolean;
   }>();
+
+  // 🔥 페이지 로드 시 스크롤을 맨 위로
+  useEffect(() => {
+    const scrollToTop = () => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      
+      const mainElement = document.querySelector('main');
+      if (mainElement) {
+        mainElement.scrollTop = 0;
+      }
+      
+      const scrollableElements = document.querySelectorAll('[style*="overflow"], .overflow-y-auto, .overflow-auto');
+      scrollableElements.forEach(el => {
+        if (el instanceof HTMLElement) {
+          el.scrollTop = 0;
+        }
+      });
+    };
+    
+    scrollToTop();
+    const timers = [
+      setTimeout(scrollToTop, 50),
+      setTimeout(scrollToTop, 150),
+      setTimeout(scrollToTop, 300)
+    ];
+    
+    return () => {
+      timers.forEach(timer => clearTimeout(timer));
+    };
+  }, [product.id]);
 
   // detected_tools를 배열로 안전하게 처리
   const detected_tools = Array.isArray(product.detected_tools) ? product.detected_tools : [];
@@ -58,19 +90,25 @@ export default function ProductToolsPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* 도구 요약 */}
-      <div className="bg-gradient-to-r from-primary/10 to-blue-500/10 rounded-lg p-6 border">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-xl font-bold mb-2">제공되는 도구</h3>
-            <p className="text-muted-foreground">
-              총 {detected_tools.length}개의 도구를 사용할 수 있습니다
-            </p>
+      <Card className="border border-border bg-card">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-primary/10 border border-primary/20">
+              <Code2 className="size-6 text-primary" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-xl font-semibold text-foreground mb-1">제공되는 도구</h3>
+              <p className="text-muted-foreground">
+                총 <span className="font-semibold text-primary">{detected_tools.length}개</span>의 도구를 사용할 수 있습니다
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-primary">{detected_tools.length}</div>
+              <div className="text-xs text-muted-foreground">TOOLS</div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Code2 className="size-12 text-primary opacity-50" />
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* 도구 목록 */}
       <div className="space-y-4">
@@ -226,29 +264,6 @@ export default function ProductToolsPage() {
         })}
       </div>
 
-      {/* 도구 사용 팁 */}
-      <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-lg p-6 border">
-        <div className="flex items-start gap-3">
-          <span className="text-2xl">💡</span>
-          <div>
-            <h4 className="font-bold mb-2">도구 사용 팁</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-start gap-2">
-                <span className="text-primary mt-0.5">•</span>
-                <span>Claude와 대화하면서 이 도구들을 자연스럽게 사용할 수 있어요.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-primary mt-0.5">•</span>
-                <span>필수 파라미터는 반드시 제공해야 하고, 선택 파라미터는 필요할 때만 사용하세요.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-primary mt-0.5">•</span>
-                <span>도구 이름을 언급하면 Claude가 자동으로 해당 도구를 사용할 거예요.</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

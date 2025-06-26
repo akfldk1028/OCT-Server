@@ -4,7 +4,7 @@ import { Card, CardContent } from "../../../common/components/ui/card";
 import { Badge } from "../../../common/components/ui/badge";
 import { Button } from "../../../common/components/ui/button";
 import { MCPServerDetailView } from "../types/MCPServerDetailTypes";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // 코드 블록 컴포넌트
 const CodeBlock = ({ code, language }: { code: string; language?: string }) => {
@@ -273,6 +273,44 @@ export default function ProductOverviewPage() {
   // product에서 필요한 데이터 추출
   const enhanced_info = product.enhanced_info;
 
+  // 🔥 페이지 로드 시 스크롤을 맨 위로 (모든 가능한 스크롤 컨테이너 대상)
+  useEffect(() => {
+    const scrollToTop = () => {
+      // 기본 스크롤 대상들
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      
+      // 메인 컨테이너들도 확인
+      const mainElement = document.querySelector('main');
+      if (mainElement) {
+        mainElement.scrollTop = 0;
+      }
+      
+      // 오버플로우가 있는 모든 요소들 찾아서 스크롤 리셋
+      const scrollableElements = document.querySelectorAll('[style*="overflow"], .overflow-y-auto, .overflow-auto');
+      scrollableElements.forEach(el => {
+        if (el instanceof HTMLElement) {
+          el.scrollTop = 0;
+        }
+      });
+    };
+    
+    // 즉시 실행
+    scrollToTop();
+    
+    // 여러 시점에서 실행 (렌더링 완료를 기다림)
+    const timers = [
+      setTimeout(scrollToTop, 50),
+      setTimeout(scrollToTop, 150),
+      setTimeout(scrollToTop, 300)
+    ];
+    
+    return () => {
+      timers.forEach(timer => clearTimeout(timer));
+    };
+  }, [product.id]); // product.id가 바뀔 때마다 실행
+
 
 
   return (
@@ -282,18 +320,25 @@ export default function ProductOverviewPage() {
 
       {/* 한국어 설명 (있을 경우) */}
       {enhanced_info?.description_ko && (
-      <Card className="border-2 hover:border-primary/50 transition-colors">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50">
-                <BookOpen className="size-5 text-blue-600 dark:text-blue-400" />
+        <Card className="border border-border bg-card hover:bg-card/80 transition-colors duration-200">
+          <CardContent className="pt-6 pb-6 px-6">
+            <div className="flex items-start gap-4">
+              {/* 🔥 심플한 아이콘 */}
+              <div className="p-3 rounded-xl bg-primary/10 border border-primary/20">
+                <BookOpen className="size-5 text-primary" />
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-4">
-                  <h3 className="text-xl font-bold">설명</h3>
-                  <Badge variant="secondary" className="text-xs">KR</Badge>
+              
+              <div className="flex-1 min-w-0">
+                {/* 🔥 깔끔한 헤더 */}
+                <div className="flex items-center gap-3 mb-4">
+                  <h3 className="text-xl font-semibold text-foreground">설명</h3>
+                  <Badge variant="outline" className="text-xs font-medium">KR</Badge>
                 </div>
-                <MarkdownRenderer content={enhanced_info.description_ko} />
+                
+                {/* 🔥 콘텐츠 */}
+                <div className="text-muted-foreground">
+                  <MarkdownRenderer content={enhanced_info.description_ko} />
+                </div>
               </div>
             </div>
           </CardContent>

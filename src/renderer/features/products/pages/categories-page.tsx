@@ -228,6 +228,7 @@ export default function CategoriesPage() {
                       votesCount={null}
                       isUpvoted={null}
                       promotedFrom={null}
+                      localImagePath={(server as any).local_image_path || null}
                     />
                   ))}
                 </div>

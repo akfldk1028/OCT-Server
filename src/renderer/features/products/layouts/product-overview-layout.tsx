@@ -131,11 +131,32 @@ export default function ProductOverviewLayout() {
           <div className="flex flex-col sm:flex-row gap-6 flex-1">
             <div className="flex justify-center sm:justify-start">
               <div className="size-32 lg:size-40 rounded-2xl overflow-hidden shadow-xl flex items-center justify-center ring-4 ring-background">
-                <InitialAvatar
-                  initials={initials}
-                  colorString={avatarColor}
-                  size={160}
-                />
+                {product.local_image_path ? (
+                  <img
+                    src={product.local_image_path}
+                    alt={product.name || 'Server Image'}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // 이미지 로드 실패 시 InitialAvatar로 대체
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent) {
+                        const avatarDiv = document.createElement('div');
+                        avatarDiv.className = 'w-full h-full flex items-center justify-center text-white font-bold text-2xl';
+                        avatarDiv.style.backgroundColor = avatarColor;
+                        avatarDiv.textContent = initials;
+                        parent.appendChild(avatarDiv);
+                      }
+                    }}
+                  />
+                ) : (
+                  <InitialAvatar
+                    initials={initials}
+                    colorString={avatarColor}
+                    size={160}
+                  />
+                )}
               </div>
             </div>
             

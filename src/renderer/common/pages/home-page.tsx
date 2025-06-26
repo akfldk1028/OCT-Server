@@ -965,6 +965,7 @@ export default  function HomePage() {
                 githubUrl={product.github_url}
                 owner={product.owner}
                 repoName={product.repo_name}
+                localImagePath={(product as any).local_image_path || null}
               />
             ))}
           </div>

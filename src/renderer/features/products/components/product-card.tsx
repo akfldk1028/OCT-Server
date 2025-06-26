@@ -18,6 +18,8 @@ import { Button } from '../../../common/components/ui/button';
 import { cn } from '../../../lib/utils';
 import { NeonGradientCard } from '../../../common/components/ui/neon-gradient-card';
 import { Badge } from '../../../common/components/ui/badge';
+import { InitialAvatar } from '../../../common/components/ui/initial-avatar';
+import { useState } from 'react';
 
 interface ProductCardProps {
   id: number | string | null;
@@ -34,6 +36,7 @@ interface ProductCardProps {
   githubUrl?: string | null;
   owner?: string | null;
   repoName?: string | null;
+  localImagePath?: string | null; // 🔥 이미지 경로 추가
 }
 
 export function ProductCard({
@@ -51,6 +54,7 @@ export function ProductCard({
   githubUrl,
   owner,
   repoName,
+  localImagePath,
 }: ProductCardProps) {
 
   const fetcher = useFetcher();
@@ -58,6 +62,13 @@ export function ProductCard({
     isLoggedIn: boolean;
   }>();
   const navigate = useNavigate();
+  
+  // 🔥 이미지 에러 처리
+  const [imageError, setImageError] = useState(false);
+  
+  const handleImageError = () => {
+    setImageError(true);
+  };
 
   const optimisitcVotesCount =
     fetcher.state === 'idle'
@@ -93,15 +104,42 @@ export function ProductCard({
       >
         <div className="flex-grow">
           <CardHeader className="w-full pb-2">
-            <CardTitle className="text-xl font-semibold leading-snug flex justify-between items-start gap-2 tracking-tight line-clamp-1">
-              <span>{name ?? 'Unnamed Product'}</span>
+            {/* 🔥 제목과 이미지를 함께 표시 */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                {/* 🔥 이미지/아바타 */}
+                <div className="flex-shrink-0">
+                  {localImagePath && !imageError ? (
+                    <img
+                      src={localImagePath}
+                      alt={name || 'Product'}
+                      className="w-10 h-10 rounded-lg object-cover border border-border"
+                      onError={handleImageError}
+                    />
+                  ) : (
+                    <InitialAvatar
+                      initials={name?.slice(0, 2) || 'P'}
+                      size={40}
+                      className="rounded-lg"
+                    />
+                  )}
+                </div>
+                
+                {/* 🔥 제목 */}
+                <CardTitle className="text-xl font-semibold leading-snug tracking-tight line-clamp-1 flex-1 min-w-0">
+                  {name ?? 'Unnamed Product'}
+                </CardTitle>
+              </div>
+              
+              {/* 🔥 프로모션 배지 */}
               {promotedFrom ? (
                 <Badge variant="outline" className="flex-shrink-0">
                   Promoted
                 </Badge>
               ) : null}
-            </CardTitle>
-            <CardDescription className="text-muted-foreground mt-1 line-clamp-2 h-[3em]">
+            </div>
+            
+            <CardDescription className="text-muted-foreground mt-3 line-clamp-2 h-[3em]">
               {description ?? githubUrl ?? 'No description available'}
             </CardDescription>
           </CardHeader>

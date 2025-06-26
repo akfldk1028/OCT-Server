@@ -621,34 +621,14 @@ export const deleteUserMcpUsage = async (
     return [];
   }
 
-  // 🔥 삭제할 기록 찾기 (조건 우선순위)
-  let targetRecords = allRecords;
-
-  // 1. install_method_id가 지정된 경우, 해당 방법만 삭제
-  if (install_method_id !== undefined) {
-    if (install_method_id === null) {
-      targetRecords = allRecords.filter(record => record.install_method_id === null);
-    } else {
-      targetRecords = allRecords.filter(record => record.install_method_id === install_method_id);
-    }
-  }
-  // 2. install_method_id가 지정되지 않은 경우, 성공한 설치만 삭제
-  else {
-    targetRecords = allRecords.filter(record => record.install_status === 'success');
-  }
-
-  console.log('🎯 [deleteUserMcpUsage] 삭제 대상 기록:', {
-    '🔢 삭제 대상 수': targetRecords.length,
-    '📊 삭제 대상 상세': targetRecords
+  // 🔥 모든 기록 삭제 (성공/실패 관계없이)
+  console.log('🎯 [deleteUserMcpUsage] 모든 기록 삭제 진행:', {
+    '🔢 삭제 대상 수': allRecords.length,
+    '📊 삭제 대상 상세': allRecords
   });
 
-  if (targetRecords.length === 0) {
-    console.log('⚠️ [deleteUserMcpUsage] 삭제할 기록이 없음');
-    return [];
-  }
-
   // 🗑️ 실제 삭제 실행
-  const targetIds = targetRecords.map(record => record.id);
+  const targetIds = allRecords.map(record => record.id);
   const { data, error } = await client
     .from('user_mcp_usage')
     .delete()
@@ -664,6 +644,25 @@ export const deleteUserMcpUsage = async (
     '🔢 삭제된 레코드 수': data?.length || 0,
     '📄 삭제된 데이터': data
   });
+  
+  // 🔥 삭제 후 검증 - 정말로 삭제되었는지 확인
+  setTimeout(async () => {
+    try {
+      const { data: remainingRecords } = await client
+        .from('user_mcp_usage')
+        .select('id')
+        .eq('profile_id', profile_id)
+        .eq('original_server_id', original_server_id);
+      
+      if (remainingRecords && remainingRecords.length > 0) {
+        console.warn('⚠️ [deleteUserMcpUsage] 삭제 후에도 남은 기록:', remainingRecords.length, '개');
+      } else {
+        console.log('✅ [deleteUserMcpUsage] 삭제 검증 완료 - 모든 기록 제거됨');
+      }
+    } catch (verifyError) {
+      console.error('❌ [deleteUserMcpUsage] 삭제 검증 실패:', verifyError);
+    }
+  }, 1000);
   
   return data;
 };
