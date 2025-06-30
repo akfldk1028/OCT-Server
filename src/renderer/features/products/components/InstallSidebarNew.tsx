@@ -248,30 +248,49 @@ export function InstallSidebarNew({ product, onClose, isOpen }: InstallSidebarPr
     }
   }, [isInstalling, isActuallyInstalled, commandGroups, envValues, dispatch, product, userId, refreshInstallStatus]);
 
-  // 🔥 제거 핸들러 - 최적화된 버전
+  // 🔥 제거 핸들러 - 간단한 DB 삭제
   const handleUninstall = useCallback(async (serverId: string) => {
     try {
-      console.log('🗑️ [handleUninstall] 제거 시작:', serverId);
+      console.log('🗑️ [handleUninstall] 제거 시작:', serverId, { userId });
       
-      await dispatch({
-        type: 'installer.uninstallServer',
-        payload: {
-          serverName: serverId,
-          userProfileId: userId
-        }
+      if (!userId) {
+        console.error('❌ [handleUninstall] userId가 없습니다');
+        return;
+      }
+      
+      const serverIdNum = parseInt(serverId);
+      if (isNaN(serverIdNum)) {
+        console.error('❌ [handleUninstall] 잘못된 serverId:', serverId);
+        return;
+      }
+      
+      // user_mcp_usage에서 해당 서버의 모든 기록 삭제
+      console.log('🗑️ [handleUninstall] DB에서 제거 중...', {
+        profile_id: userId,
+        original_server_id: serverIdNum
       });
-
-      console.log('✅ [handleUninstall] 제거 완료');
       
-      // 🔥 단순하고 효율적인 새로고침 (2번만)
-      setTimeout(refreshInstallStatus, 2000);  // 2초 후 1차
-      setTimeout(refreshInstallStatus, 5000);  // 5초 후 최종
+      const { error } = await supabase
+        .from('user_mcp_usage')
+        .delete()
+        .eq('profile_id', userId)
+        .eq('original_server_id', serverIdNum);
+      
+      if (error) {
+        console.error('❌ [handleUninstall] DB 제거 실패:', error);
+        throw error;
+      }
+      
+      console.log('✅ [handleUninstall] DB에서 제거 완료');
+      
+      // 상태 새로고침
+      setTimeout(refreshInstallStatus, 1000);
       
     } catch (error) {
       console.error('❌ [handleUninstall] 제거 중 오류:', error);
-      setTimeout(refreshInstallStatus, 1000);  // 오류 시 1초 후 새로고침
+      setTimeout(refreshInstallStatus, 1000);
     }
-  }, [dispatch, userId, refreshInstallStatus]);
+  }, [userId, refreshInstallStatus]);
 
   // 🔥 기타 유틸리티 함수들
   const copyToClipboard = useCallback((text: string) => {
