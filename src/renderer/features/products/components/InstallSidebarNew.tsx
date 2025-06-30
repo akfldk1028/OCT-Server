@@ -29,6 +29,9 @@ import { checkUserServerInstallStatus, getUserServerAllInstallRecords } from '..
 import { useInstallStatus } from '../hooks/useInstallStatus'
 import { useEnvironmentVariables } from '../hooks/useEnvironmentVariables'
 
+// 🔥 server-layout context에서 refreshServers 가져오기
+import type { ServerLayoutContext } from '../../server/types/server-types'
+
 interface InstallSidebarProps {
   product: MCPServerDetailView
   onClose: () => void
@@ -51,14 +54,8 @@ function useInstaller(serverName: string) {
 
 export function InstallSidebarNew({ product, onClose, isOpen }: InstallSidebarProps) {
   const dispatch = useDispatch();
-  const { userId } = useOutletContext<{
-    isLoggedIn: boolean;
-    name: string;
-    userId: string;
-    username: string;
-    avatar: string | null;
-    email: string;
-  }>();
+  const context = useOutletContext<ServerLayoutContext>();
+  const { userId } = context;
 
   // 🔥 기본 데이터 처리 - 메모이제이션
   const { installMethods, configOptions, isZeroInstall, processedMethods, commandGroups, commands } = useMemo(() => {
@@ -205,7 +202,12 @@ export function InstallSidebarNew({ product, onClose, isOpen }: InstallSidebarPr
 
   // 🔥 설치 핸들러 - useCallback으로 최적화
   const handleInstall = useCallback(async (serverId: string, command: string) => {
-    if (isInstalling || isActuallyInstalled) return;
+    console.log('🚀 [handleInstall] 설치 시작:', { serverId, command, productName: product.name });
+    
+    if (isInstalling || isActuallyInstalled) {
+      console.log('⚠️ [handleInstall] 이미 설치 중이거나 설치됨:', { isInstalling, isActuallyInstalled });
+      return;
+    }
 
     const currentMethods = commandGroups[command] || [];
     const currentMethod = currentMethods[0];
@@ -241,12 +243,23 @@ export function InstallSidebarNew({ product, onClose, isOpen }: InstallSidebarPr
         }
       });
 
-      // 설치 완료 후 DB 상태 새로고침
-      setTimeout(refreshInstallStatus, 3000);
+      // 🔥 설치 완료 후 즉시 이벤트 발송 + 새로고침
+      console.log('🔔 [InstallSidebar] 설치 성공! 즉시 이벤트 발송');
+      
+      // 즉시 이벤트 발송
+      window.dispatchEvent(new CustomEvent('mcp-server-installed', {
+        detail: { serverId: product.id, serverName: product.name }
+      }));
+      
+      // 그 다음 새로고침
+      setTimeout(async () => {
+        await refreshInstallStatus();
+        context.refreshServers?.();
+      }, 1000);
     } catch (error) {
       console.error('설치 중 오류:', error);
     }
-  }, [isInstalling, isActuallyInstalled, commandGroups, envValues, dispatch, product, userId, refreshInstallStatus]);
+  }, [isInstalling, isActuallyInstalled, commandGroups, envValues, dispatch, product, userId, refreshInstallStatus, context]);
 
   // 🔥 제거 핸들러 - 간단한 DB 삭제
   const handleUninstall = useCallback(async (serverId: string) => {
@@ -283,14 +296,42 @@ export function InstallSidebarNew({ product, onClose, isOpen }: InstallSidebarPr
       
       console.log('✅ [handleUninstall] DB에서 제거 완료');
       
-      // 상태 새로고침
-      setTimeout(refreshInstallStatus, 1000);
+      // 🔥 제거 완료 후 즉시 이벤트 발송 + 새로고침
+      console.log('🔔 [InstallSidebar] 제거 성공! 즉시 이벤트 발송');
       
-    } catch (error) {
-      console.error('❌ [handleUninstall] 제거 중 오류:', error);
-      setTimeout(refreshInstallStatus, 1000);
-    }
-  }, [userId, refreshInstallStatus]);
+      // 즉시 이벤트 발송
+      window.dispatchEvent(new CustomEvent('mcp-server-uninstalled', {
+        detail: { serverId: product.id, serverName: product.name }
+      }));
+      
+      // 그 다음 새로고침
+      setTimeout(async () => {
+        await refreshInstallStatus();
+        context.refreshServers?.();
+      }, 1000);
+      
+          } catch (error) {
+        console.error('❌ [handleUninstall] 제거 중 오류:', error);
+        
+        // 🔥 에러 시에도 즉시 이벤트 발송
+        console.log('🔔 [InstallSidebar] 에러 발생! 즉시 이벤트 발송');
+        
+        // 즉시 이벤트 발송
+        window.dispatchEvent(new CustomEvent('mcp-server-uninstalled', {
+          detail: { serverId: product.id, serverName: product.name, error: true }
+        }));
+        
+        // 그 다음 새로고침
+        setTimeout(async () => {
+          try {
+            await refreshInstallStatus();
+            context.refreshServers?.();
+          } catch (refreshError) {
+            console.error('에러 후 새로고침 실패:', refreshError);
+          }
+        }, 1000);
+      }
+  }, [userId, refreshInstallStatus, context]);
 
   // 🔥 기타 유틸리티 함수들
   const copyToClipboard = useCallback((text: string) => {
@@ -331,7 +372,9 @@ export function InstallSidebarNew({ product, onClose, isOpen }: InstallSidebarPr
     return hasEnvVars 
       ? (isEnvValid && methodAvailable && !isInstalling)
       : (methodAvailable && !isInstalling);
-  }, [availableMethods, commandGroups, isInstalling, isEnvValid]);
+    }, [availableMethods, commandGroups, isInstalling, isEnvValid]);
+
+
 
   // 🔥 사용 가능한 설치 방법 확인
   useEffect(() => {

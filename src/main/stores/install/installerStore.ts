@@ -46,6 +46,10 @@ const initialState: InstallerState = {
   availableMethods: {},
   installQueue: [],
   currentInstalling: null,
+  // 🔥 상태 변화 알림용
+  lastStateChange: 0,
+  lastStateChangeType: null,
+  lastStateChangeServerId: null,
 };
 
 export const installerStore = createStore<InstallerState & {
@@ -179,7 +183,11 @@ export const installerStore = createStore<InstallerState & {
                 percent: 100,
                 currentStep: '완료',
               }
-            }
+            },
+            // 🔥 Zero-install 완료 상태 변화 알림
+            lastStateChange: Date.now(),
+            lastStateChangeType: 'installed',
+            lastStateChangeServerId: serverName,
           }));
           
           console.log(`✅ [installServer] ${serverName} Zero-install installedServers 추가 완료`);
@@ -190,6 +198,8 @@ export const installerStore = createStore<InstallerState & {
           } catch (recordError) {
             console.log('⚠️ [installServer] Zero-install 설치 성공 기록 실패:', recordError);
           }
+
+
 
           // 🚀 Zero-install도 MCP Store에 자동 등록
           try {
@@ -204,6 +214,8 @@ export const installerStore = createStore<InstallerState & {
           } catch (error) {
             console.log(`⚠️ [installServer] ${serverName} Zero-install MCP Store 등록 중 예외:`, error);
           }
+
+
         }
         
         return result;
@@ -305,7 +317,11 @@ export const installerStore = createStore<InstallerState & {
               percent: 100,
               currentStep: '완료',
             }
-          }
+          },
+          // 🔥 설치 완료 상태 변화 알림
+          lastStateChange: Date.now(),
+          lastStateChangeType: 'installed',
+          lastStateChangeServerId: serverName,
         }));
         
         // 🔥 설치 정보 백업 파일 저장
@@ -342,6 +358,8 @@ export const installerStore = createStore<InstallerState & {
         } catch (error) {
           console.log(`⚠️ [installServer] ${serverName} MCP Store 등록 중 예외:`, error);
         }
+
+
       }
       
       return result;
@@ -367,8 +385,14 @@ export const installerStore = createStore<InstallerState & {
             currentStep: errorMessage,
             error: errorMessage,
           }
-        }
+        },
+        // 🔥 설치 실패 상태 변화 알림
+        lastStateChange: Date.now(),
+        lastStateChangeType: 'error',
+        lastStateChangeServerId: serverName,
       }));
+      
+
       
       return {
         success: false,
@@ -474,7 +498,11 @@ export const installerStore = createStore<InstallerState & {
             percent: 100,
             currentStep: '완료',
           }
-        }
+        },
+        // 🔥 제거 완료 상태 변화 알림
+        lastStateChange: Date.now(),
+        lastStateChangeType: 'uninstalled',
+        lastStateChangeServerId: serverName,
       }));
 
       console.log(`✅ [uninstallServer] ${serverName} 제거 완료`);
@@ -504,6 +532,8 @@ export const installerStore = createStore<InstallerState & {
         console.log('⚠️ [uninstallServer] 사용자 제거 기록 업데이트 실패:', recordError);
       }
       
+
+
       // 진행 상태를 잠시 후 삭제
       setTimeout(() => {
         set((state) => {
@@ -528,8 +558,14 @@ export const installerStore = createStore<InstallerState & {
             currentStep: errorMessage,
             error: errorMessage,
           }
-        }
+        },
+        // 🔥 제거 실패 상태 변화 알림
+        lastStateChange: Date.now(),
+        lastStateChangeType: 'error',
+        lastStateChangeServerId: serverName,
       }));
+      
+
       
       return { success: false, error: errorMessage };
     }

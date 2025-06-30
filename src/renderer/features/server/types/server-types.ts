@@ -17,6 +17,7 @@ export type ServerLayoutContext = {
   servers: InstalledServer[]; // 🔥 실제 DB에서 조회한 설치된 서버들 (타입 지정)
   clients: ClientType[];
   isLoadingServers?: boolean; // 🔥 서버 로딩 상태
+  refreshServers?: () => void; // 🔥 새로고침 함수
 };
 
 // 서버 노드용 데이터 타입 (React Flow용)

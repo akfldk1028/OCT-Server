@@ -50,18 +50,26 @@ export default function ServerNode({ data, id, selected }: ServerNodeProps) {
 
   // InstalledServer 구조에 맞춰 데이터 추출
   const serverInfo = data?.mcp_servers;
-  const installMethod = data?.mcp_install_methods;
+  const installMethods = data?.mcp_install_methods; // 🔥 배열임을 명시
+  
+  // 🔥 첫 번째 설치 방법에서 정보 추출 (배열이므로)
+  const firstInstallMethod = Array.isArray(installMethods) && installMethods.length > 0 
+    ? installMethods[0] 
+    : null;
+    
+  // 🔥 mcp_install_methods가 없어도 동작하도록 기본값 처리
+  const hasAnyInstallMethod = Array.isArray(installMethods) && installMethods.length > 0;
   
   // 가능한 모든 경로에서 name 추출
   const name = 
     serverInfo?.name || 
-    (installMethod?.command || 'Unknown Command') ||
+    (firstInstallMethod?.command || 'Unknown Command') ||
     String(data?.original_server_id) ||
     'Unknown Server';
     
   const description = 
     serverInfo?.description || 
-    installMethod?.description ||
+    firstInstallMethod?.description ||
     'No description available';
     
   const avatarUrl =

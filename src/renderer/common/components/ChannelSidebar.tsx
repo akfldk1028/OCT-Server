@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useChatCreation } from './chat/useChatCreation';
 import {
@@ -84,6 +84,14 @@ const nodeTypes = [
 ];
 
 export default function ChannelSidebar({ className, selectedMenu, servers = [], clients = [], categories = [], onNodeDragStart }: ChannelSidebarProps) {
+  console.log('🚀 [ChannelSidebar] 렌더링됨!', {
+    서버개수: servers.length,
+    선택된메뉴: selectedMenu,
+    서버데이터: servers,
+    servers타입: typeof servers,
+    servers배열여부: Array.isArray(servers)
+  });
+  
   const [sectionsExpanded, setSectionsExpanded] = useState<Record<string, boolean>>({
     '0': true,
     '1': true,
@@ -91,19 +99,83 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [activeNodeTab, setActiveNodeTab] = useState<'toolbox' | 'client' | 'server'>('toolbox');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [initialLoading, setInitialLoading] = useState(true); // 🔥 초기 로딩 상태
   const navigate = useNavigate();
   const { createNewChat } = useChatCreation();
 
   // 🔥 DnD 훅 사용
   const [_, setType] = useDnD();
 
-  // 🔥 디버깅 로그
+  // 🔥 서버 설치/제거 이벤트 리스너 추가
+  useEffect(() => {
+    const handleServerInstalled = (event: any) => {
+      console.log('🔔 [ChannelSidebar] 서버 설치 이벤트 수신:', event.detail);
+      setRefreshTrigger(prev => prev + 1);
+      // 추가로 약간의 딜레이 후 한 번 더 트리거 (DB 동기화 대기)
+      setTimeout(() => {
+        setRefreshTrigger(prev => prev + 1);
+      }, 2000);
+    };
+
+    const handleServerUninstalled = (event: any) => {
+      console.log('🔔 [ChannelSidebar] 서버 제거 이벤트 수신:', event.detail);
+      setRefreshTrigger(prev => prev + 1);
+      // 추가로 약간의 딜레이 후 한 번 더 트리거 (DB 동기화 대기)
+      setTimeout(() => {
+        setRefreshTrigger(prev => prev + 1);
+      }, 2000);
+    };
+
+    // 이벤트 리스너 등록
+    window.addEventListener('mcp-server-installed', handleServerInstalled);
+    window.addEventListener('mcp-server-uninstalled', handleServerUninstalled);
+
+    console.log('🔔 [ChannelSidebar] 서버 이벤트 리스너 등록 완료');
+
+    // 정리 함수
+    return () => {
+      window.removeEventListener('mcp-server-installed', handleServerInstalled);
+      window.removeEventListener('mcp-server-uninstalled', handleServerUninstalled);
+      console.log('🔔 [ChannelSidebar] 서버 이벤트 리스너 제거 완료');
+    };
+  }, []);
+
+  // 🔥 초기 로딩 상태 관리
+  useEffect(() => {
+    // 서버 데이터가 로드되면 로딩 해제
+    if (servers.length > 0 || refreshTrigger > 0) {
+      setInitialLoading(false);
+    }
+    // 2초 후에는 무조건 로딩 해제 (실제로 서버가 없는 경우)
+    const timer = setTimeout(() => {
+      setInitialLoading(false);
+    }, 2000);
+    
+    return () => clearTimeout(timer);
+  }, [servers.length, refreshTrigger]);
+
+  // 🔥 강화된 디버깅 로그 (refreshTrigger 포함)
   console.log('🔍 [ChannelSidebar] 데이터 확인:', {
     serversLength: servers.length,
     clientsLength: clients.length,
+    selectedMenu,
+    activeNodeTab,
+    refreshTrigger, // 🔥 새로고침 트리거 상태 추가
     servers: servers.slice(0, 2), // 처음 2개만 로그
     clients: clients.slice(0, 2), // 처음 2개만 로그
+    timestamp: new Date().toISOString()
   });
+  
+  // 🔥 서버 탭이 활성화된 경우 상세 로그
+  if (activeNodeTab === 'server' && selectedMenu === 'Server') {
+    console.log('🔍 [ChannelSidebar] Server 탭 활성화:', {
+      serversData: servers,
+      serversCount: servers.length,
+      refreshTrigger, // 🔥 새로고침 트리거 상태 추가
+      firstServer: servers[0] || null
+    });
+  }
 
   // 🔥 카테고리별 아이콘 매핑
   const getCategoryIcon = (categoryName: string) => {
@@ -481,7 +553,8 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
         <div className="space-y-2">
           {servers.length === 0 ? (
             <div className="text-center text-sm text-muted-foreground py-4">
-              설치된 서버가 없습니다
+              <div className="w-6 h-6 mx-auto mb-2 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin"></div>
+              서버 목록 로딩 중...
             </div>
           ) : (
             servers.map((server) => (

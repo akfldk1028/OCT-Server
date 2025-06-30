@@ -41,6 +41,16 @@ export default function ServerLayout() {
   // 🔥 설치된 서버들을 위한 상태 (타입 지정)
   const [servers, setServers] = useState<InstalledServer[]>([]);
   const [isLoadingServers, setIsLoadingServers] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // 🔥 강력한 새로고침 함수 (즉시 + 강제)
+  const refreshServers = () => {
+    console.log('🔄 [refreshServers] 서버 목록 강제 새로고침 시작');
+    setRefreshTrigger(prev => prev + 1);
+    
+    // 추가로 즉시 로딩 상태 변경하여 UI 반응성 향상
+    setIsLoadingServers(true);
+  };
 
   // 🔥 userId가 있을 때만 서버 목록을 가져오기
   useEffect(() => {
@@ -48,7 +58,9 @@ export default function ServerLayout() {
       console.log('🔍 [useEffect] 서버 로드 시도:', {
         '👤 userId': userId,
         '🔑 isLoggedIn': isLoggedIn,
-        '❓ userId 존재': !!userId
+        '❓ userId 존재': !!userId,
+        '🔄 refreshTrigger': refreshTrigger,
+        '⏰ timestamp': new Date().toISOString()
       });
 
       if (!userId) {
@@ -137,7 +149,7 @@ export default function ServerLayout() {
     };
 
     fetchServers();
-  }, [userId]);
+  }, [userId, refreshTrigger]); // 🔥 refreshTrigger 추가
 
   console.log('🔍 [ServerLayout] 현재 서버 목록:', servers);
 
@@ -147,6 +159,7 @@ export default function ServerLayout() {
     servers,
     clients,
     isLoadingServers,
+    refreshServers, // 🔥 새로고침 함수 추가
   };
 
   return <Outlet context={context} />;

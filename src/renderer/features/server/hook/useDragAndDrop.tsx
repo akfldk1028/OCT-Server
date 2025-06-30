@@ -2,15 +2,8 @@ import { useCallback } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { useDnD } from './DnDContext';
 import { useOutletContext } from 'react-router';
-import type { ServerItem, ClientRow } from '../../../types';
-import type { Database } from '../../../database.types';
-
-// 🔥 실제 DB 데이터 타입
-type InstalledServer = Database['public']['Tables']['user_mcp_usage']['Row'] & {
-  mcp_install_methods: Database['public']['Tables']['mcp_install_methods']['Row'] | null;
-  mcp_servers: Database['public']['Tables']['mcp_servers']['Row'] | null;
-  mcp_configs?: Database['public']['Tables']['mcp_configs']['Row'][];
-};
+import type { ServerLayoutContext, ClientType } from '../types/server-types';
+// ServerLayoutContext에서 타입 가져오기
 
 // 전역 변수는 다른 파일에서 선언되어 있음 - 중복 선언 제거
 
@@ -63,11 +56,8 @@ const DEFAULT_NODE_TYPES = ['text', 'result', 'color', 'image', 'counter', 'inpu
 export function useDragAndDrop() {
   const { screenToFlowPosition } = useReactFlow();
   const [type] = useDnD();
-  const { clients, servers } = useOutletContext<{ 
-    clients: ClientRow[]; 
-    servers: InstalledServer[];
-  }>();
-
+  const { clients, servers } = useOutletContext<ServerLayoutContext>();
+ console.log('🔍 [useDragAndDrop] 서버 데이터:', servers);
   // 드래그 오버 핸들러
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -113,23 +103,25 @@ export function useDragAndDrop() {
 
             console.log('[onDrop] 서버 노드 위치 계산됨:', position);
 
-            // 🔥 실제 DB에서 완전한 서버 데이터 찾기 (올바른 ID 비교)
-            const fullServerData = servers.find(server => 
-              server.id.toString() === serverId ||  // ✅ user_mcp_usage.id로 비교
-              (server as any).mcp_servers?.name === (serverData as any).mcp_servers?.name
-            );
-            
+            // 🔥 간단하게 ID로 매칭해서 찾기
             console.log('🔍 [onDrop] 서버 데이터 찾기:', {
               '🔢 찾는 serverId': serverId,
               '📊 servers 개수': servers.length,
-              '✅ fullServerData 찾음': !!fullServerData,
-              '🔧 mcp_configs 있음': !!(fullServerData as any)?.mcp_configs,
-              '⚙️ mcp_install_methods 있음': !!(fullServerData as any)?.mcp_install_methods,
-              '🔢 mcp_configs 길이': (fullServerData as any)?.mcp_configs?.length || 0,
-              '🔢 mcp_install_methods 길이': (fullServerData as any)?.mcp_install_methods?.length || 0
+              '🔧 serverData 확인': !!serverData,
+            });
+            
+            // ID가 일치하는 서버 찾기 (간단한 방법)
+            const fullServerData = servers.find(server => 
+              String(server.id) === String(serverId)
+            );
+            
+            console.log('🔍 [onDrop] 매칭 결과:', {
+              '✅ 찾음': !!fullServerData,
+              '🔧 mcp_configs': Array.isArray(fullServerData?.mcp_configs) ? fullServerData.mcp_configs.length : 0,
+              '⚙️ mcp_install_methods': Array.isArray(fullServerData?.mcp_install_methods) ? fullServerData.mcp_install_methods.length : 0
             });
 
-            // 🔥 실제 DB 데이터를 있는 그대로 사용!
+            // 🔥 있으면 완전한 데이터 사용, 없으면 기본 데이터 사용
             const nodeData = fullServerData || serverData;
 
             console.log('🔥 [onDrop] 최종 노드 데이터 상세:', {
@@ -256,7 +248,7 @@ export function useDragAndDrop() {
 
       setNodes((nds: any) => nds.concat(newNode));
     },
-    [screenToFlowPosition, type, clients],
+    [screenToFlowPosition, type, clients, servers],
   );
 
   return {

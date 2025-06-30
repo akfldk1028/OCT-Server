@@ -7,7 +7,7 @@ import {
   useNavigate
 } from 'react-router';
 import { Settings } from 'luxon';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { cn } from './lib/utils';
 import Sidebar from './common/components/Sidebar-M';
 import { IS_ELECTRON, IS_WEB } from './utils/environment';
@@ -23,16 +23,23 @@ import { DnDProvider } from './features/server/hook/DnDContext';
 import { loader, LoaderData } from './loaders/root-loader';
 import { ErrorBoundary } from './common/components/ErrorBoundary';
 
+// 🔥 새로고침에 필요한 모듈 static import
+import { supabase } from './supa-client';
+import { getUserInstalledServers } from './features/products/queries';
+
 // Export loader for router
 export { loader, ErrorBoundary };
 
 export function Root() {
   const loaderData = useLoaderData() as LoaderData | undefined;
-  const { user: initialUser, profile: initialProfile, servers = [], clients = [], workflows = [], categories = [] } = loaderData ?? { user: null, profile: null, servers: [], clients: [], workflows: [], categories: [] };  
+  const { user: initialUser, profile: initialProfile, servers: initialServers = [], clients = [], workflows = [], categories = [] } = loaderData ?? { user: null, profile: null, servers: [], clients: [], workflows: [], categories: [] };  
   
   // 🔥 로그인 상태 동적 관리
   const [user, setUser] = useState(initialUser);
   const [profile, setProfile] = useState(initialProfile);
+  
+  // 🔥 서버 목록 동적 관리
+  const [servers, setServers] = useState(initialServers);
   
   const { pathname } = useLocation();
   const navigation = useNavigation();
@@ -100,6 +107,106 @@ export function Root() {
   
   // 🔥 선택된 메뉴 상태 관리 (Slack 스타일)
   const [selectedMenu, setSelectedMenu] = useState<string | null>(null);
+
+  // 🔥 서버 새로고침 함수 (최적화된 버전)
+  const refreshServers = useCallback(async () => {
+    if (!user?.id) return;
+    
+    try {
+      const installedServers = await getUserInstalledServers(supabase, {
+        profile_id: user.id,
+      });
+      
+      // 🔥 얕은 비교로 변경 감지 최적화
+      const currentIds = servers.map((s: any) => s.id).sort().join(',');
+      const newIds = (installedServers || []).map((s: any) => s.id).sort().join(',');
+      
+      if (currentIds !== newIds) {
+        setServers([...(installedServers || [])]);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('✅ [Root] 서버 목록 업데이트:', installedServers?.length || 0, '개');
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ [Root] 서버 새로고침 실패:', error);
+    }
+  }, [user?.id, servers]); // servers는 비교를 위해 필요
+
+  // 🔥 최적화된 재시도 새로고침 함수
+  const forceRefreshWithRetry = useCallback(async (eventType: string, maxRetries = 3) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🔔 [Root] ${eventType} 이벤트 처리 시작`);
+    }
+    
+    const originalServerCount = servers.length;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        if (!user?.id) return;
+        
+        // 첫 번째 시도가 아니면 대기
+        if (attempt > 0) {
+          const delay = Math.min(1000 * attempt, 3000); // 1초, 2초, 3초
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        
+        const freshServers = await getUserInstalledServers(supabase, {
+          profile_id: user.id,
+        });
+        
+        const currentCount = freshServers?.length || 0;
+        const hasChanged = 
+          (eventType === 'install' && currentCount > originalServerCount) ||
+          (eventType === 'uninstall' && currentCount < originalServerCount);
+        
+        if (hasChanged) {
+          setServers([...(freshServers || [])]);
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`✅ [Root] ${eventType} 완료! (${attempt + 1}번째 시도)`);
+          }
+          return;
+        }
+        
+        if (process.env.NODE_ENV === 'development' && attempt < maxRetries - 1) {
+          console.log(`🔄 [Root] ${attempt + 1}번째 시도 실패, 재시도 중...`);
+        }
+        
+      } catch (error) {
+        console.error(`❌ [Root] ${attempt + 1}번째 시도 오류:`, error);
+      }
+    }
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`⚠️ [Root] ${maxRetries}번 시도 후 실패`);
+    }
+  }, [user?.id, servers.length]); // servers.length만 dependency로 사용하여 최적화
+
+  // 🔥 전역 이벤트 리스너 (InstallSidebarNew의 알림 수신)
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    console.log('🔔 [Root] 이벤트 리스너 등록, userId:', user.id);
+    
+    const handleServerInstalled = async (event: any) => {
+      console.log('🔔 [Root] 서버 설치 완료 이벤트 수신:', event.detail);
+      await forceRefreshWithRetry('install', 5);
+    };
+    
+    const handleServerUninstalled = async (event: any) => {
+      console.log('🔔 [Root] 서버 제거 완료 이벤트 수신:', event.detail);
+      await forceRefreshWithRetry('uninstall', 5);
+    };
+    
+    // 이벤트 리스너 등록
+    window.addEventListener('mcp-server-installed', handleServerInstalled);
+    window.addEventListener('mcp-server-uninstalled', handleServerUninstalled);
+    
+    return () => {
+      window.removeEventListener('mcp-server-installed', handleServerInstalled);
+      window.removeEventListener('mcp-server-uninstalled', handleServerUninstalled);
+    };
+  }, [user?.id, forceRefreshWithRetry]);
 
   // 🔥 URL 기반으로 selectedMenu 자동 설정
   useEffect(() => {

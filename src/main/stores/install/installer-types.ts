@@ -47,6 +47,11 @@ export interface InstallProgress {
     
     // 현재 설치 중인 서버
     currentInstalling: string | null;
+
+    // 🔥 상태 변화 알림용 타임스탬프
+    lastStateChange: number;
+    lastStateChangeType: 'installed' | 'uninstalled' | 'error' | null;
+    lastStateChangeServerId: string | null;
   }
   
   // Action Types
