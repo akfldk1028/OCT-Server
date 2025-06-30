@@ -66,7 +66,7 @@ export function InstallSidebarNew({ product, onClose, isOpen }: InstallSidebarPr
     const configs = product.config_options || [];
     const zeroInstall = methods.length === 0;
 
-    // 설치 방법 전처리
+    // 설치 방법 전처리 (모든 방법 포함, 필터링 없음)
     const processed: any[] = [];
     
     if (zeroInstall) {
@@ -282,8 +282,24 @@ export function InstallSidebarNew({ product, onClose, isOpen }: InstallSidebarPr
     return s === 'zero-install' ? 'Zero-Install' : s.charAt(0).toUpperCase() + s.slice(1);
   }, []);
 
-  // 🔥 설치 버튼 활성화 여부 - 간단하게 수정
+  // 🔥 설치 버튼 활성화 여부 - OS 호환성 체크 포함
   const isInstallButtonEnabled = useCallback((command: string) => {
+    // 🔥 OS 호환성 체크
+    const isWindows = availableMethods.powershell === true;
+    const isMacOS = availableMethods.brew === true;
+    
+    // PowerShell은 Windows에서만
+    if (command === 'powershell' && !isWindows) {
+      console.log(`❌ [InstallSidebar] PowerShell은 Windows에서만 사용 가능`);
+      return false;
+    }
+    
+    // Brew는 macOS에서만  
+    if (command === 'brew' && !isMacOS) {
+      console.log(`❌ [InstallSidebar] Brew는 macOS에서만 사용 가능`);
+      return false;
+    }
+    
     const methodAvailable = availableMethods[command] !== false;
     const currentMethods = commandGroups[command] || [];
     const isZero = currentMethods.some((method: any) => method.is_zero_install);

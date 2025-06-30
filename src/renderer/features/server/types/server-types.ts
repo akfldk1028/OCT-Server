@@ -5,7 +5,7 @@ export type ClientType = Database['public']['Tables']['clients']['Row'];
 
 // 🔥 설치된 서버 타입: user_mcp_usage 테이블 Row에 관계 테이블과 설정들 포함
 export type InstalledServer = Database['public']['Tables']['user_mcp_usage']['Row'] & {
-  mcp_install_methods: Database['public']['Tables']['mcp_install_methods']['Row'] | null;
+  mcp_install_methods: Database['public']['Tables']['mcp_install_methods']['Row'][] | Database['public']['Tables']['mcp_install_methods']['Row'] | null;
   mcp_servers: Database['public']['Tables']['mcp_servers']['Row'] | null;
   mcp_configs?: Database['public']['Tables']['mcp_configs']['Row'][]; // 🔥 해당 서버의 설정들
 };

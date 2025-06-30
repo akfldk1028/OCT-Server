@@ -751,8 +751,25 @@ export const getMcpConfigsByServerId = async (
     original_server_id: number;
   },
 ) => {
-  console.log('🔧 [getMcpConfigsByServerId] 서버 설정 조회:', { original_server_id });
+  console.log('🔧 [getMcpConfigsByServerId] 서버 설정 조회 시작:', { 
+    original_server_id, 
+    type: typeof original_server_id 
+  });
 
+  // 🔥 먼저 해당 서버가 mcp_servers에 존재하는지 확인
+  const { data: serverCheck, error: serverError } = await client
+    .from('mcp_servers')
+    .select('id, name, unique_id')
+    .eq('id', original_server_id)
+    .single();
+    
+  if (serverError) {
+    console.error('❌ [getMcpConfigsByServerId] 서버 존재 확인 실패:', serverError);
+  } else {
+    console.log('✅ [getMcpConfigsByServerId] 서버 존재 확인:', serverCheck);
+  }
+
+  // 🔥 mcp_configs 조회
   const { data, error } = await client
     .from('mcp_configs')
     .select('*')
@@ -760,11 +777,81 @@ export const getMcpConfigsByServerId = async (
     .order('created_at', { ascending: false });
     
   if (error) {
-    console.error('❌ [getMcpConfigsByServerId] 서버 설정 조회 실패:', error);
+    console.error('❌ [getMcpConfigsByServerId] 서버 설정 조회 실패:', {
+      error,
+      errorCode: error.code,
+      errorMessage: error.message,
+      original_server_id
+    });
     throw error;
   }
   
-  console.log('🔧 [getMcpConfigsByServerId] 서버 설정 목록:', data?.length || 0, '개');
+  console.log('🔧 [getMcpConfigsByServerId] 쿼리 결과:', {
+    '📊 조회된 설정 개수': data?.length || 0,
+    '🔍 조회 조건': { original_server_id },
+    '📄 실제 데이터': data
+  });
+  
+  // 🔥 데이터가 없는 경우 전체 mcp_configs 샘플 확인
+  if (!data || data.length === 0) {
+    console.log('⚠️ [getMcpConfigsByServerId] 데이터가 없어서 전체 테이블 샘플 확인');
+    const { data: sampleData } = await client
+      .from('mcp_configs')
+      .select('id, original_server_id, config_name')
+      .limit(5);
+    console.log('📋 [getMcpConfigsByServerId] mcp_configs 테이블 샘플:', sampleData);
+  }
+  
+  return data || [];
+};
+
+// 🔥 특정 서버 ID의 MCP 설치 방법들 가져오기
+export const getMcpInstallMethodsByServerId = async (
+  client: SupabaseClient<Database>,
+  {
+    original_server_id,
+  }: {
+    original_server_id: number;
+  },
+) => {
+  console.log('🔧 [getMcpInstallMethodsByServerId] 설치 방법 조회 시작:', { 
+    original_server_id, 
+    type: typeof original_server_id 
+  });
+
+  // 🔥 mcp_install_methods 조회
+  const { data, error } = await client
+    .from('mcp_install_methods')
+    .select('*')
+    .eq('original_server_id', original_server_id)
+    .order('created_at', { ascending: false });
+    
+  if (error) {
+    console.error('❌ [getMcpInstallMethodsByServerId] 설치 방법 조회 실패:', {
+      error,
+      errorCode: error.code,
+      errorMessage: error.message,
+      original_server_id
+    });
+    throw error;
+  }
+  
+  console.log('🔧 [getMcpInstallMethodsByServerId] 쿼리 결과:', {
+    '📊 조회된 방법 개수': data?.length || 0,
+    '🔍 조회 조건': { original_server_id },
+    '📄 실제 데이터': data
+  });
+  
+  // 🔥 데이터가 없는 경우 전체 mcp_install_methods 샘플 확인
+  if (!data || data.length === 0) {
+    console.log('⚠️ [getMcpInstallMethodsByServerId] 데이터가 없어서 전체 테이블 샘플 확인');
+    const { data: sampleData } = await client
+      .from('mcp_install_methods')
+      .select('id, original_server_id, command')
+      .limit(5);
+    console.log('📋 [getMcpInstallMethodsByServerId] mcp_install_methods 테이블 샘플:', sampleData);
+  }
+  
   return data || [];
 };
 

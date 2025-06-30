@@ -88,7 +88,25 @@ export function enhanceNodeData(node: any): any {
   const nodeType = node.type || 'unknown';
   const metadata = getNodeMetadata(nodeType);
   
-  // 🔥 원래 노드 데이터를 보존하면서 메타데이터만 추가
+  // 🔥 서버 노드의 경우 특별 처리 - DB 데이터 보존
+  if (nodeType === 'server' && node.data) {
+    console.log('🔧 [enhanceNodeData] 서버 노드 데이터 강화:', {
+      '📊 원본 데이터 키들': Object.keys(node.data),
+      '🔧 mcp_configs 있음': !!node.data.mcp_configs,
+      '⚙️ mcp_install_methods 있음': !!node.data.mcp_install_methods,
+      '📄 mcp_configs 길이': node.data.mcp_configs?.length || 0
+    });
+    
+    return {
+      ...node.data,  // 🔥 서버 데이터 전체 보존 (mcp_configs, mcp_install_methods 포함)
+      // 메타데이터는 기존 값이 없을 때만 추가
+      typeVersion: node.data.typeVersion || metadata.typeVersion,
+      category: node.data.category || metadata.category,
+      description: node.data.description || metadata.description,
+    };
+  }
+  
+  // 🔥 다른 노드들은 기존 방식 유지
   return {
     ...(node.data || {}),  // 원래 데이터 전체 보존 (config, label 등)
     id: node.id,

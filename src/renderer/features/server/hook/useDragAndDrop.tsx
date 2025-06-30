@@ -113,16 +113,34 @@ export function useDragAndDrop() {
 
             console.log('[onDrop] 서버 노드 위치 계산됨:', position);
 
-            // 🔥 실제 DB에서 완전한 서버 데이터 찾기
+            // 🔥 실제 DB에서 완전한 서버 데이터 찾기 (올바른 ID 비교)
             const fullServerData = servers.find(server => 
-              server.original_server_id.toString() === serverId ||
-              server.mcp_servers?.name === (serverData as any).mcp_servers?.name
+              server.id.toString() === serverId ||  // ✅ user_mcp_usage.id로 비교
+              (server as any).mcp_servers?.name === (serverData as any).mcp_servers?.name
             );
+            
+            console.log('🔍 [onDrop] 서버 데이터 찾기:', {
+              '🔢 찾는 serverId': serverId,
+              '📊 servers 개수': servers.length,
+              '✅ fullServerData 찾음': !!fullServerData,
+              '🔧 mcp_configs 있음': !!(fullServerData as any)?.mcp_configs,
+              '⚙️ mcp_install_methods 있음': !!(fullServerData as any)?.mcp_install_methods,
+              '🔢 mcp_configs 길이': (fullServerData as any)?.mcp_configs?.length || 0,
+              '🔢 mcp_install_methods 길이': (fullServerData as any)?.mcp_install_methods?.length || 0
+            });
 
             // 🔥 실제 DB 데이터를 있는 그대로 사용!
             const nodeData = fullServerData || serverData;
 
-            console.log('🔥 실제 DB 서버 데이터로 노드 생성:', nodeData);
+            console.log('🔥 [onDrop] 최종 노드 데이터 상세:', {
+              '📊 데이터 소스': fullServerData ? 'fullServerData' : 'serverData',
+              '🔧 mcp_configs': (nodeData as any)?.mcp_configs,
+              '⚙️ mcp_install_methods': (nodeData as any)?.mcp_install_methods,
+              '🔢 mcp_configs 길이': (nodeData as any)?.mcp_configs?.length || 0,
+              '🔢 mcp_install_methods 길이': (nodeData as any)?.mcp_install_methods?.length || 0,
+                             '🆔 노드 ID': nodeData?.id,
+               '📛 서버 이름': (nodeData as any)?.mcp_servers?.name || (nodeData as any)?.name
+            });
 
             // ServerNode 생성 (type을 'server'로 변경 - MCP 서버이므로)
             const newNode = {

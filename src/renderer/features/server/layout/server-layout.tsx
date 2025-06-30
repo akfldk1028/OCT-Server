@@ -6,7 +6,7 @@ import {
 } from 'react-router';
 import { makeSSRClient } from '../../../supa-client';
 import { getClients } from '../queries';
-import { getUserInstalledServers, getMcpConfigsByServerId } from '../../products/queries';
+import { getUserInstalledServers, getMcpConfigsByServerId, getMcpInstallMethodsByServerId } from '../../products/queries';
 import { useState, useEffect } from 'react';
 import type { InstalledServer, ServerLayoutContext, ClientType } from '../types/server-types';
 
@@ -70,29 +70,62 @@ export default function ServerLayout() {
         
         console.log('🔧 [fetchServers] 설치된 서버 목록:', installedServers?.length || 0, '개');
         
-        // 🔥 2단계: 각 서버의 설정들 병렬로 가져오기
+        // 🔥 2단계: 각 서버의 설정들과 설치 방법들 병렬로 가져오기
         const serversWithConfigs = await Promise.all(
           installedServers.map(async (server) => {
+            console.log(`🔧 [fetchServers] 서버 ${server.original_server_id} (${server.id}) 설정 로드 시작`);
+            
             try {
+              console.log(`🔧 [fetchServers] 서버 ${server.id} (original_server_id: ${server.original_server_id}, ${server.mcp_servers?.name}) 조회 시작`);
+              
+              // mcp_configs 가져오기
               const configs = await getMcpConfigsByServerId(client, {
                 original_server_id: server.original_server_id
               });
+              console.log(`✅ [fetchServers] mcp_configs 조회 완료: ${configs?.length || 0}개`);
               
-              return {
+              // 🔥 mcp_install_methods 가져오기 (새로운 함수 사용)
+              const installMethods = await getMcpInstallMethodsByServerId(client, {
+                original_server_id: server.original_server_id
+              });
+              console.log(`✅ [fetchServers] mcp_install_methods 조회 완료: ${installMethods?.length || 0}개`);
+              console.log(`🔍 [fetchServers] installMethods 상세:`, installMethods);
+              
+              const result = {
                 ...server,
-                mcp_configs: configs
+                mcp_configs: configs || [], // 🔥 null/undefined 방지
+                mcp_install_methods: installMethods || []
               };
+              
+              console.log(`✅ [fetchServers] 서버 ${server.original_server_id} 최종 데이터:`, {
+                id: result.id,
+                original_server_id: result.original_server_id,
+                mcp_configs_count: result.mcp_configs?.length || 0,
+                mcp_install_methods_count: result.mcp_install_methods?.length || 0,
+                has_mcp_configs: !!result.mcp_configs,
+                has_mcp_install_methods: !!result.mcp_install_methods
+              });
+              
+              return result;
             } catch (configError) {
-              console.warn(`⚠️ [fetchServers] 서버 ${server.original_server_id} 설정 로드 실패:`, configError);
+              console.error(`❌ [fetchServers] 서버 ${server.original_server_id} 설정 로드 실패:`, configError);
               return {
                 ...server,
-                mcp_configs: []
+                mcp_configs: [], // 🔥 빈 배열로 초기화
+                mcp_install_methods: []
               };
             }
           })
         );
         
         console.log('✅ [fetchServers] 서버+설정 로드 완료:', serversWithConfigs.length, '개');
+        
+        // 🔥 각 서버의 ID 정보 상세 출력
+        console.log('🔍 [fetchServers] 로드된 서버 ID 목록:');
+        serversWithConfigs.forEach((server, idx) => {
+          console.log(`  서버 ${idx + 1}: ID=${server.id}, original_server_id=${server.original_server_id}, name=${server.mcp_servers?.name}`);
+        });
+        
         setServers(serversWithConfigs);
         
       } catch (error) {

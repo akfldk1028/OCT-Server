@@ -79,6 +79,12 @@ export class InstallMethodSelector {
       case 'git':
         result = await this.isGitAvailable();
         break;
+      case 'powershell':
+        result = await this.isPowershellAvailable();
+        break;
+      case 'brew':
+        result = await this.isBrewAvailable();
+        break;
       case 'local':
         result = true; // 로컬은 항상 사용 가능하다고 가정
         break;
@@ -146,6 +152,34 @@ export class InstallMethodSelector {
   private async isGitAvailable(): Promise<boolean> {
     try {
       await this.executeCommand('git --version');
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  // PowerShell 사용 가능 여부 확인 (Windows만)
+  private async isPowershellAvailable(): Promise<boolean> {
+    if (process.platform !== 'win32') {
+      return false; // Windows가 아니면 PowerShell 사용 불가
+    }
+    
+    try {
+      await this.executeCommand('powershell -Command "Get-Host"');
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  // Brew 사용 가능 여부 확인 (macOS만)
+  private async isBrewAvailable(): Promise<boolean> {
+    if (process.platform !== 'darwin') {
+      return false; // macOS가 아니면 Brew 사용 불가
+    }
+    
+    try {
+      await this.executeCommand('brew --version');
       return true;
     } catch (error) {
       return false;

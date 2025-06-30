@@ -22,7 +22,8 @@ import {
   checkAvailableMethods as checkMethods,
   selectBestMethod,
   handleZeroInstall,
-  getAppDataPath
+  getAppDataPath,
+  verifyAndFixInstallStatus
 } from './installer-helpers';
 import {
   ensureRequiredTools,
@@ -31,6 +32,8 @@ import {
   installWithGit,
   installWithUv,
   installWithPip,
+  installWithPowershell,
+  installWithBrew,
   installLocal
 } from './installer-methods';
 
@@ -75,6 +78,9 @@ export const installerStore = createStore<InstallerState & {
   getInstallProgress: (payload: { serverName: string }) => InstallProgress | null;
   getInstalledServer: (payload: { serverName: string }) => InstalledServer | null;
   isInstalling: (payload: { serverName: string }) => boolean;
+  
+  // === 설치 상태 재확인 ===
+  verifyInstallStatus: (payload: { serverName: string, userProfileId: string }) => Promise<{ verified: boolean, methods: string[], updated: boolean }>;
 }>((set, get) => ({
   ...initialState,
   
@@ -265,6 +271,12 @@ export const installerStore = createStore<InstallerState & {
           break;
         case 'pip':
           result = await installWithPip({ serverName, config, installDir });
+          break;
+        case 'powershell':
+          result = await installWithPowershell({ serverName, config, installDir });
+          break;
+        case 'brew':
+          result = await installWithBrew({ serverName, config, installDir });
           break;
         case 'local':
           result = await installLocal({ serverName, config, installDir });
@@ -717,5 +729,42 @@ export const installerStore = createStore<InstallerState & {
     const { serverName } = payload;
     const progress = get().installProgress[serverName];
     return progress && progress.percent < 100 && progress.percent > 0;
+  },
+
+  // === 설치 상태 재확인 ===
+  verifyInstallStatus: async (payload: { serverName: string, userProfileId: string }) => {
+    const { serverName, userProfileId } = payload;
+    console.log(`🔍 [verifyInstallStatus] ${serverName} 설치 상태 재확인 중...`);
+    
+    try {
+      const result = await verifyAndFixInstallStatus(serverName, userProfileId);
+      
+      if (result.verified) {
+        console.log(`✅ [verifyInstallStatus] ${serverName} 설치 확인됨 (${result.methods.join(', ')})`);
+        
+        // 로컬 설치 정보도 업데이트
+        const installDir = path.join(getAppDataPath(), 'servers', serverName);
+        set((state) => ({
+          installedServers: {
+            ...state.installedServers,
+            [serverName]: {
+              installMethod: result.methods[0] || 'verified',
+              installedPath: installDir,
+              installedAt: new Date().toISOString(),
+              config: { verified: true, methods: result.methods }
+            }
+          }
+        }));
+      }
+      
+      return result;
+    } catch (error) {
+      console.error(`❌ [verifyInstallStatus] ${serverName} 상태 확인 실패:`, error);
+      return {
+        verified: false,
+        methods: [],
+        updated: false
+      };
+    }
   },
 }));
