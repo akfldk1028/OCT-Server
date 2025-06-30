@@ -47,8 +47,13 @@ import { type MyNode } from '../components/initialElements';
 import { useOutletContext } from 'react-router';
 import type { ServerLayoutContext } from '../types/server-types';
 import FlowToolbar from '../components/Flow/FlowToolbar';
-// 🔥 DnDProvider 추가
 import { DnDProvider } from '../hook/DnDContext';
+// Validation 및 Toast 추가
+import { 
+  isValidConnection, 
+  getValidationErrorMessage 
+} from '../utils/NodeValidation';
+import { useToast } from '@/hooks/use-toast';
 
 // ResizeObserver 에러 무시 (ReactFlow의 알려진 무해한 에러)
 const suppressResizeObserverError = () => {
@@ -168,6 +173,8 @@ const getLayoutedElements = async (
 export default function NodePage() {
   // 실제 데이터 context에서 받아오기
   const { servers, clients } = useOutletContext<ServerLayoutContext>();
+  
+  const { toast } = useToast();
 
   const dynamicInitNodes: MyNode[] = [
     { id: '1', type: 'trigger', data: { label: 'START TRIGGER' }, position: { x: 100, y: 50 } },
@@ -212,9 +219,29 @@ export default function NodePage() {
     onDrop(event, setNodes);
   }, [onDrop, setNodes]);
 
+  // 노드 연결 validation 및 Toast 알림
   const onConnectCallback: OnConnect = useCallback(
-    (params) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges],
+    (params) => {
+      // 타입 validation 검사
+      if (!isValidConnection(params, nodes)) {
+        const errorMsg = getValidationErrorMessage(params, nodes);
+        toast({
+          title: errorMsg.title,
+          description: errorMsg.description,
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // 검사 통과하면 연결 추가
+      toast({
+        title: '✅ 연결 성공',
+        description: '노드가 성공적으로 연결되었습니다!',
+        variant: 'success',
+      });
+      setEdges((eds) => addEdge(params, eds));
+    },
+    [setEdges, nodes, toast],
   );
 
   return (
@@ -251,6 +278,8 @@ export default function NodePage() {
               }}
               onDrop={handleDrop}
               onDragOver={onDragOver}
+              // 모든 연결 허용 (onConnect에서 실제 validation 처리)
+              isValidConnection={() => true}
               fitView
               fitViewOptions={{ padding: 0.1, minZoom: 0.5, maxZoom: 2 }}
               style={{ backgroundColor: 'hsl(var(--background))', paddingRight: 0 }}
