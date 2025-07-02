@@ -1,14 +1,29 @@
 // main/windowApi.ts - 모든 프로그램 창 감지 버전
 import { ipcMain, BrowserWindow, desktopCapturer } from 'electron';
+import path from 'path';
 
 // webpack 우회를 위한 require
 declare const __non_webpack_require__: NodeRequire;
 const requireNode: NodeRequire = typeof __non_webpack_require__ === 'function' ? __non_webpack_require__ : require;
 
+// 🔧 네이티브 모듈 경로 헬퍼
+function safeRequire(moduleName: string) {
+  try {
+    return requireNode(moduleName);
+  } catch (e) {
+    try {
+      const fallback = path.resolve(__dirname, '../../release/app/node_modules', moduleName);
+      return requireNode(fallback);
+    } catch (e2) {
+      throw e;
+    }
+  }
+}
+
 // 🔥 libwin32(win32-api)에서 제공하는 user32 함수들
 let user32_win32: any = null;
 try {
-  user32_win32 = requireNode('libwin32/user32');
+  user32_win32 = safeRequire('libwin32/user32');
   console.log('✅ libwin32/user32 로드 성공:', Object.keys(user32_win32));
 } catch (e) {
   console.warn('⚠️ libwin32/user32 로드 실패:', e);
@@ -51,7 +66,7 @@ const CRITICAL_OS_CLASSES = [
 if (process.platform === 'win32') {
   try {
     // 1) koffi 로드 및 user32.dll 바인딩
-    koffi = requireNode('koffi');
+    koffi = safeRequire('koffi');
     user32_koffi = koffi.load('user32.dll');
     console.log('✅ koffi + user32.dll 로드 성공');
 

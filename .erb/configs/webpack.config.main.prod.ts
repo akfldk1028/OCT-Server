@@ -17,10 +17,10 @@ checkNodeEnv('production');
 deleteSourceMaps();
 
 // __dirname = .erb/configs (경로에 따라 조정)
-// ../../../node_modules 으로 올라가면 프로젝트 루트의 node_modules
+// ../../../build 으로 올라가면 프로젝트 루트의 build 폴더
 const libnutBinary = path.resolve(
   __dirname,
-  '../../../node_modules/@nut-tree-fork/libnut-win32/build/Release/libnut.node'
+  '../../../build/libnut.node'
 );
 
 const configuration: webpack.Configuration = {

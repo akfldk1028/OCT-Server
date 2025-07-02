@@ -111,6 +111,33 @@ const configuration: webpack.Configuration = {
     minimizer: [new TerserPlugin(), new CssMinimizerPlugin()],
   },
 
+  resolve: {
+    fallback: {
+      fs: false,
+      path: false,
+      electron: false,
+      os: false,
+      crypto: false,
+      stream: false,
+      http: false,
+      https: false,
+      zlib: false,
+      url: false,
+    },
+    alias: {
+      fs: false,
+      path: false,
+      electron: false,
+    },
+  },
+
+  externals: [
+    'electron',
+    'fsevents',
+    'crypto-browserify',
+    /\.node$/,
+  ],
+
   plugins: [
     /**
      * Create global constants which can be configured at compile time.

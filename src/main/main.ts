@@ -1,5 +1,6 @@
+import Module from 'module';
 import path from 'path';
-import { app, BrowserWindow, ipcMain, globalShortcut } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import installExtension, {
@@ -100,7 +101,7 @@ async function createAuthWindow(authUrl: string): Promise<string | { type: 'toke
         nodeIntegration: false,
         contextIsolation: true,
       },
-      parent: mainWindow || undefined,
+      parent: mainWindow ?? undefined,
       modal: true,
     });
 
@@ -372,6 +373,33 @@ const createWindow = async () => {
     // transparent: true,
     // 🌲 완전 커스텀 타이틀바 - 네이티브 타이틀바 완전히 숨김
   });
+
+  // 🔥🔥🔥 카카오 로그인 및 외부 링크 핸들러 추가 🔥🔥🔥
+  if (mainWindow) {
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+      // 카카오 로그인 URL 패턴
+      if (url.startsWith('https://kauth.kakao.com') || url.startsWith('https://accounts.kakao.com')) {
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: {
+            modal: true,
+            parent: mainWindow ?? undefined,
+            width: 480,
+            height: 640,
+            webPreferences: {
+              nodeIntegration: false,
+              contextIsolation: true,
+            },
+          },
+        };
+      }
+      
+      // 그 외 모든 링크는 기본 브라우저에서 열기
+      shell.openExternal(url);
+      
+      return { action: 'deny' };
+    });
+  }
 
   // 🔥 Window-Specific Overlay를 위해 windowStore에 메인 윈도우 설정
   if (mainWindow) {
@@ -1028,4 +1056,18 @@ ipcMain.handle('connect-to-claude-desktop', async (event, serverName: string, se
     return false;
   }
 });
+
+// 🔧 런타임 모듈 탐색 경로 확장: release/app/node_modules 우선 추가
+(function extendModuleSearchPath() {
+  try {
+    const extraPath = path.resolve(__dirname, '../../release/app/node_modules');
+    const modPaths: string[] = (Module as any).globalPaths || [];
+    if (!modPaths.includes(extraPath)) {
+      modPaths.push(extraPath);
+      console.log('✅ Module.globalPaths에 추가됨:', extraPath);
+    }
+  } catch (e) {
+    console.warn('⚠️ Module.globalPaths 확장 실패:', e);
+  }
+})();
 
