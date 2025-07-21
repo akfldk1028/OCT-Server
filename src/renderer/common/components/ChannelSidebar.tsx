@@ -41,6 +41,9 @@ interface ChannelSidebarProps {
   clients?: any[]; // 🔥 클라이언트 데이터
   categories?: Array<{ id: number; name: string; description: string }>; // 🔥 동적 카테고리 데이터
   onNodeDragStart?: (event: React.DragEvent, nodeType: string) => void; // 🔥 노드 드래그 핸들러
+  isLoadingServers?: boolean;  // 🔥 새로 추가: 로딩 상태 props
+  isLoadingClients?: boolean;  // 새로 추가
+  isLoadingWorkflows?: boolean;  // 새로 추가
 }
 
 // 🔥 노드 타입 정의 (Lucide 아이콘 사용)
@@ -83,13 +86,31 @@ const nodeTypes = [
   },
 ];
 
-export default function ChannelSidebar({ className, selectedMenu, servers = [], clients = [], categories = [], onNodeDragStart }: ChannelSidebarProps) {
+export default function ChannelSidebar({ 
+  className, 
+  selectedMenu, 
+  servers = [], 
+  clients = [], 
+  categories = [], 
+  onNodeDragStart, 
+  isLoadingServers = false,
+  isLoadingClients = false,  // 🔥 기본값 추가
+  isLoadingWorkflows = false  // 🔥 기본값 추가
+}: ChannelSidebarProps) {
   console.log('🚀 [ChannelSidebar] 렌더링됨!', {
     서버개수: servers.length,
     선택된메뉴: selectedMenu,
     서버데이터: servers,
     servers타입: typeof servers,
-    servers배열여부: Array.isArray(servers)
+    servers배열여부: Array.isArray(servers),
+    isLoadingServers: isLoadingServers, // 🔥 새로 추가: 로딩 상태 확인 
+    clients개수: clients.length,
+    categories개수: categories.length,
+    onNodeDragStart: onNodeDragStart,
+    className: className,
+    selectedMenu: selectedMenu,
+    servers: servers,
+    clients: clients,
   });
   
   const [sectionsExpanded, setSectionsExpanded] = useState<Record<string, boolean>>({
@@ -492,13 +513,15 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
 
       {activeNodeTab === 'client' && (
         <div className="space-y-2">
-          {clients.length === 0 ? (
-            <div className="text-center text-sm text-white/70 py-8 px-4">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-white/10 flex items-center justify-center">
-                <Users className="w-5 h-5 text-white/70" />
-              </div>
-              <p className="font-medium text-white">사용 가능한 클라이언트가 없습니다</p>
-              <p className="text-xs mt-1 opacity-70">클라이언트를 추가해보세요</p>
+          {isLoadingClients ? (
+            <div className="text-center text-sm text-muted-foreground py-4">
+              <div className="w-6 h-6 mx-auto mb-2 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin"></div>
+              클라이언트 목록 로딩 중...
+            </div>
+          ) : clients.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-4">
+              <Users className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
+              사용 가능한 클라이언트가 없습니다.
             </div>
           ) : (
             clients.map((client, index) => (
@@ -551,10 +574,16 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
 
       {activeNodeTab === 'server' && (
         <div className="space-y-2">
-          {servers.length === 0 ? (
+          {isLoadingServers ? (
             <div className="text-center text-sm text-muted-foreground py-4">
               <div className="w-6 h-6 mx-auto mb-2 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin"></div>
               서버 목록 로딩 중...
+            </div>
+          ) : servers.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-4">
+              <Server className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
+              설치된 서버가 없습니다.<br />
+              제품 페이지에서 서버를 설치해 보세요.
             </div>
           ) : (
             servers.map((server) => (
@@ -742,6 +771,14 @@ export default function ChannelSidebar({ className, selectedMenu, servers = [], 
               {(section as any).type !== 'nodeEditor' && (section as any).type !== 'chatList' && sectionsExpanded[String(sectionIndex)] && (
                 <div className="ml-2 mt-1 space-y-1">
                   {section.items.map((item: any, itemIndex: number) => {
+                    if (item.isLoading) {
+                      return (
+                        <div key={itemIndex} className="flex items-center justify-between gap-2 px-2 py-1 text-sm rounded text-muted-foreground w-full text-left">
+                          <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin mr-2"></div>
+                          {item.name}
+                        </div>
+                      );
+                    }
                     // 🔥 Categories 섹션인 경우 특별 렌더링
                     if (selectedMenu === 'Products' && section.name === 'Categories' && item.name !== 'All Categories') {
                       const IconComponent = getCategoryIcon(item.name);

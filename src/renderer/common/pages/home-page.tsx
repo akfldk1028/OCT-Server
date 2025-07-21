@@ -114,23 +114,42 @@ function ServerTabGrid({
   // 🔥 더보기 상태 관리
   const [showAllWorkflows, setShowAllWorkflows] = useState(false);
   
-  // 🔥 워크플로우를 클라이언트 타입별로 분류
+  // 🔥 워크플로우 데이터 디버깅
+  console.log('🔍 [ServerTabGrid] 워크플로우 분석:', {
+    총워크플로우: workflows.length,
+    모든client_type값: workflows.map(w => w.client_type),
+    고유client_type값: [...new Set(workflows.map(w => w.client_type))]
+  });
+  
+  // 🔥 워크플로우를 클라이언트 타입별로 분류 (fallback 강화)
   const getLocalWorkflows = () => {
-    return workflows.filter(workflow => 
-      workflow.client_type === 'local' || workflow.client_type === 'mixed'
-    );
+    const local = workflows.filter(workflow => {
+      const clientType = workflow.client_type;
+      // 🔥 client_type이 명확하지 않으면 Local에 포함 (기본값)
+      return !clientType || 
+             clientType === 'local' || 
+             clientType === 'mixed' || 
+             clientType === 'unknown' ||
+             clientType === '';
+    });
+    console.log('🔍 [ServerTabGrid] Local 워크플로우:', local.length, '개');
+    return local;
   };
 
   const getClaudeWorkflows = () => {
-    return workflows.filter(workflow => 
+    const claude = workflows.filter(workflow => 
       workflow.client_type === 'claude_desktop' || workflow.client_type === 'mixed'
     );
+    console.log('🔍 [ServerTabGrid] Claude 워크플로우:', claude.length, '개');
+    return claude;
   };
 
   const getOpenAIWorkflows = () => {
-    return workflows.filter(workflow => 
+    const openai = workflows.filter(workflow => 
       workflow.client_type === 'openai' || workflow.client_type === 'mixed'
     );
+    console.log('🔍 [ServerTabGrid] OpenAI 워크플로우:', openai.length, '개');
+    return openai;
   };
 
   // 🔥 모든 서버 탭 정의 (워크플로우 데이터 사용)

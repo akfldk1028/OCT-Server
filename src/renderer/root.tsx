@@ -26,21 +26,183 @@ import { ErrorBoundary } from './common/components/ErrorBoundary';
 // 🔥 새로고침에 필요한 모듈 static import
 import { supabase } from './supa-client';
 import { getUserInstalledServers } from './features/products/queries';
+import { getClients } from './features/server/queries';
+import { getUserWorkflows } from './features/server/workflow-queries';
 
 // Export loader for router
 export { loader, ErrorBoundary };
 
 export function Root() {
   const loaderData = useLoaderData() as LoaderData | undefined;
-  const { user: initialUser, profile: initialProfile, servers: initialServers = [], clients = [], workflows = [], categories = [] } = loaderData ?? { user: null, profile: null, servers: [], clients: [], workflows: [], categories: [] };  
+  console.log('🔥 [Root] loaderData:', loaderData);
+  
+  // 🔥 상세 로그 추가 - 각 데이터 확인
+  console.log('🔍 [Root] 로드된 데이터 상세:', {
+    user: !!loaderData?.user,
+    profile: !!loaderData?.profile,
+    servers: loaderData?.servers?.length || 0,
+    clients: loaderData?.clients?.length || 0,
+    workflows: loaderData?.workflows?.length || 0,
+    categories: loaderData?.categories?.length || 0,
+  });
+  
+  const { user: initialUser, profile: initialProfile, servers: initialServers = [], clients: initialClients = [], workflows: initialWorkflows = [], categories: initialCategories = [] } = loaderData ?? { user: null, profile: null, servers: [], clients: [], workflows: [], categories: [] };  
+  
+  // 🔥 초기값 로그 추가
+  console.log('🔍 [Root] 초기값 확인:', {
+    initialServers: initialServers.length,
+    initialClients: initialClients.length,
+    initialWorkflows: initialWorkflows.length,
+    initialCategories: initialCategories.length,
+  });
   
   // 🔥 로그인 상태 동적 관리
   const [user, setUser] = useState(initialUser);
   const [profile, setProfile] = useState(initialProfile);
   
-  // 🔥 서버 목록 동적 관리
+  // 🔥 모든 데이터 동적 관리 (강화!)
   const [servers, setServers] = useState(initialServers);
-  
+  const [clients, setClients] = useState(initialClients);
+  const [workflows, setWorkflows] = useState(initialWorkflows);
+  const [categories, setCategories] = useState(initialCategories);
+  const [isLoadingServers, setIsLoadingServers] = useState(true);  // 초기 true
+  const [isLoadingClients, setIsLoadingClients] = useState(true);  // 새로 추가
+  const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(true);  // 새로 추가
+
+  // 🔥 선택된 메뉴 상태 관리 (Slack 스타일)
+  const [selectedMenu, setSelectedMenu] = useState<string | null>(null);
+
+  // 🔥 모든 데이터 새로고침 함수 (서버, 클라이언트, 워크플로우)
+  const refreshAllData = useCallback(async (userId?: string) => {
+    const targetUserId = userId || user?.id;
+    if (!targetUserId) {
+      console.log('🔄 [Root] refreshAllData 건너뜀 - userId 없음');
+      return;
+    }
+    
+    try {
+      console.log('🔄 [Root] 모든 데이터 새로고침 시작...', { userId: targetUserId });
+      
+      // 로딩 상태 시작
+      setIsLoadingServers(true);
+      setIsLoadingClients(true);
+      setIsLoadingWorkflows(true);
+      
+      // 🔥 병렬로 모든 데이터 로드 (root-loader.ts와 동일한 방식)
+      const [freshServers, freshClients, freshWorkflows] = await Promise.all([
+        getUserInstalledServers(supabase, { profile_id: targetUserId }),
+        getClients(supabase, { limit: 100 }),
+        getUserWorkflows(supabase, { profile_id: targetUserId, limit: 100 })
+      ]);
+      
+      // 상태 업데이트
+      setServers(freshServers || []);
+      setClients(freshClients || []);
+      setWorkflows(freshWorkflows || []);
+      
+      console.log('🔄 [Root] 모든 데이터 새로고침 완료:', {
+        servers: freshServers?.length || 0,
+        clients: freshClients?.length || 0,
+        workflows: freshWorkflows?.length || 0
+      });
+      
+    } catch (error) {
+      console.error('🔄 [Root] 데이터 새로고침 실패:', error);
+    } finally {
+      // 로딩 상태 종료
+      setIsLoadingServers(false);
+      setIsLoadingClients(false);
+      setIsLoadingWorkflows(false);
+    }
+  }, [user?.id]);
+
+  // 🔥 최적화된 재시도 새로고침 함수 (모든 데이터)
+  const forceRefreshWithRetry = useCallback(async (eventType: string, userId?: string, maxRetries = 3) => {
+    console.log(`🔔 [Root] ${eventType} 이벤트 처리 시작`, { userId: userId || user?.id });
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const targetUserId = userId || user?.id;
+        if (!targetUserId) {
+          console.log(`🔄 [Root] ${eventType} 건너뜀 - userId 없음 (시도 ${attempt + 1})`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        
+        if (attempt > 0) {
+          const delay = Math.min(1000 * attempt, 3000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        
+        // 🔥 모든 데이터 새로고침 (서버, 클라이언트, 워크플로우)
+        await refreshAllData(targetUserId);
+        
+        console.log(`✅ [Root] ${eventType} 완료! (${attempt + 1}번째 시도)`);
+        return;
+        
+      } catch (error) {
+        console.error(`🔄 [Root] ${attempt + 1}번째 시도 실패:`, error);
+        if (attempt === maxRetries - 1) {
+          console.error(`⚠️ [Root] ${maxRetries}번 시도 후 실패`);
+        }
+      }
+    }
+  }, [user?.id, refreshAllData]);
+
+  // 🔥 컴포넌트 마운트 시 즉시 동기화 (모든 데이터)
+  useEffect(() => {
+    if (loaderData) {
+      console.log('🔥 [Root] 초기 마운트 - 모든 데이터 즉시 동기화');
+      setUser(loaderData.user || null);
+      setProfile(loaderData.profile || null); 
+      setServers(loaderData.servers || []);
+      setClients(loaderData.clients || []);
+      setWorkflows(loaderData.workflows || []);
+      setCategories(loaderData.categories || []);
+      
+      // 🔥 데이터가 있으면 즉시 로딩 해제 (새로고침 없이 바로 표시)
+      setIsLoadingServers(false);
+      setIsLoadingClients(false);
+      setIsLoadingWorkflows(false);
+      
+      console.log('🔥 [Root] 초기 로딩 완료 - UI 업데이트');
+    }
+  }, []); // 🔥 빈 배열로 마운트 시 한 번만 실행
+
+  // 🔥 loaderData 변경 시 모든 데이터 동기화 (간소화!)
+  useEffect(() => {
+    if (loaderData) {
+      console.log('🔥 [Root] loaderData 변경 감지 - 데이터 업데이트');
+      
+      // 🔥 유저 정보 동기화
+      if (loaderData.user) {
+        setUser(loaderData.user);
+      } else if (!loaderData.user && user) {
+        setUser(null);
+      }
+      
+      // 🔥 프로필 정보 동기화
+      if (loaderData.profile) {
+        setProfile(loaderData.profile);
+      } else if (!loaderData.profile && profile) {
+        setProfile(null);
+      }
+      
+      // 🔥 모든 데이터 즉시 설정 (로딩 없이)
+      setServers(loaderData.servers || []);
+      setClients(loaderData.clients || []);
+      setWorkflows(loaderData.workflows || []);
+      setCategories(loaderData.categories || []);
+      
+      // 🔥 로딩 상태 즉시 해제
+      setIsLoadingServers(false);
+      setIsLoadingClients(false);
+      setIsLoadingWorkflows(false);
+      
+      console.log('🔥 [Root] 데이터 동기화 완료 - 즉시 표시');
+    }
+  }, [loaderData]);  // 🔥 loaderData만 의존
+
   const { pathname } = useLocation();
   const navigation = useNavigation();
   const navigate = useNavigate();
@@ -67,25 +229,28 @@ export function Root() {
         });
         
         // 프로필 정보 업데이트 (user_metadata에서 가져오기)
-        setProfile({
-          id: newUser.id,
-          name: newUser.user_metadata?.name || newUser.user_metadata?.full_name || '사용자',
-          username: newUser.user_metadata?.preferred_username || newUser.user_metadata?.user_name || 'user',
-          avatar: newUser.user_metadata?.avatar_url || null
-        });
+        if (newUser.user_metadata) {
+          setProfile({
+            id: newUser.id,
+            name: newUser.user_metadata.name || newUser.email?.split('@')[0] || '사용자',
+            username: newUser.user_metadata.username || newUser.email?.split('@')[0] || 'user',
+            avatar: newUser.user_metadata.avatar_url || null,
+          });
+        }
         
-        console.log('🔥 [Root] 프로필 정보 업데이트 완료:', {
-          name: newUser.user_metadata?.name,
-          avatar: newUser.user_metadata?.avatar_url
-        });
-        
-        // 🔥 로그인 성공 시 즉시 데이터 다시 로드
-        console.log('🔥 [Root] 로그인 완료 - 즉시 데이터 다시 로드');
+        // 🔥 로그인 성공 시 즉시 모든 데이터 재로드 (userId 직접 전달!)
+        console.log('🔥 [Root] 로그인 완료 - 모든 데이터 재로드 시작', { userId: newUser.id });
+        setIsLoadingServers(true);
+        setIsLoadingClients(true);
+        setIsLoadingWorkflows(true);
+
+        // 🔥 userId를 직접 전달하여 데이터 새로고침
+        refreshAllData(newUser.id);
         setTimeout(() => {
-          // React Router의 revalidate 대신 현재 페이지로 navigate (데이터 다시 로드 트리거)
-          navigate('/', { replace: true });
-        }, 200); // 0.2초 후 재로드 (UI 깜빡임 최소화)
+          forceRefreshWithRetry('login', newUser.id);
+        }, 500);
       }
+      // 로그아웃 처리는 별도 이벤트에서
     });
 
     // 🔥 로그아웃 리스너 추가
@@ -95,6 +260,7 @@ export function Root() {
       // 상태 초기화
       setUser(null);
       setProfile(null);
+      setServers([]);  // 서버 목록도 초기화 (로그아웃 시 빈 상태로)
       
       console.log('🔥 [Root] 로그아웃 완료 - UI 업데이트됨');
     });
@@ -103,84 +269,7 @@ export function Root() {
       removeSessionListener();
       removeLogoutListener();
     };
-  }, [navigate]);
-  
-  // 🔥 선택된 메뉴 상태 관리 (Slack 스타일)
-  const [selectedMenu, setSelectedMenu] = useState<string | null>(null);
-
-  // 🔥 서버 새로고침 함수 (최적화된 버전)
-  const refreshServers = useCallback(async () => {
-    if (!user?.id) return;
-    
-    try {
-      const installedServers = await getUserInstalledServers(supabase, {
-        profile_id: user.id,
-      });
-      
-      // 🔥 얕은 비교로 변경 감지 최적화
-      const currentIds = servers.map((s: any) => s.id).sort().join(',');
-      const newIds = (installedServers || []).map((s: any) => s.id).sort().join(',');
-      
-      if (currentIds !== newIds) {
-        setServers([...(installedServers || [])]);
-        if (process.env.NODE_ENV === 'development') {
-          console.log('✅ [Root] 서버 목록 업데이트:', installedServers?.length || 0, '개');
-        }
-      }
-      
-    } catch (error) {
-      console.error('❌ [Root] 서버 새로고침 실패:', error);
-    }
-  }, [user?.id, servers]); // servers는 비교를 위해 필요
-
-  // 🔥 최적화된 재시도 새로고침 함수
-  const forceRefreshWithRetry = useCallback(async (eventType: string, maxRetries = 3) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`🔔 [Root] ${eventType} 이벤트 처리 시작`);
-    }
-    
-    const originalServerCount = servers.length;
-    
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        if (!user?.id) return;
-        
-        // 첫 번째 시도가 아니면 대기
-        if (attempt > 0) {
-          const delay = Math.min(1000 * attempt, 3000); // 1초, 2초, 3초
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-        
-        const freshServers = await getUserInstalledServers(supabase, {
-          profile_id: user.id,
-        });
-        
-        const currentCount = freshServers?.length || 0;
-        const hasChanged = 
-          (eventType === 'install' && currentCount > originalServerCount) ||
-          (eventType === 'uninstall' && currentCount < originalServerCount);
-        
-        if (hasChanged) {
-          setServers([...(freshServers || [])]);
-          if (process.env.NODE_ENV === 'development') {
-            console.log(`✅ [Root] ${eventType} 완료! (${attempt + 1}번째 시도)`);
-          }
-          return;
-        }
-        
-        if (process.env.NODE_ENV === 'development' && attempt < maxRetries - 1) {
-          console.log(`🔄 [Root] ${attempt + 1}번째 시도 실패, 재시도 중...`);
-        }
-        
-      } catch (error) {
-        console.error(`❌ [Root] ${attempt + 1}번째 시도 오류:`, error);
-      }
-    }
-    
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`⚠️ [Root] ${maxRetries}번 시도 후 실패`);
-    }
-  }, [user?.id, servers.length]); // servers.length만 dependency로 사용하여 최적화
+  }, [navigate, refreshAllData, forceRefreshWithRetry]);
 
   // 🔥 전역 이벤트 리스너 (InstallSidebarNew의 알림 수신)
   useEffect(() => {
@@ -190,12 +279,12 @@ export function Root() {
     
     const handleServerInstalled = async (event: any) => {
       console.log('🔔 [Root] 서버 설치 완료 이벤트 수신:', event.detail);
-      await forceRefreshWithRetry('install', 5);
+      await forceRefreshWithRetry('install', user?.id, 5);
     };
     
     const handleServerUninstalled = async (event: any) => {
       console.log('🔔 [Root] 서버 제거 완료 이벤트 수신:', event.detail);
-      await forceRefreshWithRetry('uninstall', 5);
+      await forceRefreshWithRetry('uninstall', user?.id, 5);
     };
     
     // 이벤트 리스너 등록
@@ -302,6 +391,9 @@ export function Root() {
             clients,
             workflows,
             categories,
+            isLoadingServers,
+            isLoadingClients,  // 새로 추가
+            isLoadingWorkflows  // 새로 추가
           }}
         />
       </div>
@@ -344,6 +436,7 @@ export function Root() {
                 servers={servers}
                 clients={clients}
                 categories={categories}
+                isLoadingServers={isLoadingServers}  // 🔥 새로 추가: 로딩 상태 전달
               />
             </>
           )}
@@ -375,6 +468,9 @@ export function Root() {
                 clients,
                 workflows,
                 categories,
+                isLoadingServers,  // 🔥 추가
+                isLoadingClients,  // 새로 추가
+                isLoadingWorkflows  // 새로 추가
               }}
             />
           </main>
