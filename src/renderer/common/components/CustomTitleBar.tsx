@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Minus, Square, X, Menu, Settings, RotateCcw, Code } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Minus, Square, X, Menu, Settings, RotateCcw } from 'lucide-react';
 
 interface CustomTitleBarProps {
   title?: string;
@@ -7,28 +7,7 @@ interface CustomTitleBarProps {
 }
 
 export function CustomTitleBar({ title = "Contextor", showMenuButton = true }: CustomTitleBarProps) {
-  const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
-
-  // 🔥 개발자 도구 상태 확인
-  useEffect(() => {
-    const checkDevToolsStatus = async () => {
-      try {
-        if (window.electron?.devTools) {
-          const status = await window.electron.devTools.getStatus();
-          setIsDevToolsOpen(status?.isOpen || false);
-        }
-      } catch (error) {
-        console.warn('Developer Tools Status Check Failed:', error);
-      }
-    };
-
-    checkDevToolsStatus();
-    
-    // 주기적으로 상태 확인 (옵션)
-    const interval = setInterval(checkDevToolsStatus, 2000);
-    return () => clearInterval(interval);
-  }, []);
 
   const handleMinimize = () => {
     window.electron?.ipcRenderer.invoke('minimize-window');
@@ -45,20 +24,6 @@ export function CustomTitleBar({ title = "Contextor", showMenuButton = true }: C
   // 🔥 컨텍스트 메뉴 토글
   const handleMenuClick = () => {
     setShowContextMenu(!showContextMenu);
-  };
-
-  // 🔥 개발자 도구 토글 (F12와 동일한 기능)  
-  const handleToggleDevTools = async () => {
-    try {
-      if (window.electron?.devTools) {
-        await window.electron.devTools.toggle();
-        const status = await window.electron.devTools.getStatus();
-        setIsDevToolsOpen(status?.isOpen || false);
-      }
-    } catch (error) {
-      console.error('Developer Tools Toggle Failed:', error);
-    }
-    setShowContextMenu(false);
   };
 
   // 🔥 페이지 새로고침 (Ctrl+R과 동일한 기능)
@@ -100,20 +65,9 @@ export function CustomTitleBar({ title = "Contextor", showMenuButton = true }: C
                   <RotateCcw size={14} />
                   Refresh (Ctrl+R)
                 </button>
-                <button
-                  onClick={handleToggleDevTools}
-                  className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${
-                    isDevToolsOpen 
-                      ? 'text-blue-600 dark:text-blue-400' 
-                      : 'text-gray-700 dark:text-gray-200'
-                  }`}
-                >
-                  <Code size={14} />
-                  {isDevToolsOpen ? 'Close Developer Tools' : 'Open Developer Tools'} (F12)
-                </button>
                 <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                 <div className="px-3 py-1 text-xs text-gray-500 dark:text-gray-400">
-                  Shortcuts: F12, Ctrl+Shift+I
+                  개발자 도구: F12, Ctrl+Shift+I
                 </div>
               </div>
             )}
