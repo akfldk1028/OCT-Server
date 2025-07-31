@@ -393,7 +393,18 @@ export default function Sidebar({
                 <div className="flex items-center gap-2 w-full">
                   <Avatar>
                     {avatar ? (
-                      <AvatarImage className="object-cover" src={avatar} />
+                      <>
+                        <AvatarImage 
+                          className="object-cover" 
+                          src={avatar} 
+                          onError={() => {
+                            console.log('🔥 [Avatar] 이미지 로딩 실패:', avatar);
+                          }}
+                          onLoad={() => {
+                            console.log('✅ [Avatar] 이미지 로딩 성공:', avatar);
+                          }}
+                        />
+                      </>
                     ) : (
                       <AvatarFallback>{name?.[0]}</AvatarFallback>
                     )}
@@ -467,7 +478,16 @@ export default function Sidebar({
               <DropdownMenuTrigger asChild className="cursor-pointer">
                 <Avatar>
                   {avatar ? (
-                    <AvatarImage className="object-cover" src={avatar} />
+                    <AvatarImage 
+                      className="object-cover" 
+                      src={avatar} 
+                      onError={() => {
+                        console.log('🔥 [Avatar Collapsed] 이미지 로딩 실패:', avatar);
+                      }}
+                      onLoad={() => {
+                        console.log('✅ [Avatar Collapsed] 이미지 로딩 성공:', avatar);
+                      }}
+                    />
                   ) : (
                     <AvatarFallback>{name?.[0]}</AvatarFallback>
                   )}

@@ -30,4 +30,5 @@ npm-debug.log.*
 
 .env
 .wrangler
-python
+/python
+

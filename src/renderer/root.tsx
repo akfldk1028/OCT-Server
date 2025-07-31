@@ -220,6 +220,7 @@ export function Root() {
     // 세션 업데이트 리스너
     const removeSessionListener = window.electronAPI.onAuthSessionUpdated(({ user: newUser, session }) => {
       console.log('🔥 [Root] Auth 세션 업데이트 받음:', newUser?.email);
+      console.log('🔍 [Root] 사용자 메타데이터 확인:', newUser?.user_metadata); // 🔥 새로 추가
       
       if (newUser) {
         // 사용자 정보 업데이트
@@ -230,12 +231,15 @@ export function Root() {
         
         // 프로필 정보 업데이트 (user_metadata에서 가져오기)
         if (newUser.user_metadata) {
-          setProfile({
+          const profileData = {
             id: newUser.id,
-            name: newUser.user_metadata.name || newUser.email?.split('@')[0] || '사용자',
+            name: newUser.user_metadata.name || newUser.user_metadata.full_name || newUser.email?.split('@')[0] || '사용자',
             username: newUser.user_metadata.username || newUser.email?.split('@')[0] || 'user',
-            avatar: newUser.user_metadata.avatar_url || null,
-          });
+            avatar: newUser.user_metadata.avatar_url || newUser.user_metadata.picture || null, // 🔥 picture도 추가
+          };
+          
+          console.log('🔍 [Root] 설정할 프로필 데이터:', profileData); // 🔥 새로 추가
+          setProfile(profileData);
         }
         
         // 🔥 로그인 성공 시 즉시 모든 데이터 재로드 (userId 직접 전달!)

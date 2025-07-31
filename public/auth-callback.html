@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth Callback</title>
+    <script>
+        // URL에서 토큰 정보 추출
+        const urlParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = urlParams.get('access_token');
+        const error = urlParams.get('error');
+        
+        if (accessToken) {
+            // 성공: 앱으로 리다이렉트
+            window.location.href = `contextor://auth/callback?access_token=${accessToken}`;
+        } else if (error) {
+            // 에러: 앱으로 에러 전달
+            window.location.href = `contextor://auth/callback?error=${error}`;
+        } else {
+            // 기본: 앱으로 리다이렉트
+            window.location.href = 'contextor://auth/callback';
+        }
+    </script>
+</head>
+<body>
+    <p>인증 처리 중...</p>
+</body>
+</html> 

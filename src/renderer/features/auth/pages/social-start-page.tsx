@@ -42,7 +42,7 @@ import { redirect } from 'react-router';
 import { supabase } from '@/renderer/supa-client';
 
 const paramsSchema = z.object({
-  provider: z.enum(['github', 'kakao']),
+  provider: z.enum(['github', 'kakao', 'google']),
 });
 
 export const loader = async ({ params }: LoaderFunctionArgs) => {

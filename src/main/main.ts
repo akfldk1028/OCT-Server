@@ -1,6 +1,6 @@
 import Module from 'module';
 import path from 'path';
-import { app, BrowserWindow, ipcMain, globalShortcut, shell } from 'electron';
+import { app, BrowserWindow, globalShortcut, shell, ipcMain, session } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import installExtension, {
@@ -45,6 +45,20 @@ import { integrateOverlayWithWindow, setupWindowSelectionTrigger } from './store
 import { registerWindowApi } from './windowApi';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../renderer/database.types';
+import http from 'http';
+import fs from 'fs'; // 🔥 파일 시스템 모듈 추가
+import os from 'os'; // 🔥 OS 모듈 추가
+import { join } from 'path'; // 🔥 path 모듈 추가
+
+// 🔥 로그 파일 경로 설정
+const logFilePath = path.join(os.homedir(), 'OCT-OAuth-Debug.log');
+
+// 🔥 로그 함수 추가 (콘솔 + 파일)
+function debugLog(message: string) {
+  console.log(message);
+  const timestamp = new Date().toISOString();
+  fs.appendFileSync(logFilePath, `[${timestamp}] ${message}\n`);
+}
 
 dotenv.config();
 
@@ -109,7 +123,7 @@ async function createAuthWindow(authUrl: string): Promise<string | { type: 'toke
 
     // URL 변경 감지
     const handleRedirect = (url: string) => {
-      console.log('🔥 [OAuth] URL 변경 감지:', url);
+      debugLog('🔥 [OAuth] URL 변경 감지: ' + url);
       
       // Supabase 콜백 URL 패턴 확인 (code 또는 access_token)
       if (url.includes('/auth/v1/callback') || url.includes('code=') || url.includes('access_token=')) {
@@ -124,17 +138,17 @@ async function createAuthWindow(authUrl: string): Promise<string | { type: 'toke
           const accessToken = fragmentParams.get('access_token');
           const refreshToken = fragmentParams.get('refresh_token');
 
-          console.log('🔥 [OAuth] 추출된 코드:', code);
-          console.log('🔥 [OAuth] 추출된 access_token:', accessToken ? '있음' : '없음');
-          console.log('🔥 [OAuth] 오류:', error);
+          debugLog('🔥 [OAuth] 추출된 코드: ' + code);
+          debugLog('🔥 [OAuth] 추출된 access_token: ' + (accessToken ? '있음' : '없음'));
+          debugLog('🔥 [OAuth] 오류: ' + error);
 
           if (code) {
             // Authorization Code Flow - 코드 반환
-            console.log('🔥 [OAuth] Authorization Code Flow - 코드:', code);
+            debugLog('🔥 [OAuth] Authorization Code Flow - 코드: ' + code);
             resolve(code);
           } else if (accessToken && refreshToken) {
             // Implicit Flow - 토큰 직접 반환
-            console.log('🔥 [OAuth] Implicit Flow - 토큰 직접 받음');
+            debugLog('🔥 [OAuth] Implicit Flow - 토큰 직접 받음');
             resolve({ 
               type: 'tokens',
               access_token: accessToken,
@@ -174,13 +188,21 @@ async function createAuthWindow(authUrl: string): Promise<string | { type: 'toke
       authWindow = null;
       resolve(null);
     });
+
+    // 🔥 타임아웃 처리 (60초)
+    setTimeout(() => {
+      if (!authWindow?.isDestroyed()) {
+        authWindow?.close();
+        resolve(null);
+      }
+    }, 60000);
   });
 }
 
 // 🔥 현재 세션 정보 가져오기 IPC 핸들러 추가
 ipcMain.handle('auth:get-session', async (event) => {
   try {
-    console.log('🔍 [auth:get-session] 현재 세션 정보 요청');
+    debugLog('🔍 [auth:get-session] 현재 세션 정보 요청');
     
     // Supabase에서 현재 세션 정보 가져오기
     const { data: { user }, error } = await supabase.auth.getUser();
@@ -190,7 +212,7 @@ ipcMain.handle('auth:get-session', async (event) => {
       return { success: false, user: null, error: error };
     }
     
-    console.log('🔍 [auth:get-session] 세션 정보:', user?.email || 'No user');
+    debugLog('🔍 [auth:get-session] 세션 정보: ' + (user?.email || 'No user'));
     
     return { success: true, user: user };
   } catch (error) {
@@ -202,7 +224,7 @@ ipcMain.handle('auth:get-session', async (event) => {
 // 🔥 로그아웃 IPC 핸들러 추가
 ipcMain.handle('auth:logout', async (event) => {
   try {
-    console.log('🔥 [auth:logout] 로그아웃 시작 (메인 프로세스)');
+    debugLog('🔥 [auth:logout] 로그아웃 시작 (메인 프로세스)');
     
     // Supabase 세션 종료
     const { error } = await supabase.auth.signOut();
@@ -212,7 +234,7 @@ ipcMain.handle('auth:logout', async (event) => {
       throw error;
     }
     
-    console.log('🔥 [auth:logout] 메인 프로세스 로그아웃 성공');
+    debugLog('🔥 [auth:logout] 메인 프로세스 로그아웃 성공');
     
     // 🔥 중요: 렌더러 프로세스에 로그아웃 알림
     if (mainWindow) {
@@ -226,93 +248,241 @@ ipcMain.handle('auth:logout', async (event) => {
   }
 });
 
-// IPC 핸들러 추가
+// 🔥 BrowserWindow URL 감지 방식 OAuth 로그인 (즉시 작동)
 ipcMain.handle('auth:social-login', async (event, provider: string) => {
   try {
-    console.log(`🔥 [auth:social-login] ${provider} 소셜 로그인 시작`);
+    debugLog(`🔥 [auth:social-login] ${provider} 소셜 로그인 시작`);
     
-    // Supabase OAuth URL 생성
+    // Supabase OAuth URL 생성 (이미 Google에 등록된 URL 사용)
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: provider as any,
       options: {
-        // 일렉트론용 커스텀 redirect URL
         redirectTo: `https://mcrzlwriffyulnswfckt.supabase.co/auth/v1/callback`,
-        skipBrowserRedirect: true, // 중요: 자동 브라우저 열기 방지
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent'
+        },
+        skipBrowserRedirect: true,
       },
     });
 
     if (error || !data?.url) {
-      console.error('🔥 [auth:social-login] OAuth URL 생성 실패:', error);
-      throw error || new Error('No auth URL');
+      debugLog('🔥 [OAuth] Supabase OAuth URL 생성 실패: ' + JSON.stringify(error));
+      throw error || new Error('OAuth URL 생성 실패');
     }
 
-    console.log('🔥 [auth:social-login] OAuth URL 생성 성공:', data.url);
+    debugLog('🔥 [OAuth] Supabase OAuth URL 생성 성공: ' + data.url);
+    
+    // BrowserWindow에서 OAuth 진행
+    return new Promise((resolve, reject) => {
+      const authWindow = new BrowserWindow({
+        width: 500,
+        height: 700,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          webSecurity: false, // 🔥 배포 환경에서도 비활성화
+          allowRunningInsecureContent: true, // 🔥 추가
+          experimentalFeatures: true, // 🔥 추가
+        },
+        // show: false 제거 - 바로 표시
+        autoHideMenuBar: true, // 🔥 메뉴바 숨김
+        titleBarStyle: 'default', // 🔥 기본 타이틀바로 변경
+      });
 
-    // OAuth 창에서 인증 진행
-    const result = await createAuthWindow(data.url);
-    console.log('🔥 [auth:social-login] 인증 결과:', result);
+      // 🔥 강화된 User-Agent 설정 (Chrome 버전 포함)
+      authWindow.webContents.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      
+      // 🔥 추가 보안 설정 비활성화
+      authWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+        callback(true); // 모든 권한 허용
+      });
 
-    if (result) {
-      if (typeof result === 'string') {
-        // Authorization Code Flow - 코드로 세션 교환
-        const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(result);
+      // 🔥 모든 URL 변화 감지 (더 넓은 범위)
+      authWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+        debugLog('🔍 [OAuth] will-navigate: ' + navigationUrl);
+        handleCallback(navigationUrl);
+      });
 
-        if (sessionError) {
-          console.error('🔥 [auth:social-login] 세션 교환 실패:', sessionError);
-          throw sessionError;
+      authWindow.webContents.on('did-navigate', (event, navigationUrl) => {
+        debugLog('🔍 [OAuth] did-navigate: ' + navigationUrl);
+        handleCallback(navigationUrl);
+      });
+
+      authWindow.webContents.on('did-navigate-in-page', (event, navigationUrl) => {
+        debugLog('🔍 [OAuth] did-navigate-in-page: ' + navigationUrl);
+        handleCallback(navigationUrl);
+      });
+
+      // 🔥 새 창 열기 차단 (팝업 차단)
+      authWindow.webContents.setWindowOpenHandler(() => {
+        return { action: 'deny' };
+      });
+
+      // 🔥 로딩 완료 확인
+      authWindow.webContents.once('did-finish-load', () => {
+        debugLog('✅ [OAuth] 페이지 로딩 완료');
+      });
+
+      // 🔥 로딩 실패 감지
+      authWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+        debugLog('❌ [OAuth] 페이지 로딩 실패: ' + errorCode + ' ' + errorDescription + ' ' + validatedURL);
+      });
+
+      // 🔥 타임아웃 설정
+      const timeout = setTimeout(() => {
+        debugLog('⏰ [OAuth] 타임아웃 발생');
+        if (!authWindow.isDestroyed()) {
+          authWindow.close();
         }
+        reject(new Error('로그인 시간 초과'));
+      }, 60000); // 🔥 60초로 늘림
 
-        console.log('🔥 [auth:social-login] 세션 교환 성공:', sessionData?.user?.email);
+      // URL 변화 감지로 Supabase 콜백 처리
+      const handleCallback = async (navigationUrl: string) => {
+        debugLog('🔍 [OAuth] URL 감지: ' + navigationUrl);
         
-        // 🔥 중요: 메인 윈도우에 세션 정보 전달
-        if (mainWindow) {
-          mainWindow.webContents.send('auth:session-updated', {
-            user: sessionData?.user,
-            session: sessionData?.session
-          });
-        }
-
-        return { success: true, user: sessionData?.user };
-      } else if (result.type === 'tokens') {
-        // Implicit Flow - 토큰으로 직접 세션 설정
-        const { access_token, refresh_token } = result;
-        
-        console.log('🔥 [auth:social-login] 토큰으로 세션 설정 중...');
-        
-        try {
-          // Supabase에 토큰을 설정하여 세션 생성
-          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-            access_token,
-            refresh_token
-          });
-
-          if (sessionError) {
-            console.error('🔥 [auth:social-login] 토큰 세션 설정 실패:', sessionError);
-            throw sessionError;
-          }
-
-          console.log('🔥 [auth:social-login] 토큰 세션 설정 성공:', sessionData?.user?.email);
+        // 🔥 다양한 콜백 URL 패턴 감지 (Supabase + localhost 리다이렉트)
+        if (navigationUrl.includes('mcrzlwriffyulnswfckt.supabase.co/auth/v1/callback') || 
+            navigationUrl.includes('localhost:1212') ||
+            navigationUrl.includes('access_token=') ||
+            navigationUrl.includes('refresh_token=')) {
           
-          // 🔥 중요: 메인 윈도우에 세션 정보 전달
-          if (mainWindow) {
-            mainWindow.webContents.send('auth:session-updated', {
-              user: sessionData?.user,
-              session: sessionData?.session
-            });
+          try {
+            const url = new URL(navigationUrl);
+            const code = url.searchParams.get('code');
+            const access_token = url.searchParams.get('access_token') || url.hash.match(/access_token=([^&]+)/)?.[1];
+            const refresh_token = url.searchParams.get('refresh_token') || url.hash.match(/refresh_token=([^&]+)/)?.[1];
+            const error = url.searchParams.get('error');
+            
+            debugLog('🔍 [OAuth] 파라미터 확인: ' + JSON.stringify({ 
+              code: !!code, 
+              access_token: !!access_token, 
+              refresh_token: !!refresh_token,
+              error 
+            }));
+            
+            if (access_token) {
+              debugLog('✅ [OAuth] Access Token 발견! 즉시 세션 설정...');
+              clearTimeout(timeout);
+              
+              // 🔥 Access Token으로 직접 세션 설정
+              const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+                access_token: decodeURIComponent(access_token),
+                refresh_token: decodeURIComponent(refresh_token || '')
+              });
+              
+              if (sessionError) {
+                debugLog('❌ [OAuth] 토큰 세션 설정 실패: ' + JSON.stringify(sessionError));
+                reject(sessionError);
+                if (!authWindow.isDestroyed()) authWindow.close();
+                return;
+              }
+
+              debugLog('✅ [OAuth] 토큰 세션 설정 성공: ' + (sessionData?.user?.email || 'No user'));
+              
+              // 메인 윈도우에 세션 전달
+              if (mainWindow) {
+                debugLog('📤 [OAuth] 메인 윈도우에 세션 정보 전달');
+                mainWindow.webContents.send('auth:session-updated', {
+                  user: sessionData?.user,
+                  session: sessionData?.session
+                });
+              }
+
+              if (!authWindow.isDestroyed()) authWindow.close();
+              debugLog('🎉 [OAuth] 로그인 성공 완료 - 일렉트론으로 리다이렉트');
+              resolve({ success: true, user: sessionData?.user });
+              return;
+            }
+            
+            if (code) {
+              debugLog('✅ [OAuth] Authorization Code로 세션 교환 중...');
+              clearTimeout(timeout);
+              
+              // Supabase 세션 교환
+              const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+              
+              if (sessionError) {
+                debugLog('❌ [OAuth] 세션 교환 실패: ' + JSON.stringify(sessionError));
+                reject(sessionError);
+                if (!authWindow.isDestroyed()) authWindow.close();
+                return;
+              }
+
+              debugLog('✅ [OAuth] 세션 교환 성공: ' + (sessionData?.user?.email || 'No user'));
+              
+              // 메인 윈도우에 세션 전달
+              if (mainWindow) {
+                debugLog('📤 [OAuth] 메인 윈도우에 세션 정보 전달');
+                mainWindow.webContents.send('auth:session-updated', {
+                  user: sessionData?.user,
+                  session: sessionData?.session
+                });
+              }
+
+              if (!authWindow.isDestroyed()) authWindow.close();
+              debugLog('🎉 [OAuth] 로그인 성공 완료');
+              resolve({ success: true, user: sessionData?.user });
+              
+            } else if (error) {
+              debugLog('❌ [OAuth] 인증 실패: ' + error);
+              clearTimeout(timeout);
+              reject(new Error(`OAuth 실패: ${error}`));
+              if (!authWindow.isDestroyed()) authWindow.close();
+            }
+          } catch (processError) {
+            debugLog('❌ [OAuth] 처리 오류: ' + JSON.stringify(processError));
+            clearTimeout(timeout);
+            reject(processError);
+            if (!authWindow.isDestroyed()) authWindow.close();
           }
-
-          return { success: true, user: sessionData?.user };
-        } catch (tokenError) {
-          console.error('🔥 [auth:social-login] 토큰 처리 오류:', tokenError);
-          throw tokenError;
         }
-      }
-    }
+      };
 
-    return { success: false, error: 'Authentication cancelled' };
+      // 여러 이벤트로 URL 감지
+      authWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+        handleCallback(navigationUrl);
+      });
+
+      authWindow.webContents.on('did-navigate', (event, navigationUrl) => {
+        handleCallback(navigationUrl);
+      });
+
+      authWindow.webContents.on('did-navigate-in-page', (event, navigationUrl) => {
+        handleCallback(navigationUrl);
+      });
+
+      // 창 닫힘 처리
+      authWindow.on('closed', () => {
+        clearTimeout(timeout);
+        debugLog('🚪 [OAuth] 사용자가 인증 창을 닫음');
+        reject(new Error('사용자가 로그인을 취소했습니다.'));
+      });
+
+      // 🔥 페이지 제목 변화 감지 (추가 안전장치)
+      authWindow.webContents.on('page-title-updated', (event, title) => {
+        debugLog('📄 [OAuth] 페이지 제목 변경: ' + title);
+        if (title.includes('Success') || title.includes('success')) {
+          debugLog('✅ [OAuth] 성공 페이지 감지됨');
+        }
+      });
+
+      // 🔥 DOM 로딩 완료 후 URL 확인
+      authWindow.webContents.on('dom-ready', () => {
+        const currentUrl = authWindow.webContents.getURL();
+        debugLog('🔍 [OAuth] DOM 준비 완료, 현재 URL: ' + currentUrl);
+        handleCallback(currentUrl);
+      });
+
+      // OAuth 페이지 로드
+      debugLog('🌐 [OAuth] BrowserWindow에서 OAuth 페이지 로드: ' + data.url);
+      authWindow.loadURL(data.url);
+    });
+
   } catch (error) {
-    console.error('🔥 [auth:social-login] 소셜 로그인 오류:', error);
-    return { success: false, error: error};
+    debugLog('🔥 [auth:social-login] 전체 오류: ' + JSON.stringify(error));
+    throw error;
   }
 });
 
@@ -356,7 +526,7 @@ const createWindow = async () => {
   try {
     await manager.startServer('local-express-server');
     const loadedCount = ServerInstanceFactory.loadServerConfigs(appDataPath);
-    console.log(`📊 [main] 서버 인스턴스 로드 완료: ${loadedCount}개 서버 로드됨`);
+    console.log(`�� [main] 서버 인스턴스 로드 완료: ${loadedCount}개 서버 로드됨`);
   } catch (error) {
     console.error('❌ [main] Express 로컬 서버 시작 실패:', error);
   }
@@ -404,7 +574,7 @@ const createWindow = async () => {
   // 🔥 Window-Specific Overlay를 위해 windowStore에 메인 윈도우 설정
   if (mainWindow) {
     combinedStore.getState().window.setMainWindow(mainWindow);
-    console.log('🔥 WindowStore에 메인 윈도우 설정 완료!');
+    console.log('�� WindowStore에 메인 윈도우 설정 완료!');
   }
 
   if (mainWindow) {
@@ -472,6 +642,15 @@ app.on('window-all-closed', () => {
 
 app.whenReady()
   .then(async () => {
+    // 🔥 로그 파일 경로 출력
+    debugLog('🚀 [앱 시작] 로그 파일 위치: ' + logFilePath);
+    debugLog('🚀 [앱 시작] Electron 앱 시작됨');
+    
+    session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+      details.requestHeaders["User-Agent"] = "Chrome";
+      callback({ cancel: false, requestHeaders: details.requestHeaders });
+    });
+
     registerWindowApi();
     if (isDebug) await installExtensions();
 

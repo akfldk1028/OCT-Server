@@ -127,7 +127,7 @@
     "@radix-ui/react-separator": "^1.1.4",
     "@radix-ui/react-slot": "^1.2.0",
     "@radix-ui/react-tabs": "^1.1.1",
-    "@radix-ui/react-toast": "^1.2.6",
+    "@radix-ui/react-toast": "^1.2.14",
     "@radix-ui/react-tooltip": "^1.2.4",
     "@react-router/dev": "^7.5.3",
     "@supabase/ssr": "^0.6.1",
@@ -285,6 +285,14 @@
       "signingHashAlgorithms": [],
       "signDlls": false
     },
+    "protocols": [
+      {
+        "name": "Contextor App Protocol",
+        "schemes": [
+          "contextor"
+        ]
+      }
+    ],
     "linux": {
       "target": [
         "AppImage"
@@ -299,7 +307,7 @@
     "extraResources": [
       "./assets/**",
       {
-        "from": "python/",
+        "from": "python",
         "to": "python",
         "filter": [
           "**/*"

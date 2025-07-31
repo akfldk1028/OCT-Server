@@ -194,10 +194,7 @@ export async function createMainWindow(
   const menuBuilder = new MenuBuilder(mainWindow);
   menuBuilder.buildMenu();
 
-  mainWindow.webContents.setWindowOpenHandler((edata) => {
-    shell.openExternal(edata.url);
-    return { action: 'deny' };
-  });
+  // 🔥 setWindowOpenHandler는 main.ts에서 통합 관리 - 여기서는 제거
 
   // IPC 핸들러 설정
   setupIPCHandlers();
