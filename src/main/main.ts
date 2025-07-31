@@ -33,6 +33,8 @@ import { createMainWindow, hideWindowBlock } from './window';
 
 import { createZustandBridge } from '@zubridge/electron/main';
 
+
+
 // import { store } from './computer/antropic/create';
 // import { store } from './computer/overlay/create';
 import {combinedStore} from  './stores/combinedStore'
@@ -124,14 +126,14 @@ async function createAuthWindow(authUrl: string): Promise<string | { type: 'toke
     // URL 변경 감지
     const handleRedirect = (url: string) => {
       debugLog('🔥 [OAuth] URL 변경 감지: ' + url);
-      
+
       // Supabase 콜백 URL 패턴 확인 (code 또는 access_token)
       if (url.includes('/auth/v1/callback') || url.includes('code=') || url.includes('access_token=')) {
         try {
           const urlObj = new URL(url);
           const code = urlObj.searchParams.get('code');
           const error = urlObj.searchParams.get('error');
-          
+
           // URL fragment (#) 파라미터도 확인 (implicit flow)
           const fragment = urlObj.hash.substring(1); // # 제거
           const fragmentParams = new URLSearchParams(fragment);
@@ -149,7 +151,7 @@ async function createAuthWindow(authUrl: string): Promise<string | { type: 'toke
           } else if (accessToken && refreshToken) {
             // Implicit Flow - 토큰 직접 반환
             debugLog('🔥 [OAuth] Implicit Flow - 토큰 직접 받음');
-            resolve({ 
+            resolve({
               type: 'tokens',
               access_token: accessToken,
               refresh_token: refreshToken,
@@ -203,17 +205,17 @@ async function createAuthWindow(authUrl: string): Promise<string | { type: 'toke
 ipcMain.handle('auth:get-session', async (event) => {
   try {
     debugLog('🔍 [auth:get-session] 현재 세션 정보 요청');
-    
+
     // Supabase에서 현재 세션 정보 가져오기
     const { data: { user }, error } = await supabase.auth.getUser();
-    
+
     if (error) {
       console.warn('🔍 [auth:get-session] 세션 정보 가져오기 실패:', error);
       return { success: false, user: null, error: error };
     }
-    
+
     debugLog('🔍 [auth:get-session] 세션 정보: ' + (user?.email || 'No user'));
-    
+
     return { success: true, user: user };
   } catch (error) {
     console.error('🔍 [auth:get-session] 세션 정보 오류:', error);
@@ -225,22 +227,22 @@ ipcMain.handle('auth:get-session', async (event) => {
 ipcMain.handle('auth:logout', async (event) => {
   try {
     debugLog('🔥 [auth:logout] 로그아웃 시작 (메인 프로세스)');
-    
+
     // Supabase 세션 종료
     const { error } = await supabase.auth.signOut();
-    
+
     if (error) {
       console.error('🔥 [auth:logout] 로그아웃 실패:', error);
       throw error;
     }
-    
+
     debugLog('🔥 [auth:logout] 메인 프로세스 로그아웃 성공');
-    
+
     // 🔥 중요: 렌더러 프로세스에 로그아웃 알림
     if (mainWindow) {
       mainWindow.webContents.send('auth:logged-out');
     }
-    
+
     return { success: true };
   } catch (error) {
     console.error('🔥 [auth:logout] 로그아웃 오류:', error);
@@ -252,7 +254,7 @@ ipcMain.handle('auth:logout', async (event) => {
 ipcMain.handle('auth:social-login', async (event, provider: string) => {
   try {
     debugLog(`🔥 [auth:social-login] ${provider} 소셜 로그인 시작`);
-    
+
     // Supabase OAuth URL 생성 (이미 Google에 등록된 URL 사용)
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: provider as any,
@@ -272,7 +274,7 @@ ipcMain.handle('auth:social-login', async (event, provider: string) => {
     }
 
     debugLog('🔥 [OAuth] Supabase OAuth URL 생성 성공: ' + data.url);
-    
+
     // BrowserWindow에서 OAuth 진행
     return new Promise((resolve, reject) => {
       const authWindow = new BrowserWindow({
@@ -292,7 +294,7 @@ ipcMain.handle('auth:social-login', async (event, provider: string) => {
 
       // 🔥 강화된 User-Agent 설정 (Chrome 버전 포함)
       authWindow.webContents.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-      
+
       // 🔥 추가 보안 설정 비활성화
       authWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
         callback(true); // 모든 권한 허용
@@ -341,37 +343,37 @@ ipcMain.handle('auth:social-login', async (event, provider: string) => {
       // URL 변화 감지로 Supabase 콜백 처리
       const handleCallback = async (navigationUrl: string) => {
         debugLog('🔍 [OAuth] URL 감지: ' + navigationUrl);
-        
+
         // 🔥 다양한 콜백 URL 패턴 감지 (Supabase + localhost 리다이렉트)
-        if (navigationUrl.includes('mcrzlwriffyulnswfckt.supabase.co/auth/v1/callback') || 
+        if (navigationUrl.includes('mcrzlwriffyulnswfckt.supabase.co/auth/v1/callback') ||
             navigationUrl.includes('localhost:1212') ||
             navigationUrl.includes('access_token=') ||
             navigationUrl.includes('refresh_token=')) {
-          
+
           try {
             const url = new URL(navigationUrl);
             const code = url.searchParams.get('code');
             const access_token = url.searchParams.get('access_token') || url.hash.match(/access_token=([^&]+)/)?.[1];
             const refresh_token = url.searchParams.get('refresh_token') || url.hash.match(/refresh_token=([^&]+)/)?.[1];
             const error = url.searchParams.get('error');
-            
-            debugLog('🔍 [OAuth] 파라미터 확인: ' + JSON.stringify({ 
-              code: !!code, 
-              access_token: !!access_token, 
+
+            debugLog('🔍 [OAuth] 파라미터 확인: ' + JSON.stringify({
+              code: !!code,
+              access_token: !!access_token,
               refresh_token: !!refresh_token,
-              error 
+              error
             }));
-            
+
             if (access_token) {
               debugLog('✅ [OAuth] Access Token 발견! 즉시 세션 설정...');
               clearTimeout(timeout);
-              
+
               // 🔥 Access Token으로 직접 세션 설정
               const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
                 access_token: decodeURIComponent(access_token),
                 refresh_token: decodeURIComponent(refresh_token || '')
               });
-              
+
               if (sessionError) {
                 debugLog('❌ [OAuth] 토큰 세션 설정 실패: ' + JSON.stringify(sessionError));
                 reject(sessionError);
@@ -380,7 +382,7 @@ ipcMain.handle('auth:social-login', async (event, provider: string) => {
               }
 
               debugLog('✅ [OAuth] 토큰 세션 설정 성공: ' + (sessionData?.user?.email || 'No user'));
-              
+
               // 메인 윈도우에 세션 전달
               if (mainWindow) {
                 debugLog('📤 [OAuth] 메인 윈도우에 세션 정보 전달');
@@ -395,14 +397,14 @@ ipcMain.handle('auth:social-login', async (event, provider: string) => {
               resolve({ success: true, user: sessionData?.user });
               return;
             }
-            
+
             if (code) {
               debugLog('✅ [OAuth] Authorization Code로 세션 교환 중...');
               clearTimeout(timeout);
-              
+
               // Supabase 세션 교환
               const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
-              
+
               if (sessionError) {
                 debugLog('❌ [OAuth] 세션 교환 실패: ' + JSON.stringify(sessionError));
                 reject(sessionError);
@@ -411,7 +413,7 @@ ipcMain.handle('auth:social-login', async (event, provider: string) => {
               }
 
               debugLog('✅ [OAuth] 세션 교환 성공: ' + (sessionData?.user?.email || 'No user'));
-              
+
               // 메인 윈도우에 세션 전달
               if (mainWindow) {
                 debugLog('📤 [OAuth] 메인 윈도우에 세션 정보 전달');
@@ -424,7 +426,7 @@ ipcMain.handle('auth:social-login', async (event, provider: string) => {
               if (!authWindow.isDestroyed()) authWindow.close();
               debugLog('🎉 [OAuth] 로그인 성공 완료');
               resolve({ success: true, user: sessionData?.user });
-              
+
             } else if (error) {
               debugLog('❌ [OAuth] 인증 실패: ' + error);
               clearTimeout(timeout);
@@ -563,10 +565,10 @@ const createWindow = async () => {
           },
         };
       }
-      
+
       // 그 외 모든 링크는 기본 브라우저에서 열기
       shell.openExternal(url);
-      
+
       return { action: 'deny' };
     });
   }
@@ -645,7 +647,7 @@ app.whenReady()
     // 🔥 로그 파일 경로 출력
     debugLog('🚀 [앱 시작] 로그 파일 위치: ' + logFilePath);
     debugLog('🚀 [앱 시작] Electron 앱 시작됨');
-    
+
     session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
       details.requestHeaders["User-Agent"] = "Chrome";
       callback({ cancel: false, requestHeaders: details.requestHeaders });
