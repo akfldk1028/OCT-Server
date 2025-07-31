@@ -5,36 +5,41 @@ export function useChatScroll() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
-    console.log('🔄 [scrollToBottom] 호출됨!');
     
-    if (!containerRef.current) {
-      console.log('❌ [scrollToBottom] containerRef.current가 null입니다!');
-      return;
-    }
+    // 더 강력한 스크롤 함수
+    const performScroll = () => {
+      if (!containerRef.current) {
+        console.log('❌ [scrollToBottom] containerRef.current가 null입니다!');
+        return false;
+      }
 
-    const container = containerRef.current;
-    
-    console.log('📊 [scrollToBottom] 스크롤 정보:', {
-      scrollHeight: container.scrollHeight,
-      clientHeight: container.clientHeight,
-      scrollTop: container.scrollTop,
-      hasOverflow: container.scrollHeight > container.clientHeight
-    });
-    
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior: 'smooth',
-    });
-    
-    console.log('✅ [scrollToBottom] scrollTo 실행됨!');
-    
-    // 추가 확인: 실제로 스크롤되었는지 체크
-    setTimeout(() => {
-      console.log('📈 [scrollToBottom] 스크롤 후 위치:', {
-        scrollTop: container.scrollTop,
-        maxScroll: container.scrollHeight - container.clientHeight
+      const container = containerRef.current;
+      // 강제 스크롤 (smooth 대신 instant로 확실하게)
+      container.scrollTop = container.scrollHeight;
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth',
       });
-    }, 100);
+      
+      const isAtBottom = Math.abs(container.scrollTop - (container.scrollHeight - container.clientHeight)) < 5;
+      return isAtBottom;
+    };
+    
+    // 즉시 실행
+    const success1 = performScroll();
+    
+    // requestAnimationFrame으로 한 번 더
+    requestAnimationFrame(() => {
+      const success2 = performScroll();
+      
+      // 마지막으로 한 번 더 확인
+      setTimeout(() => {
+        if (!success1 && !success2) {
+          console.log('🔄 [scrollToBottom] 마지막 시도...');
+          performScroll();
+        }
+      }, 50);
+    });
   }, []);
 
   return { containerRef, scrollToBottom };

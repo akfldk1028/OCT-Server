@@ -1,53 +1,36 @@
-// /* eslint global-require: off, no-console: off, promise/always-return: off */
-
-// /**
-//  * This module executes inside of electron's main process. You can start
-//  * electron renderer process from here and communicate with the other processes
-//  * through IPC.
-//  *
-//  * When running `npm run build` or `npm run build:main`, this file is compiled to
-//  * `./src/main.js` using webpack. This gives us some performance wins.
-//  */
 // import path from 'path';
-// import { app, BrowserWindow, shell, ipcMain, IpcMainEvent } from 'electron';
+// import { app, BrowserWindow, ipcMain, globalShortcut, shell } from 'electron';
 // import { autoUpdater } from 'electron-updater';
 // import log from 'electron-log';
 // import installExtension, {
 //   REACT_DEVELOPER_TOOLS,
 // } from 'electron-devtools-installer';
-// import MenuBuilder from './menu';
-// import { resolveHtmlPath } from './util';
 // import './mcp/serverHandlers';
-// // Load environment variables from .env file at the very beginning
 // import dotenv from 'dotenv';
 // import {
-//   getBaseMCPServerConfig,
-//   getMergedMCPServerConfig,
-//   updateServerInstallStatus,
 //   getServerSessionInfo,
-//   userConfig // userConfig 변수 가져오기
+//   userConfig
 // } from './src/common/configLoader';
-// import type { MCPServerExtended } from './src/common/types/server-config';
-// import { ServerInstaller } from './src/common/installer/ServerInstaller';
-// import { startExpressServer } from './src/common/server/server';
 // import { manager } from './src/common/manager/managerInstance';
 // import { setupMcpHealthCheckHandlers } from './src/common/server/services/mcpHealthCheck';
 // import { ServerInstanceFactory } from './src/common/manager/ServerInstanceFactory';
-// import { createNodeExecutor } from './src/common/server/node/NodeExecutorFactory';
-// import { SoftwareGuideProcessingHelper } from './overlay/SoftwareGuideProcessingHelper';
+// import { NodeExecutorFactory } from './src/workflow/executors/NodeExecutorFactory';
+// import { ExecutionContext } from './src/workflow/executors/node-executor-types';
+// import { ClaudeDesktopIntegration } from './src/workflow/clients/claude';
+// import { aiService } from './overlay/SimpleAIService';
+// import { resolveHtmlPath } from './util';
+// import MenuBuilder from './menu';
+// import { createZustandBridge } from '@zubridge/electron/main';
+// import { combinedStore } from './stores/combinedStore';
+// import { setupMCPHandlers } from "@/main/mcp-handler";
+// import { setupMCPpreLoad } from "@/main/stores/renderProxy/rendererMCPProxy-preload";
 
 // dotenv.config();
 
-// // Optional: Log to confirm loading in main process
+// // 로그 출력
 // console.log('[Main Process] dotenv loaded.');
 // console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
 // console.log('SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY);
-
-
-// // 인스톨러 및 언인스톨러 인스턴스 생성
-// const installer = new ServerInstaller();
-// // const uninstaller = new ServerUninstaller();
-
 
 // class AppUpdater {
 //   constructor() {
@@ -58,15 +41,6 @@
 // }
 
 // let mainWindow: BrowserWindow | null = null;
-// let softwareGuideManager: SoftwareGuideProcessingHelper | null = null; // 이 줄 추가
-
-
-
-// if (process.env.NODE_ENV === 'production') {
-//   const sourceMapSupport = require('source-map-support');
-//   sourceMapSupport.install();
-// }
-
 // const isDebug =
 //   process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
 
@@ -74,136 +48,16 @@
 //   require('electron-debug').default();
 // }
 
-// // const installExtensions = async () => {
-// //   const installer = require('electron-devtools-installer');
-// //
-// //   const forceDownload = !!process.env.UPGRADE_EXTENSIONS;
-// //   const extensions = ['REACT_DEVELOPER_TOOLS'];
-// //
-// //   return installer
-// //     .default(
-// //       extensions.map((name) => installer[name]),
-// //       forceDownload,
-// //     )
-// //     .catch(console.log);
-// // };
-
-
-
-
-// ipcMain.handle('installServer', async (event, serverName: string, command: string, envVars?: Record<string, string>) => {
-//   console.log('⬇️ main: installServer handler received for', serverName, command);
-//   console.log('⬇️ main: with environment variables:', envVars || 'none');
-
-//   const config = await getBaseMCPServerConfig(serverName, command as MCPServerExtended['type'], envVars);
-//   //  console.log('⬇️ main: installServer config', config);
-//   if (!config) {
-//     console.error(
-//       `[Main] Base config not found for ${serverName}. Replying error.`,
-//     );
-//     event.sender.send('installResult', {
-//       success: false,
-//       serverName,
-//       message: `기본 설정 파일(${serverName}.json)을 찾을 수 없습니다.`,
-//     });
-//     return { success: false, error: 'Config not found' };
-//   }
-
-
-//   try {
-//     console.log(
-//       `[Main] Starting installation process for ${serverName} using BASE config...`,
-//     );
-
-//     const installResult = await installer.installServer(serverName, config);
-
-//     // console.log(
-//     //   `[Main] Install attempt finished for ${serverName}. Success: ${installResult.success}`,
-//     // );
-
-//     // if (installResult.success && installResult.method) {
-//     //   console.log(
-//     //     `[Main] Install successful. Updating ServerManager for ${serverName} with method: ${installResult.method.type}`,
-//     //   );
-//     //   manager.updateServerExecutionDetails(serverName, installResult.method);
-//     //   console.log(`[Main] ServerManager updated for ${serverName}.`);
-//     // } else if (installResult.success) {
-//     //   console.warn(
-//     //     `[Main] Install successful for ${serverName}, but no specific method details received to update ServerManager.`,
-//     //   );
-//     // } else {
-//     //   console.error(`[Main] Installation failed for ${serverName}.`);
-//     // }
-
-//     // const message = installResult.success
-//     //   ? '설치 완료'
-//     //   : '설치 실패 (오류 발생)';
-//     // console.log(
-//     //   `[Main] Sending 'installResult' to renderer for ${serverName}: success=${installResult.success}`,
-//     // );
-//     // event.reply('installResult', {
-//     //   success: installResult.success,
-//     //   serverName,
-//     //   message,
-//     // });
-
-//     // if (installResult.success) {
-//     //   const newMap = loadMCPServers();
-//     //   // manager = new ServerManager(Array.from(newMap.values()));
-//     //   event.sender.send('serversUpdated', manager.getStatus());
-
-//     //   event.reply('ask-claude-connection', {
-//     //     serverName,
-//     //     serverConfig: getMCPServerConfig(serverName),
-//     //   });
-//     // }
-//   } catch (error) {
-//     console.error(
-//       `[Main] Error during install process for ${serverName}:`,
-//       error,
-//     );
-//     // event.reply('installResult', {
-//     //   success: false,
-//     //   serverName,
-//     //   message: `설치 중 오류 발생: ${error instanceof Error ? error.message : String(error)}`,
-//     // });
-//   }
-
-
-
-//   return { success: true }; // 응답
-// });
-
-// /////////////////////////////////////////////////////////
-
-//   // 활성 세션 조회
-//   ipcMain.handle('mcp:getActiveSessions', async (event, serverName?: string) => {
-//     try {
-//       return await manager.getActiveSessions(serverName);
-//     } catch (error) {
-//       console.error('Error getting active sessions:', error);
-//       return [];
-//     }
-//   });
-
-
-
 // const installExtensions = async () => {
 //   try {
 //     const name = await installExtension(REACT_DEVELOPER_TOOLS, {
 //       loadExtensionOptions: { allowFileAccess: true },
 //     });
-//     console.log(`✅ Loaded Extension: ${name}`);
 //   } catch (err) {
 //     console.error('❌ Failed to install React DevTools:', err);
 //   }
 // };
 
-
-
-// let expressServer: any = null;
-
-// // 앱 데이터 경로 정의 (configLoader.ts에 정의된 것과 일치시킴)
 // const appDataPath = path.join(
 //   process.env.APPDATA ||
 //     (process.platform === 'darwin'
@@ -217,55 +71,41 @@
 //     await installExtensions();
 //   }
 
-//   // Express 서버 대신 ServerManager를 통해 서버 관리
-//   console.log('🚀 [main] 일렉트론 앱 시작 - Express 로컬 서버 시작 중...');
-
-//   // Express 서버 시작
 //   try {
 //     await manager.startServer('local-express-server');
-//     console.log('✅ [main] Express 로컬 서버 시작 완료');
-
-//     // Zero-install 서버 인스턴스 로드 (Express 서버가 시작된 후)
-//     console.log('📂 [main] 서버 인스턴스 로드 시작...');
 //     const loadedCount = ServerInstanceFactory.loadServerConfigs(appDataPath);
 //     console.log(`📊 [main] 서버 인스턴스 로드 완료: ${loadedCount}개 서버 로드됨`);
 //   } catch (error) {
 //     console.error('❌ [main] Express 로컬 서버 시작 실패:', error);
 //   }
 
-//   // 필요한 경우 MCP 서버도 시작
-//   // await manager.startServer('remote-mcp-server');
-
-//   // 직접 Express 서버를 실행하는 것이 아닌 ServerManager를 통해 관리하므로 제거
-//   // expressServer = startExpressServer();
-
 //   const RESOURCES_PATH = app.isPackaged
 //     ? path.join(process.resourcesPath, 'assets')
 //     : path.join(__dirname, '../../assets');
+//   const getAssetPath = (...paths: string[]) => path.join(RESOURCES_PATH, ...paths);
 
-//   const getAssetPath = (...paths: string[]): string => {
-//     return path.join(RESOURCES_PATH, ...paths);
-//   };
+//   // 메인 윈도우 생성
+//   const preloadPath = app.isPackaged
+//     ? path.join(__dirname, 'preload.js')
+//     : path.join(__dirname, '../../.erb/dll/preload.js');
 
 //   mainWindow = new BrowserWindow({
 //     show: false,
 //     width: 1024,
 //     height: 728,
 //     icon: getAssetPath('icon.png'),
+//     transparent: false,
+//     frame: true,
+//     alwaysOnTop: false,
 //     webPreferences: {
-//       preload: app.isPackaged
-//         ? path.join(__dirname, 'preload.js')
-//         : path.join(__dirname, '../../.erb/dll/preload.js'),
+//       preload: preloadPath,
 //     },
 //   });
-//   //   win.loadURL('http://localhost:3000'); // express 서버에서 프론트 제공 시 (중복 및 에러로 삭제)
-//   softwareGuideManager = new SoftwareGuideProcessingHelper(mainWindow);
 
 //   mainWindow.loadURL(resolveHtmlPath('index.html'));
 
-//   if (isDebug) {
-//     mainWindow.webContents.openDevTools({ mode: 'detach' });
-//   }
+//   // combinedStore의 window store에 메인 윈도우 설정
+//   combinedStore.getState().window.setMainWindow(mainWindow);
 
 //   mainWindow.on('ready-to-show', () => {
 //     if (!mainWindow) {
@@ -274,80 +114,175 @@
 //     if (process.env.START_MINIMIZED) {
 //       mainWindow.minimize();
 //     } else {
-//       mainWindow.show();
+//       // combinedStore를 통해 fadeWindow 호출
+//       combinedStore.getState().window.fadeWindow(true, true);
 //     }
 //   });
 
 //   mainWindow.on('closed', () => {
+//     // combinedStore를 통해 cleanup 호출
+//     combinedStore.getState().window.cleanup();
+//     combinedStore.getState().window.setMainWindow(null);
 //     mainWindow = null;
-//     // 이 부분 추가
-//     if (softwareGuideManager) {
-//       softwareGuideManager.updateMainWindow(null);
-//     }
 //   });
 
 //   const menuBuilder = new MenuBuilder(mainWindow);
 //   menuBuilder.buildMenu();
 
-//   // Open urls in the user's browser
 //   mainWindow.webContents.setWindowOpenHandler((edata) => {
 //     shell.openExternal(edata.url);
 //     return { action: 'deny' };
 //   });
 
-//   // Remove this if your app does not use auto updates
-//   // eslint-disable-next-line
+//   // Window 관련 IPC 핸들러 설정
+//   setupWindowIPCHandlers();
+
+//   if (mainWindow) {
+//     const { unsubscribe } = createZustandBridge(combinedStore, [mainWindow]);
+//     app.on('window-all-closed', unsubscribe);
+//   }
+
+//   mainWindow.on('ready-to-show', () => {
+//     BrowserWindow.getAllWindows().forEach(window => {
+//       if (window.webContents.isDevToolsOpened()) {
+//         window.webContents.closeDevTools();
+//       }
+//     });
+//   });
+
 //   new AppUpdater();
 // };
 
-// /**
-//  * Add event listeners...
-//  */
+// // Window 관련 IPC 핸들러 설정
+// function setupWindowIPCHandlers() {
+//   // 기존 window 핸들러들
+//   ipcMain.handle('minimize-window', () => {
+//     combinedStore.getState().window.mainWindow?.minimize();
+//   });
+
+//   ipcMain.handle('maximize-window', () => {
+//     const mainWindow = combinedStore.getState().window.mainWindow;
+//     if (mainWindow?.isMaximized()) {
+//       mainWindow?.unmaximize();
+//     } else {
+//       mainWindow?.maximize();
+//     }
+//   });
+
+//   ipcMain.handle('close-window', async () => {
+//     const mainWindow = combinedStore.getState().window.mainWindow;
+//     if (mainWindow) {
+//       await combinedStore.getState().window.fadeWindow(false);
+//       mainWindow.close();
+//     }
+//   });
+
+//   ipcMain.handle('show-window', async (_, show: boolean) => {
+//     await combinedStore.getState().window.fadeWindow(show);
+//     return { success: true };
+//   });
+
+//   // 새로운 타겟 윈도우 관련 핸들러들
+//   ipcMain.handle('select-target-window', async () => {
+//     return await combinedStore.getState().window.selectTargetWindow();
+//   });
+
+//   ipcMain.handle('attach-to-window', async (_, windowInfo) => {
+//     return await combinedStore.getState().window.attachToTargetWindow(windowInfo);
+//   });
+
+//   ipcMain.handle('detach-from-window', async () => {
+//     combinedStore.getState().window.detachFromTargetWindow();
+//     return { success: true };
+//   });
+
+//   ipcMain.handle('capture-target-window', async () => {
+//     return await combinedStore.getState().window.captureTargetWindow();
+//   });
+
+//   ipcMain.handle('update-attach-position', async (_, position) => {
+//     combinedStore.getState().window.updateAttachPosition(position);
+//     return { success: true };
+//   });
+
+//   ipcMain.handle('get-all-windows', async () => {
+//     return await combinedStore.getState().window.getAllWindows();
+//   });
+
+//   // hideWindowBlock을 사용하는 스크린샷 핸들러
+//   ipcMain.handle('trigger-screenshot', async () => {
+//     const mainWindow = combinedStore.getState().window.mainWindow;
+//     if (!mainWindow) return { error: 'No main window available' };
+
+//     try {
+//       const screenshotPath = await combinedStore.getState().window.hideWindowBlock(async () => {
+//         // 여기서 실제 스크린샷 로직 실행
+//         return await combinedStore.getState().overlay.TAKE_SCREENSHOT(
+//           () => {}, // hideWindow는 이미 처리됨
+//           () => {}  // showWindow도 이미 처리됨
+//         );
+//       });
+
+//       mainWindow.webContents.send('screenshot-taken', {
+//         path: screenshotPath,
+//       });
+
+//       return { success: true };
+//     } catch (error: any) {
+//       console.error('Error triggering screenshot:', error);
+//       return { error: 'Failed to trigger screenshot' };
+//     }
+//   });
+// }
 
 // app.on('window-all-closed', () => {
-//   // 애플리케이션 종료 시 모든 서버 중지
 //   try {
 //     manager.stopServer('remote-mcp-server');
 //     manager.stopServer('local-express-server');
 //   } catch (err) {
 //     console.error('서버 종료 중 오류:', err);
 //   }
-
-//   // Respect the OSX convention of having the application in memory even
-//   // after all windows have been closed
-//   if (process.platform !== 'darwin') {
-//     app.quit();
-//   }
+//   if (process.platform !== 'darwin') app.quit();
 // });
 
-// // app
-// //   .whenReady()
-// //   .then(() => {
-// //     createWindow();
-// //     app.on('activate', () => {
-// //       // On macOS it's common to re-create a window in the app when the
-// //       // dock icon is clicked and there are no other windows open.
-// //       if (mainWindow === null) createWindow();
-// //     });
-// //   })
-// //   .catch(console.log);
-// app
-//   .whenReady()
+// app.whenReady()
 //   .then(async () => {
-//     if (isDebug) {
-//       await installExtensions();
-//     }
+//     if (isDebug) await installExtensions();
+    
+//     // API 키 초기화 (필요한 경우)
+//     // combinedStore.getState().overlay.INIT_API_KEY();
+    
 //     createWindow();
 //     setupMcpHealthCheckHandlers();
+//     setupMCPHandlers();
+//     setupMCPpreLoad();
+    
 //     app.on('activate', () => {
-//       if (mainWindow === null) createWindow();
+//       if (BrowserWindow.getAllWindows().length === 0) createWindow();
 //     });
 //   })
 //   .catch(console.log);
 
+// app.on('before-quit', async () => {});
 
+// app.on('will-quit', () => {
+//   globalShortcut.unregisterAll();
+// });
+
+// // ===== MCP 서버 관련 IPC 핸들러 =====
+
+// // 활성 세션 조회
+// ipcMain.handle('mcp:getActiveSessions', async (event, serverName?: string) => {
+//   try {
+//     return await manager.getActiveSessions(serverName);
+//   } catch (error) {
+//     console.error('Error getting active sessions:', error);
+//     return [];
+//   }
+// });
+
+// // 세션 ID 조회
 // ipcMain.handle('mcp:getSessionId', async (event, config) => {
-//   // config에서 서버 id나 name을 추출
 //   const serverId = config?.id || config?.name;
 //   if (!serverId) return null;
 //   try {
@@ -359,27 +294,52 @@
 //   }
 // });
 
-// // src/main/main.ts
-
-// // 세션 저장
-
-
-
-
-// // ///////////////////////////////////////////////////
-
+// // 워크플로우 실행
 // ipcMain.handle('workflow:execute', async (event, payload) => {
+//   console.log('🔥 [main] workflow:execute 핸들러 시작');
+//   console.log('📨 [main] 받은 payload:', JSON.stringify(payload, null, 2));
+  
 //   const { workflowId, nodes, edges, triggerId, context } = payload;
 //   const results: Record<string, any> = {};
 //   let currentContext = context || {};
 
+//   console.log(`🎯 [main] 처리할 노드 개수: ${nodes.length}`);
+
+//   const claudeIntegration = new ClaudeDesktopIntegration();
+//   const executorFactory = new NodeExecutorFactory(claudeIntegration);
+//   const executionContext = new ExecutionContext();
+
+//   if (currentContext) {
+//     Object.entries(currentContext).forEach(([key, value]) => {
+//       executionContext.set(key, value);
+//     });
+//   }
+
 //   for (const node of nodes) {
+//     console.log(`🔄 [main] 노드 ${node.id} (${node.type}) 처리 시작`);
+    
 //     try {
-//       const executor = createNodeExecutor(node, nodes, edges, triggerId);
-//       const result = await executor.execute(currentContext, nodes, edges, triggerId);
-//       results[node.id] = result;
-//       currentContext[node.id] = result;
-//       Object.assign(currentContext, result);
+//       const executor = executorFactory.create(node);
+//       console.log(`⚡ [main] NodeExecutor 생성됨: ${executor ? '성공' : '실패'}`);
+      
+//       if (executor && executor.execute) {
+//         const executePayload = {
+//           nodeId: String(node.id),
+//           context: executionContext,
+//           nodes,
+//           edges,
+//           triggerId
+//         };
+        
+//         const result = await executor.execute(executePayload);
+//         console.log(`✅ [main] 노드 ${node.id} 실행 완료:`, result);
+        
+//         results[node.id] = result;
+//         executionContext.set(String(node.id), result);
+//         Object.assign(currentContext, result);
+//       } else {
+//         console.log(`⚠️ [main] 노드 ${node.id} executor가 없거나 execute 메서드가 없음`);
+//       }
 //     } catch (error: unknown) {
 //       let message = 'Unknown error';
 //       if (error && typeof error === 'object' && 'message' in error) {
@@ -387,31 +347,21 @@
 //       } else if (typeof error === 'string') {
 //         message = error;
 //       }
+//       console.error(`❌ [main] 노드 ${node.id} 실행 실패:`, message);
 //       results[node.id] = { error: true, message };
 //       break;
 //     }
 //   }
 
+//   console.log('🏁 [main] workflow:execute 완료, 최종 결과:', currentContext);
+  
 //   return {
 //     success: true,
 //     finalData: currentContext,
 //   };
 // });
 
-// // ipcMain.handle('workflow:execute', async (event, payload) => {
-// //   // payload 전체를 depth 제한 없이 예쁘게 출력
-// //   console.log('⬇️ main: workflow:execute handler received for',
-// //     JSON.stringify(payload, (key, value) => {
-// //       // 순환 참조 방지 및 함수 등 제외
-// //       if (typeof value === 'function') return '[Function]';
-// //       return value;
-// //     }, 2)
-// //   );
-// //   // payload.nodes, payload.edges, payload.triggerId, payload.context 등
-// //   // 모든 데이터 접근 가능
-// // });
-// import { ClaudeDesktopIntegration } from '../main/src/common/server/node/service/claude'; // 실제 경로로 수정
-
+// // Claude 관련 핸들러
 // ipcMain.handle('claude:getAllServers', () => {
 //   const claude = new ClaudeDesktopIntegration();
 //   return claude.getAllConnectedServers();
@@ -422,11 +372,19 @@
 //   return claude.disconnectServer(serverName);
 // });
 
-
-// // 앱 종료 시 정리
-// app.on('before-quit', async () => {
-//   if (softwareGuideManager) {
-//     await softwareGuideManager.cleanup();
+// // Claude Desktop 연결 핸들러
+// ipcMain.handle('connect-to-claude-desktop', async (event, serverName: string, serverConfig: any) => {
+//   console.log(`🚀 [main] Claude Desktop 연결 요청: ${serverName}`);
+  
+//   try {
+//     const claude = new ClaudeDesktopIntegration();
+//     const connected = claude.connectServer(serverName, serverConfig);
+    
+//     console.log(`${connected ? '✅' : '❌'} [main] Claude Desktop 연결 결과: ${serverName} - ${connected ? '성공' : '실패'}`);
+//     return connected;
+    
+//   } catch (error) {
+//     console.error(`❌ [main] Claude Desktop 연결 오류: ${serverName}`, error);
+//     return false;
 //   }
 // });
-

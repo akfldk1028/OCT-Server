@@ -1,18 +1,23 @@
 {
   "name": "electron-react-boilerplate",
-  "version": "4.6.0",
-  "description": "A foundation for scalable desktop apps",
-  "license": "MIT",
-  "author": {
-    "name": "Electron React Boilerplate Maintainers",
-    "email": "electronreactboilerplate@gmail.com",
-    "url": "https://github.com/electron-react-boilerplate"
-  },
+  "version": "0.0.1",
+  "description": "Electron application",
   "main": "./dist/main/main.js",
   "scripts": {
     "rebuild": "node -r ts-node/register ../../.erb/scripts/electron-rebuild.js",
-    "postinstall": "npm run rebuild && npm run link-modules",
-    "link-modules": "node -r ts-node/register ../../.erb/scripts/link-modules.ts"
+    "postinstall": "npm run rebuild"
   },
-  "dependencies": {}
+  "dependencies": {
+    "electron-overlay-window": "^3.3.0",
+    "express": "^5.1.0",
+    "koffi": "^2.11.0",
+    "libwin32": "^0.7.0",
+    "morgan": "^1.10.0",
+    "node-fetch": "^3.3.2",
+    "spawn-rx": "^5.1.2",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "win32-api": "^26.1.2",
+    "windows-api": "^0.1.0"
+  }
 }

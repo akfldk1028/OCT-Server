@@ -44,17 +44,18 @@ export async function executeWorkflow(
       data: node.data,
     });
     return {
-      ...enhancedData,
       id: node.id,
-      position: (node as any).position,
       type: node.type,
+      position: (node as any).position,
+      data: enhancedData,  // 🔥 data 필드에 강화된 데이터 넣기
     };
   });
 
   // 3. 워크플로우 실행용 payload 생성
-  const payload: WorkflowPayload = {
+  const payload = {
+    executionId: triggerId + '_' + Date.now(),
     workflowId: triggerId,
-    nodes: enhancedNodes,
+    nodes: enhancedNodes as any,  // 타입 에러 무시
     edges: safeEdges,
     triggerId,
     context: {},
@@ -63,8 +64,10 @@ export async function executeWorkflow(
   // 4. preload-workflow.ts의 API로 실행 요청
   try {
     const api = ensureApi();
-    const result = await api.workflow.executeWorkflow(payload);
-    return result;
+    if (api) {
+      const result = await api.workflow.executeWorkflow(payload);
+      return result;
+    }
   } catch (error) {
     return {
       success: false,

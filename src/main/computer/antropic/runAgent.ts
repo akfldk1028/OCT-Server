@@ -2,7 +2,6 @@ import {
   BetaMessage,
   BetaMessageParam,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages';
-import { Button, Key, keyboard, mouse, Point } from '@nut-tree-fork/nut-js';
 // import { createCanvas, loadImage } from 'canvas';
 import { desktopCapturer, screen } from 'electron';
 import { APIError } from '@anthropic-ai/sdk';
@@ -11,6 +10,36 @@ import { AppState, NextAction } from '../../../common/types/action-types';
 import { extractAction } from './extractAction';
 import { hideWindowBlock, showWindow } from '../../window';
 import { EditTool } from './editTool';
+import path from 'path';
+
+// webpack 우회를 위한 require
+declare const __non_webpack_require__: NodeRequire;
+const requireNode: NodeRequire = typeof __non_webpack_require__ === 'function' ? __non_webpack_require__ : require;
+
+function safeRequire(moduleName: string) {
+  try {
+    return requireNode(moduleName);
+  } catch (e) {
+    try {
+      const fallback = path.resolve(__dirname, '../../../../release/app/node_modules', moduleName);
+      return requireNode(fallback);
+    } catch (e2) {
+      throw e;
+    }
+  }
+}
+
+// nut-js 모듈 동적 로딩
+let nutjs: any = null;
+let Button: any, Key: any, keyboard: any, mouse: any, Point: any;
+
+try {
+  nutjs = safeRequire('@nut-tree-fork/nut-js');
+  ({ Button, Key, keyboard, mouse, Point } = nutjs);
+  console.log('✅ @nut-tree-fork/nut-js 로드 성공');
+} catch (e) {
+  console.warn('⚠️ @nut-tree-fork/nut-js 로드 실패:', e);
+}
 
 // 설정을 사용하는 promptForAction 함수
 import { loadConfig, generateSystemPrompt } from './config';
@@ -272,10 +301,10 @@ const promptForAction = async (
 // 유틸리티 함수들
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function mapKey(keyText: string | undefined): Key | undefined {
-  if (!keyText) return undefined;
+function mapKey(keyText: string | undefined): any | undefined {
+  if (!keyText || !Key) return undefined;
 
-  const keyMap: Record<string, Key> = {
+  const keyMap: Record<string, any> = {
     Return: Key.Enter,
     Enter: Key.Enter,
     Tab: Key.Tab,
@@ -293,6 +322,11 @@ function mapKey(keyText: string | undefined): Key | undefined {
 }
 
 export const performAction = async (action: NextAction) => {
+  // nut-js 모듈이 로드되지 않았으면 에러
+  if (!nutjs || !mouse || !keyboard || !Button || !Key || !Point) {
+    throw new Error('@nut-tree-fork/nut-js 모듈이 로드되지 않았습니다');
+  }
+
   switch (action.type) {
     case 'mouse_move':
       const { x, y } = mapFromAiSpace(action.x, action.y);

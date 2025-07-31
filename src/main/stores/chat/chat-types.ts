@@ -20,6 +20,12 @@ export interface ChatMessage {
     tokens?: number;
     toolName?: string;
     toolCallId?: string;
+    // 🔥 새로운 속성들 추가
+    type?: string;
+    isCooperative?: boolean;
+    avatar?: string;
+    connectedServers?: string[];
+    isSystemMessage?: boolean;
   };
 }
 
@@ -37,22 +43,47 @@ export interface ChatState {
 
   initializeSession: (payload: { sessionId: string; config?: Partial<ChatConfig> }) => void;
   sendMessage: (payload: { sessionId: string; content: string }) => Promise<void>;
-  sendStreamingMessage: (payload: { sessionId: string; content: string; selectedTags?: Tag[] }) => Promise<string | void>;
+  sendStreamingMessage: (payload: { sessionId: string; content: string; selectedTags?: Tag[]; isOverlayMode?: boolean }) => Promise<string | void>;
   clearSession: (payload: { sessionId: string }) => void;
   updateConfig: (payload: { sessionId: string; config: Partial<ChatConfig> }) => void;
   handleToolCalls: (payload: { sessionId: string; toolCalls: ToolCall[] }) => Promise<void>;
   
   // 🔧 헬퍼 메서드들 (리팩토링으로 추가됨)
-  processSelectedTags: (sessionId: string, selectedTags: Tag[]) => Promise<{
+  processSelectedTags: (sessionId: string, selectedTags: Tag[], isOverlayMode?: boolean) => Promise<{
     tools: any[] | undefined;
     systemPrompts: string;
     resourceContents: string;
   }>;
-  prepareAIMessages: (sessionId: string, systemPrompts: string, resourceContents: string) => any[];
+  prepareAIMessages: (sessionId: string, systemPrompts: string, resourceContents: string, isOverlayMode?: boolean) => any[];
   reconstructToolCalls: (allToolCalls: any[]) => any[];
   executeMCPTools: (sessionId: string, toolCalls: any[]) => Promise<string>;
 
   
   getMessages: (sessionId: string) => ChatMessage[];
   getConfig: (sessionId: string) => ChatConfig | undefined;
+  
+  // 🔥 SDK 스타일 메서드들 추가
+  connectMCPServers: (sessionId: string, serverConfigs?: any[]) => Promise<{
+    total: number;
+    successful: number;
+    failed: number;
+    alreadyConnected: number;
+    results: any[];
+  }>;
+  sendMessageWithAutoMCP: (payload: { sessionId: string; content: string; selectedTags?: Tag[] }) => Promise<string | void>;
+  sendOverlayMessage: (payload: { 
+    sessionId: string; 
+    content: string; 
+    selectedTags?: Tag[];
+    triggerOverlay?: boolean;
+  }) => Promise<string | void>;
+  notifyNewToolsAdded: (payload: { 
+    sessionId: string; 
+    connectedServers: string[];
+    message?: string;
+  }) => Promise<void>;
+  addMessage: (payload: { 
+    sessionId: string; 
+    message: Omit<ChatMessage, 'sessionId'>;
+  }) => void;
 }

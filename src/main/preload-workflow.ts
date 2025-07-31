@@ -2,81 +2,44 @@
 import { ipcRenderer } from 'electron';
 import { WorkflowNodeData, WorkflowPayload } from '@/common/types/workflow';
 
-
-
-export interface NodeExecutionPayload {
-  workflowId: string;
-  node: any;
-  context: any;
-  nodeIndex: number;
-  totalNodes: number;
-}
-
 // 워크플로우 API 정의
 export const workflowAPI = {
-  // 전체 워크플로우 실행
-  executeWorkflow: async (payload: WorkflowPayload) => {
+  // === Claude Desktop 연결 ===
+  connectToClaudeDesktop: (serverName: string, serverConfig: any): Promise<boolean> => {
+    console.log(`📡 [preload-workflow] Claude Desktop 연결 요청: ${serverName}`);
+    return ipcRenderer.invoke('connect-to-claude-desktop', serverName, serverConfig);
+  },
+
+  // === 워크플로우 실행 ===
+  executeWorkflow: (payload: {
+    executionId: string;
+    nodes: any[];
+    edges: any[];
+    triggerId: string;
+  }): Promise<void> => {
+    console.log(`🚀 [preload-workflow] 워크플로우 실행 요청: ${payload.executionId}`);
     return ipcRenderer.invoke('workflow:execute', payload);
   },
 
-  // 단일 노드 실행
-  executeNode: async (payload: NodeExecutionPayload) => {
-    return ipcRenderer.invoke('workflow:executeNode', payload);
+  // === 노드 실행 ===
+  executeNode: (nodeId: string, nodeData: WorkflowNodeData): Promise<any> => {
+    console.log(`⚡ [preload-workflow] 노드 실행 요청: ${nodeId}`);
+    return ipcRenderer.invoke('workflow:executeNode', nodeId, nodeData);
   },
 
-  // MCP 툴 실행
-  executeMCPTool: async (payload: {
-    toolName: string;
-    serverName?: string;
-    parameters: any;
-    context?: any;
-  }) => {
-    return ipcRenderer.invoke('mcp-workflow:tool-call', payload);
+  // === 워크플로우 진행 상태 구독 ===
+  onWorkflowProgress: (callback: (progress: any) => void) => {
+    const handler = (_event: any, progress: any) => callback(progress);
+    ipcRenderer.on('workflow:progress', handler);
+    return () => ipcRenderer.removeListener('workflow:progress', handler);
   },
 
-  // 이벤트 리스너들
-  onWorkflowProgress: (workflowId: string, callback: (data: any) => void) => {
-    const subscription = (_event: any, data: any) => {
-      if (data.workflowId === workflowId) callback(data);
-    };
-    ipcRenderer.on('workflow:progress', subscription);
-    return () => ipcRenderer.removeListener('workflow:progress', subscription);
-  },
-
-  onWorkflowComplete: (workflowId: string, callback: (data: any) => void) => {
-    const subscription = (_event: any, data: any) => {
-      if (data.workflowId === workflowId) callback(data);
-    };
-    ipcRenderer.on('workflow:complete', subscription);
-    return () => ipcRenderer.removeListener('workflow:complete', subscription);
-  },
-
-  onWorkflowError: (workflowId: string, callback: (data: any) => void) => {
-    const subscription = (_event: any, data: any) => {
-      if (data.workflowId === workflowId) callback(data);
-    };
-    ipcRenderer.on('workflow:error', subscription);
-    return () => ipcRenderer.removeListener('workflow:error', subscription);
-  },
-
-  onNodeExecuted: (workflowId: string, callback: (data: any) => void) => {
-    const subscription = (_event: any, data: any) => {
-      if (data.workflowId === workflowId) callback(data);
-    };
-    ipcRenderer.on('mcp-workflow:node', subscription);
-    return () => ipcRenderer.removeListener('mcp-workflow:node', subscription);
-  },
-
-  // 워크플로우 관리
-  saveWorkflow: (payload: any) => ipcRenderer.invoke('workflow:save', payload),
-  loadWorkflow: (workflowId: string) => ipcRenderer.invoke('workflow:load', workflowId),
-  listWorkflows: () => ipcRenderer.invoke('workflow:list'),
-  deleteWorkflow: (workflowId: string) => ipcRenderer.invoke('workflow:delete', workflowId),
-  
-  // 상태 관리
-  getWorkflowStatus: (workflowId: string) => ipcRenderer.invoke('workflow:status', workflowId),
-  cancelWorkflow: (workflowId: string) => ipcRenderer.invoke('workflow:stop', workflowId),
-  validateWorkflow: (payload: any) => ipcRenderer.invoke('workflow:validate', payload),
+  // === 워크플로우 완료 구독 ===
+  onWorkflowComplete: (callback: (result: any) => void) => {
+    const handler = (_event: any, result: any) => callback(result);
+    ipcRenderer.on('workflow:complete', handler);
+    return () => ipcRenderer.removeListener('workflow:complete', handler);
+  }
 };
 
 export type WorkflowAPI = typeof workflowAPI;

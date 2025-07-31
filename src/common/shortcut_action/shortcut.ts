@@ -1,5 +1,5 @@
 // ShortcutsHelper.ts
-import Mousetrap from 'mousetrap';
+// import Mousetrap from 'mousetrap';
 
 // 단축키 타입 정의
 export type ShortcutAction =
@@ -75,15 +75,15 @@ export class ShortcutManager {
   initialize(): void {
     if (this.initialized) return;
 
-    SHORTCUTS.forEach((shortcut) => {
-      if (this.handlers[shortcut.action]) {
-        Mousetrap.bind(shortcut.keys, (e) => {
-          if (e) e.preventDefault();
-          this.handlers[shortcut.action](e as ExtendedKeyboardEvent);
-          return false; // 기본 브라우저 동작 방지
-        });
-      }
-    });
+    // SHORTCUTS.forEach((shortcut) => {
+    //   if (this.handlers[shortcut.action]) {
+    //     Mousetrap.bind(shortcut.keys, (e) => {
+    //       if (e) e.preventDefault();
+    //       this.handlers[shortcut.action](e as ExtendedKeyboardEvent);
+    //       return false; // 기본 브라우저 동작 방지
+    //     });
+    //   }
+    // });
 
     this.initialized = true;
   }
@@ -95,16 +95,15 @@ export class ShortcutManager {
 
   // 단축키 핸들러 모두 제거 및 바인딩 해제
   cleanup(): void {
-    SHORTCUTS.forEach((shortcut) => {
-      Mousetrap.unbind(shortcut.keys);
-    });
-    this.handlers = {};
-    this.initialized = false;
+    // SHORTCUTS.forEach((shortcut) => {
+    //   Mousetrap.unbind(shortcut.keys);
+    // });
+    // this.handlers = {};
+    // this.initialized = false;
   }
 
   // 단축키 비활성화 (임시로)
   disable(): void {
-    Mousetrap.reset();
   }
 
   // 단축키 재활성화

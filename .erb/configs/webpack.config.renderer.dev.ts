@@ -11,6 +11,9 @@ import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
 import checkNodeEnv from '../scripts/check-node-env';
 
+// 🔥 package.json에서 버전 정보 가져오기
+const packageJson = require('../../package.json');
+
 // When an ESLint server is running, we can't set the NODE_ENV so we'll check if it's
 // at the dev webpack config is not accidentally run in a production environment
 if (process.env.NODE_ENV === 'production') {
@@ -42,11 +45,13 @@ if (
 }
 
 const configuration: webpack.Configuration = {
-
+  // ───────────────────────────────────────────────────────────────────────────────
+  // 1) .node 확장자를 인식하도록 extensions에 추가
   resolve: {
+    extensions: ['.js', '.jsx', '.ts', '.tsx', '.json', '.node'],
     fallback: {
       fs: false,                                      // 브라우저에서 fs 무시
-      path: require.resolve('path-browserify'),       // path를 path-browserify로 대체
+      path: require.resolve('path-browserify'),       // path 대체
       electron: false,                                // electron 모듈 무시
     },
     alias: {
@@ -55,16 +60,20 @@ const configuration: webpack.Configuration = {
       electron: false,
     },
   },
-  externals: {
-    electron: 'require("electron")',                 // 런타임에 require로 처리
-  },
 
-  
+  // ───────────────────────────────────────────────────────────────────────────────
+  // 2) externals를 배열로 지정하고 .node 파일은 런타임 require 처리
+  externals: [
+    'electron',                       // 기존 electron require 처리
+    'fsevents',
+    'crypto-browserify',
+    /\.node$/,                        // 네이티브 .node 바이너리 제외
+  ],
+
   devtool: 'inline-source-map',
-
   mode: 'development',
 
-  // 웹 모드일 때는 'web'만, 일렉트론 모드일 때는 기존 설정 유지
+  // 웹 모드일 때는 'web'만, Electron 모드일 때는 web + electron-renderer
   target: isWebMode ? ['web'] : ['web', 'electron-renderer'],
 
   entry: [
@@ -82,6 +91,8 @@ const configuration: webpack.Configuration = {
     },
   },
 
+  // ───────────────────────────────────────────────────────────────────────────────
+  // 3) module.rules 배열 맨 뒤에 node-loader 룰을 추가
   module: {
     rules: [
       {
@@ -146,8 +157,15 @@ const configuration: webpack.Configuration = {
           'file-loader',
         ],
       },
+
+      // ← 여기에 추가된 node-loader 룰
+      {
+        test: /\.node$/,
+        use: 'node-loader',
+      },
     ],
   },
+
   plugins: [
     ...(skipDLLs
       ? []
@@ -161,21 +179,14 @@ const configuration: webpack.Configuration = {
 
     new webpack.NoEmitOnErrorsPlugin(),
 
-    /**
-     * Create global constants which can be configured at compile time.
-     *
-     * Useful for allowing different behaviour between development builds and
-     * release builds
-     *
-     * NODE_ENV should be production so that modules do not perform certain
-     * development checks
-     *
-     * By default, use 'development' as NODE_ENV. This can be overriden with
-     * 'staging', for example, by changing the ENV variables in the npm scripts
-     */
     new webpack.EnvironmentPlugin({
       NODE_ENV: 'development',
-      PLATFORM: isWebMode ? 'web' : 'electron', // PLATFORM 환경변수 추가
+      PLATFORM: isWebMode ? 'web' : 'electron',
+    }),
+
+    // 🔥 앱 버전 정보 주입
+    new webpack.DefinePlugin({
+      'process.env.APP_VERSION': JSON.stringify(packageJson.version),
     }),
 
     new webpack.LoaderOptionsPlugin({
@@ -192,7 +203,7 @@ const configuration: webpack.Configuration = {
         removeAttributeQuotes: true,
         removeComments: true,
       },
-      isBrowser: isWebMode, // 웹 모드일 때는 true, 일렉트론 모드일 때는 false
+      isBrowser: isWebMode,
       env: process.env.NODE_ENV,
       isDevelopment: process.env.NODE_ENV !== 'production',
       nodeModules: webpackPaths.appNodeModulesPath,
@@ -216,7 +227,6 @@ const configuration: webpack.Configuration = {
       verbose: true,
     },
     setupMiddlewares(middlewares) {
-      // 웹 모드가 아닐 때만 일렉트론 프로세스 시작
       if (!isWebMode) {
         console.log('Starting preload.js builder...');
         const preloadProcess = spawn('npm', ['run', 'start:preload'], {

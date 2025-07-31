@@ -38,18 +38,7 @@ if (isElectron()) {
     return () => {};
   };
 }
-export function useDispatch_new<T>() {
-  const stores = useStore();
-  return (action: { type: string; payload?: any }): T => {
-    const [slice, method] = action.type.split('.') as [keyof typeof stores, string];
-    const storeSlice = stores[slice];
-    if (!storeSlice || typeof (storeSlice as any)[method] !== 'function') {
-      throw new Error(`Unknown action ${action.type}`);
-    }
-    // 🔑 반드시 결과를 return 해줘야 dispatchRoom/dispatchSession이 ID를 돌려받습니다.
-    return (storeSlice as any)[method](action.payload) as T;
-  };
-}
+
 export { useStore, useDispatch };
 
 

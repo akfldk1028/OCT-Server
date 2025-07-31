@@ -73,26 +73,39 @@ export const mcpCoordinatorStore = createStore<MCPCoordinatorState>(
 
     connectMCPToSession: async (payload) => {
       const { sessionId, serverId } = payload;
+      let client = null;
+      let transport = null;
+      let clientId = '';
+      let transportSessionId = '';
+      
       try {
-        console.log(
-          `🔗 Connecting MCP server ${serverId} to session ${sessionId}`,
-        );
+        console.log(`🔗 Connecting MCP server ${serverId} to session ${sessionId}`);
     
         // 이미 연결되어 있는지 확인
         if (get().isServerConnectedToSession({ sessionId, serverId })) {
           console.log(`Already connected: ${serverId} to session ${sessionId}`);
-          return '';
+          const existingBinding = get().getSessionBindings({ sessionId })
+            .find(b => b.serverId === serverId && b.status === 'active');
+          return existingBinding?.id || '';
         }
     
         // 1. MCP Registry에서 서버 정보 가져오기
         const server = mcpRegistryStore.getState().servers[serverId];
-        if (!server) throw new Error(`Server ${serverId} not found`);
-    
-        // 2. Transport 생성
+        if (!server) {
+          throw new Error(`Server ${serverId} not found in registry`);
+        }
+        
+        console.log('🖥️ [MCP-Coordinator] 서버 정보:', {
+          name: server.name,
+          command: server.command,
+          args: server.args,
+          transportType: server.transportType
+        });
+
+        // 2. Transport 생성 (에러 처리 강화)
         console.log('🚀 Creating transport...');
-        const transportSessionId = await transportStore
-          .getState()
-          .createTransport({
+        try {
+          transportSessionId = await transportStore.getState().createTransport({
             serverId,
             config: {
               transportType: server.transportType,
@@ -102,24 +115,37 @@ export const mcpCoordinatorStore = createStore<MCPCoordinatorState>(
               url: server.url,
             },
           });
-    
-        // 3. Client 생성
-        const clientId = clientStore.getState().createClient({
-          sessionId,
-          name: `${sessionId}-${serverId}`,
-          capabilities: {
-            sampling: {},
-            roots: { listChanged: true },
-            experimental: {},
-          },
-        });
-    
+          console.log(`✅ Transport created: ${transportSessionId} for server ${serverId}`);
+        } catch (transportError) {
+          console.error('❌ Transport 생성 실패:', transportError);
+          throw new Error(`Transport creation failed: ${transportError instanceof Error ? transportError.message : 'Unknown error'}`);
+        }
+
+        // 3. Client 생성 (에러 처리 강화)
+        try {
+          clientId = clientStore.getState().createClient({
+            sessionId,
+            name: `${sessionId}-${serverId}`,
+            capabilities: {
+              sampling: {},
+              roots: { listChanged: true },
+              experimental: {},
+            },
+          });
+          console.log(`👤 Client created: ${sessionId}-${serverId} (${clientId})`);
+        } catch (clientError) {
+          console.error('❌ Client 생성 실패:', clientError);
+          throw new Error(`Client creation failed: ${clientError instanceof Error ? clientError.message : 'Unknown error'}`);
+        }
+
         // 4. Transport 가져오기
-        const transport = transportStore.getState().getTransport({ sessionId: transportSessionId });
-        if (!transport) throw new Error('Transport not found');
-    
-        // 5. Client 인스턴스 생성 및 연결
-        const client = new Client(
+        transport = transportStore.getState().getTransport({ sessionId: transportSessionId });
+        if (!transport) {
+          throw new Error('Transport not found after creation');
+        }
+
+        // 5. Client 인스턴스 생성 및 연결 (타임아웃 추가)
+        client = new Client(
           {
             name: `${sessionId}-${serverId}`,
             version: '1.0.0',
@@ -132,37 +158,62 @@ export const mcpCoordinatorStore = createStore<MCPCoordinatorState>(
             },
           },
         );
-    
+
         console.log('🔌 Connecting client to transport...');
-        await client.connect(transport);
+        
+        // 🔥 연결 타임아웃 추가 (5초)
+        const connectPromise = client.connect(transport);
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Connection timeout (5s)')), 5000);
+        });
+        
+        await Promise.race([connectPromise, timeoutPromise]);
         console.log('✅ Client connected to transport');
-    
-        // 🔑 핵심: setupNotificationHandlers를 통해 client 인스턴스 저장
-        clientStore.getState().setupNotificationHandlers({ clientId, client });
-    
-        // Store에는 직렬화 가능한 데이터만 저장
-        clientStore.getState().updateClientStatus({
-          clientId,
-          status: 'connected',
-          error: undefined,
-        });
-    
-        // serverCapabilities 저장
-        clientStore.getState().updateClient({
-          clientId,
-          updates: {
-            serverCapabilities: client.getServerCapabilities?.() || {},
-          },
-        });
-    
-        // 6. ✨ mcpRegistryStore에 서버 정보 업데이트 (clientId 추가)
-        mcpRegistryStore.getState().registerServer({
-          ...server,
-          clientId,
-          status: 'connected',
-        });
-    
-        // 7. 바인딩 정보 저장
+
+        // 6. setupNotificationHandlers를 통해 client 인스턴스 저장 (에러 처리)
+        try {
+          clientStore.getState().setupNotificationHandlers({ clientId, client });
+          console.log('📡 Notification handlers setup complete');
+        } catch (handlerError) {
+          console.warn('⚠️ Notification handlers setup failed, continuing:', handlerError);
+          // 핸들러 설정 실패는 치명적이지 않으므로 계속 진행
+        }
+
+        // 7. Store 상태 업데이트 (직렬화 안전)
+        try {
+          clientStore.getState().updateClientStatus({
+            clientId,
+            status: 'connected',
+            error: undefined,
+          });
+
+          // serverCapabilities 저장 (안전한 방식)
+          const serverCapabilities = client.getServerCapabilities?.() || {};
+          clientStore.getState().updateClient({
+            clientId,
+            updates: {
+              serverCapabilities: JSON.parse(JSON.stringify(serverCapabilities)), // 깊은 복사로 안전하게
+            },
+          });
+          
+          console.log('📊 Client status updated to connected');
+        } catch (updateError) {
+          console.warn('⚠️ Client status update failed:', updateError);
+        }
+
+        // 8. mcpRegistryStore에 서버 정보 업데이트 (clientId 추가)
+        try {
+          mcpRegistryStore.getState().registerServer({
+            ...server,
+            clientId,
+            status: 'connected',
+          });
+          console.log('🔧 Registry server status updated');
+        } catch (registryError) {
+          console.warn('⚠️ Registry update failed:', registryError);
+        }
+
+        // 9. 바인딩 정보 저장
         const bindingId = `Binding-${uuidv4()}`;
         const binding: MCPBinding = {
           id: bindingId,
@@ -173,99 +224,61 @@ export const mcpCoordinatorStore = createStore<MCPCoordinatorState>(
           status: 'active',
           createdAt: new Date().toISOString(),
         };
-    
 
-        // 각 store의 set 호출 전에 디버깅 추가
-          set((state) => {
-            console.log('🔍 Setting state for store:', 'clientStore'); // store 이름 명시
-            console.log('📦 State keys:', Object.keys(state));
-            
-            // 직렬화 불가능한 객체 찾기
-            Object.entries(state).forEach(([key, value]) => {
-              if (value && typeof value === 'object') {
-                if (value.constructor && value.constructor.name !== 'Object' && value.constructor.name !== 'Array') {
-                  console.error(`❌ Non-serializable object found in ${key}:`, value.constructor.name);
-                }
-              }
-            });
-            
-            return {
-              sessionBindings: {
-                ...state.sessionBindings,
-                [sessionId]: [...(state.sessionBindings[sessionId] || []), binding],
-              },
-            };
-          });
-        // set((state) => ({
-        //   sessionBindings: {
-        //     ...state.sessionBindings,
-        //     [sessionId]: [...(state.sessionBindings[sessionId] || []), binding],
-        //   },
-        // }));
-
-        
-
-        
-        // 8. ✨ mcpRegistryStore를 통해 capabilities 발견
-        console.log('🔧 Discovering server capabilities...');
-        const capabilities = await mcpRegistryStore
-          .getState()
-          .discoverServerCapabilities(serverId);
-        
-        console.log(
-          `✅ Discovered ${capabilities.tools.length} tools, ${capabilities.prompts.length} prompts`,
-        );
-    
-        // 9. ChatStore에 활성 도구 업데이트
-        const config = chatStore.getState().getConfig(sessionId);
-        if (config && capabilities.tools.length > 0) {
-          const newActiveTools = [
-            ...new Set([
-              ...(config.activeTools || []),
-              ...capabilities.tools.map(t => t.name),
-            ]),
-          ];
-          
-          chatStore.getState().updateConfig({
-            sessionId,
-            config: {
-              activeTools: newActiveTools,
+        // 상태 업데이트 (안전하게)
+        try {
+          set((state) => ({
+            sessionBindings: {
+              ...state.sessionBindings,
+              [sessionId]: [...(state.sessionBindings[sessionId] || []), binding],
             },
-          });
+          }));
           
-          console.log(
-            '🛠️ [chatStore.configs] activeTools 업데이트 후:',
-            chatStore.getState().configs[sessionId],
-          );
+          console.log(`🎉 MCP connection successful: ${server.name} → Session ${sessionId}`);
+          return bindingId;
+          
+        } catch (stateError) {
+          console.error('❌ State update failed:', stateError);
+          throw new Error(`State update failed: ${stateError instanceof Error ? stateError.message : 'Unknown error'}`);
         }
-    
-        console.log(`✅ MCP connected: ${serverId} to session ${sessionId}`);
-        return bindingId;
+
       } catch (error) {
-        console.error(`❌ Failed to connect MCP:`, error);
-    
-        // 에러 바인딩 저장
-        const bindingId = `Binding-${uuidv4()}`;
-        set((state) => ({
-          sessionBindings: {
-            ...state.sessionBindings,
-            [sessionId]: [
-              ...(state.sessionBindings[sessionId] || []),
-              {
-                id: bindingId,
-                sessionId,
-                serverId,
-                clientId: '',
-                transportSessionId: '',
-                status: 'error',
-                error: error instanceof Error ? error.message : 'Unknown error',
-                createdAt: new Date().toISOString(),
-              },
-            ],
-          },
-        }));
-    
-        throw error;
+        console.error(`❌ Failed to connect MCP: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        
+        // 정리 작업 (중요!)
+        try {
+          if (client) {
+            await client.close();
+            console.log('🧹 Client closed during cleanup');
+          }
+        } catch (closeError) {
+          console.warn('⚠️ Client cleanup failed:', closeError);
+        }
+        
+        try {
+          if (clientId) {
+            clientStore.getState().updateClientStatus({
+              clientId,
+              status: 'error',
+              error: error instanceof Error ? error.message : 'Connection failed',
+            });
+          }
+        } catch (cleanupError) {
+          console.warn('⚠️ Client status cleanup failed:', cleanupError);
+        }
+        
+        try {
+          if (transportSessionId) {
+            await transportStore.getState().closeTransport({ sessionId: transportSessionId });
+            console.log('🧹 Transport closed during cleanup');
+          }
+        } catch (transportCleanupError) {
+          console.warn('⚠️ Transport cleanup failed:', transportCleanupError);
+        }
+
+        // 에러를 다시 던지지 않고 빈 문자열 반환 (연결 실패를 허용)
+        console.log('🔄 Connection failed, but continuing...');
+        return '';
       }
     },
 
@@ -288,6 +301,21 @@ export const mcpCoordinatorStore = createStore<MCPCoordinatorState>(
         await transportStore
           .getState()
           .closeTransport({ sessionId: binding.transportSessionId });
+
+        // 🔥 mcpRegistryStore 서버 상태 업데이트 (연결 해제)
+        try {
+          const server = mcpRegistryStore.getState().servers[binding.serverId];
+          if (server) {
+            mcpRegistryStore.getState().registerServer({
+              ...server,
+              clientId: '', // 클라이언트 ID 제거
+              status: 'disconnected',
+            });
+            console.log('🔧 Registry server status updated to disconnected');
+          }
+        } catch (registryError) {
+          console.warn('⚠️ Registry update failed during disconnect:', registryError);
+        }
 
         // 바인딩 상태 업데이트
         set((state) => ({
@@ -343,37 +371,114 @@ export const mcpCoordinatorStore = createStore<MCPCoordinatorState>(
       console.log(`🔧 toolName: ${toolName}`);
       console.log(`📦 args:`, args);
       
+      // 🔍 연결 상태 진단
+      const bindings = get().sessionBindings[sessionId] || [];
+      console.log(`🔗 세션 바인딩:`, bindings.length, '개');
+      bindings.forEach(binding => {
+        console.log(`  - ${binding.serverId}: ${binding.status} (client: ${binding.clientId})`);
+      });
+      
       // 도구가 등록되어 있는지 확인
       const tool = mcpRegistryStore.getState().getTool(toolName);
       if (!tool) {
         console.error(`❌ Tool not found in registry: ${toolName}`);
+        console.log(`📋 Available tools:`, Object.keys(mcpRegistryStore.getState().tools));
         throw new Error(`Tool ${toolName} not found in registry`);
       }
       
       console.log(`✅ Tool found:`, tool);
       console.log(`🔗 Tool server: ${tool.serverId} (${tool.serverName})`);
       
+      // 🔍 서버 연결 상태 확인
+      const server = mcpRegistryStore.getState().servers[tool.serverId];
+      if (!server) {
+        console.error(`❌ Server not found: ${tool.serverId}`);
+        throw new Error(`Server ${tool.serverId} not found`);
+      }
+      
+      console.log(`🖥️ Server details:`, {
+        name: server.name,
+        status: server.status,
+        clientId: server.clientId,
+        hasClientId: !!server.clientId
+      });
+      
+      // 🔍 클라이언트 상태 확인
+      if (server.clientId) {
+        const client = clientStore.getState().getClient({ clientId: server.clientId });
+        console.log(`👤 Client details:`, {
+          exists: !!client,
+          status: client?.status,
+          lastActivity: client?.lastActivity
+        });
+      } else {
+        console.error(`❌ Server has no clientId: ${server.name}`);
+        throw new Error(`Server ${server.name} is not connected (no clientId)`);
+      }
+      
+      // 🔍 세션-서버 바인딩 확인
+      const isConnectedToSession = get().isServerConnectedToSession({ sessionId, serverId: tool.serverId });
+      console.log(`🔗 Is server connected to session:`, isConnectedToSession);
+      
+      if (!isConnectedToSession) {
+        console.error(`❌ Server ${tool.serverId} not connected to session ${sessionId}`);
+        throw new Error(`Server ${server.name} is not connected to this session`);
+      }
+      
       // mcpRegistryStore의 executeTool 사용
       console.log(`📤 Calling mcpRegistryStore.executeTool...`);
-      const result = await mcpRegistryStore.getState().executeTool(toolName, args);
-      console.log(`📨 Result from mcpRegistryStore.executeTool:`, result);
-      
-      return result;
+      try {
+        const result = await mcpRegistryStore.getState().executeTool(toolName, args);
+        console.log(`📨 Result from mcpRegistryStore.executeTool:`, result);
+        return result;
+      } catch (error) {
+        console.error(`❌ Tool execution failed:`, error);
+        // 🔧 자동 재연결 시도
+        if (error && typeof error === 'object' && 'message' in error && 
+            (error.message as string).includes('not connected')) {
+          console.log(`🔄 Connection lost, attempting to reconnect server ${tool.serverId}...`);
+          try {
+            await get().connectMCPToSession({ sessionId, serverId: tool.serverId });
+            console.log(`✅ Reconnection successful, retrying tool execution...`);
+            const retryResult = await mcpRegistryStore.getState().executeTool(toolName, args);
+            console.log(`📨 Retry result:`, retryResult);
+            return retryResult;
+          } catch (reconnectError) {
+            console.error(`❌ Reconnection failed:`, reconnectError);
+            throw error; // 원래 오류 다시 던지기
+          }
+        }
+        throw error;
+      }
     },
 
     getSessionTools: async (payload) => {
       const { sessionId } = payload;
       const bindings = get().sessionBindings[sessionId] || [];
-      const tools: RegisteredTool[] = [];
+      const allTools: RegisteredTool[] = [];
     
       for (const binding of bindings.filter(b => b.status === 'active')) {
         const serverTools = mcpRegistryStore
           .getState()
           .getServerTools(binding.serverId);
-        tools.push(...serverTools);
+        allTools.push(...serverTools);
       }
     
-      return tools;
+      // 🔥 도구 이름 중복 제거 - 첫 번째로 등록된 도구만 유지
+      const uniqueTools: RegisteredTool[] = [];
+      const seenToolNames = new Set<string>();
+      
+      for (const tool of allTools) {
+        if (!seenToolNames.has(tool.name)) {
+          seenToolNames.add(tool.name);
+          uniqueTools.push(tool);
+        } else {
+          console.warn(`⚠️ [getSessionTools] 중복된 도구 이름 발견, 건너뛰기: ${tool.name} (서버: ${tool.serverName})`);
+        }
+      }
+      
+      console.log(`🔧 [getSessionTools] 전체 도구: ${allTools.length}개, 중복 제거 후: ${uniqueTools.length}개`);
+      return uniqueTools;
     },
     
     cleanupSession: async (payload) => {

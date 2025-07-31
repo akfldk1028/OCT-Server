@@ -29,5 +29,6 @@ npm-debug.log.*
 *.scss.d.ts
 
 .env
+.wrangler
+/python
 
-python

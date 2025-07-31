@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Capture Worker</title>
+  </head>
+  <body>
+    <script>
+      const { ipcRenderer } = require('electron');
+
+      ipcRenderer.on('capture-source', async (event, sourceId, captureConfig) => {
+        try {
+          console.log(`[Capture Worker] Received sourceId: ${sourceId}`);
+          
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              mandatory: {
+                chromeMediaSource: 'desktop',
+                chromeMediaSourceId: sourceId,
+                minWidth: captureConfig.width,
+                maxWidth: captureConfig.width,
+                minHeight: captureConfig.height,
+                maxHeight: captureConfig.height,
+              },
+            },
+          });
+
+          const video = document.createElement('video');
+          video.srcObject = stream;
+          video.onloadedmetadata = () => {
+            video.play();
+
+            const canvas = document.createElement('canvas');
+            canvas.width = captureConfig.width;
+            canvas.height = captureConfig.height;
+            const ctx = canvas.getContext('2d');
+            
+            // 비디오 프레임을 캔버스에 그립니다.
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const dataURL = canvas.toDataURL('image/png');
+            ipcRenderer.send('screenshot-captured', { success: true, dataURL });
+
+            // 즉시 리소스를 정리합니다.
+            stream.getTracks().forEach(track => track.stop());
+          };
+
+          video.onerror = (e) => {
+             ipcRenderer.send('screenshot-captured', { success: false, error: 'Video element error' });
+          }
+
+        } catch (error) {
+          console.error('[Capture Worker] Error:', error);
+          ipcRenderer.send('screenshot-captured', { success: false, error: error.message });
+        }
+      });
+    </script>
+  </body>
+</html> 

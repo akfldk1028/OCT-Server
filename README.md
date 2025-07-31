@@ -46,3 +46,16 @@ await mcpManager.disconnectSession(dbConnection.sessionId);
 
 // 6. 프로젝트 전체 종료
 await mcpManager.disconnectRoom(firstConnection.roomId);
+
+
+
+ㅍ
+설치 방법	제거 내용
+NPM	npm uninstall + 디렉토리 삭제
+NPX	디렉토리 삭제만 (글로벌 캐시)
+PIP	libs 폴더의 패키지+dist-info 삭제 + 디렉토리
+UV	uv remove + .venv/uv.lock/pyproject.toml + 디렉토리
+UVX	uvx uninstall + 관련 파일들 + 디렉토리
+Docker	docker rmi 이미지 삭제 + 디렉토리
+Git	디렉토리 삭제
+Local	디렉토리 삭제

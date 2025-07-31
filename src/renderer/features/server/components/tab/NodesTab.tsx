@@ -5,37 +5,37 @@ const nodes = [
   {
     type: 'trigger',
     label: 'START TRIGGER',
-    color: 'bg-emerald-600',
+    color: 'bg-primary',
     icon: <FaPlay size={32} />,
   },
   {
     type: 'text',
     label: 'Text Node',
-    color: 'bg-blue-500',
+    color: 'bg-chart-1',
     icon: <FaFont size={32} />,
   },
   {
     type: 'result',
     label: 'Result Node',
-    color: 'bg-purple-500',
+    color: 'bg-chart-2',
     icon: <FaCheckCircle size={32} />,
   },
   {
     type: 'color',
     label: 'Color Picker',
-    color: 'bg-orange-400',
+    color: 'bg-chart-3',
     icon: <FaPalette size={32} />,
   },
   {
     type: 'image',
     label: 'Image Node',
-    color: 'bg-pink-500',
+    color: 'bg-chart-4',
     icon: <FaImage size={32} />,
   },
   {
     type: 'counter',
     label: 'Counter Node',
-    color: 'bg-cyan-600',
+    color: 'bg-chart-5',
     icon: <FaHashtag size={32} />,
   },
 ];

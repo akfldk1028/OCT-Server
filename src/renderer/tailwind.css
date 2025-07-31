@@ -6,73 +6,73 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 346.8 77.2% 49.8%;
-    --primary-foreground: 355.7 100% 97.3%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 346.8 77.2% 49.8%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --background: 220 14% 96%;                   /* 소프트웨어 스타일 라이트 그레이 (#f6f8fa - GitHub 스타일) */
+    --foreground: 220 13% 18%;                   /* 순검정 대신 다크 그레이 (#24292f - GitHub 스타일) */
+    --card: 220 14% 98%;                         /* 카드 배경 - 배경보다 살짝 밝게 */
+    --card-foreground: 220 13% 18%;              /* 카드 텍스트 */
+    --popover: 220 14% 98%;                      /* 팝오버 배경 */
+    --popover-foreground: 220 13% 18%;           /* 팝오버 텍스트 */
+    --primary: 155 50% 40%;                      /* Forest Green (깊은 숲녹색 - 차분하고 자연스러움) */
+    --primary-foreground: 220 14% 98%;           /* 프라이머리 텍스트 (녹색에는 흰색 텍스트) */
+    --secondary: 217 25% 85%;                    /* 부드러운 청회색 */
+    --secondary-foreground: 220 13% 25%;         /* 세컨더리 텍스트 */
+    --muted: 220 13% 91%;                        /* 뮤트 배경 */
+    --muted-foreground: 220 9% 46%;              /* 뮤트 텍스트 (#6e7681 - GitHub 스타일) */
+    --accent: 13 85% 75%;                        /* 모던 peach (Pantone 2024) */
+    --accent-foreground: 220 13% 18%;            /* 액센트 텍스트 */
+    --destructive: 0 75% 55%;                    /* 부드러운 레드 */
+    --destructive-foreground: 220 14% 98%;       /* 디스트럭티브 텍스트 */
+    --border: 220 13% 87%;                       /* 보더 (#d1d9e0 - GitHub 스타일) */
+    --input: 220 13% 89%;                        /* 인풋 배경 */
+    --ring: 155 50% 40%;                         /* 링 색상 (프라이머리와 동일) */
+    --chart-1: 217 45% 65%;                      /* 차트 1 - 모던 블루 */
+    --chart-2: 155 50% 40%;                      /* 차트 2 - 네이처 그린 (프라이머리와 동일) */
+    --chart-3: 13 75% 65%;                       /* 차트 3 - 피치 */
+    --chart-4: 54 85% 60%;                       /* 차트 4 - 셀레스티얼 옐로우 */
+    --chart-5: 340 65% 70%;                      /* 차트 5 - 웜 핑크 */
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 155 25% 20%;           /* 사이드바 - 깊은 Forest Green 배경 */
+    --sidebar-foreground: 155 15% 85%;           /* 사이드바 텍스트 - 밝은 녹색 계열 */
+    --sidebar-primary: 155 50% 40%;              /* 사이드바 프라이머리 */
+    --sidebar-primary-foreground: 220 14% 98%;   /* 사이드바 프라이머리 텍스트 */
+    --sidebar-accent: 155 35% 35%;               /* 사이드바 액센트 - 중간 톤 Forest Green */
+    --sidebar-accent-foreground: 155 15% 90%;    /* 사이드바 액센트 텍스트 */
+    --sidebar-border: 155 30% 25%;               /* 사이드바 보더 - 배경보다 살짝 밝게 */
+    --sidebar-ring: 155 50% 40%;                 /* 사이드바 링 */
   }
   .dark {
-    --background: 20 14.3% 4.1%;
-    --foreground: 0 0% 95%;
-    --card: 24 9.8% 10%;
-    --card-foreground: 0 0% 95%;
-    --popover: 0 0% 9%;
-    --popover-foreground: 0 0% 95%;
-    --primary: 346.8 77.2% 49.8%;
-    --primary-foreground: 355.7 100% 97.3%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 15%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 12 6.5% 15.1%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 85.7% 97.3%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 346.8 77.2% 49.8%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --background: 220 13% 9%;                    /* 다크 배경 (#161b22 - GitHub Dark 스타일) */
+    --foreground: 220 14% 93%;                   /* 다크 텍스트 (#f0f6fc - GitHub Dark 스타일) */
+    --card: 220 13% 12%;                         /* 다크 카드 (#21262d - GitHub Dark 스타일) */
+    --card-foreground: 220 14% 93%;              /* 다크 카드 텍스트 */
+    --popover: 220 13% 11%;                      /* 다크 팝오버 */
+    --popover-foreground: 220 14% 93%;           /* 다크 팝오버 텍스트 */
+    --primary: 155 60% 55%;                      /* 다크모드 Forest Green (조금 더 밝게) */
+    --primary-foreground: 220 13% 9%;            /* 다크 프라이머리 텍스트 */
+    --secondary: 220 13% 18%;                    /* 다크 세컨더리 */
+    --secondary-foreground: 220 14% 85%;         /* 다크 세컨더리 텍스트 */
+    --muted: 220 13% 15%;                        /* 다크 뮤트 */
+    --muted-foreground: 220 9% 65%;              /* 다크 뮤트 텍스트 (#7d8590 - GitHub Dark 스타일) */
+    --accent: 13 75% 65%;                        /* 다크모드 peach */
+    --accent-foreground: 220 13% 9%;             /* 다크 액센트 텍스트 */
+    --destructive: 0 65% 65%;                    /* 다크모드 레드 */
+    --destructive-foreground: 220 13% 9%;        /* 다크 디스트럭티브 텍스트 */
+    --border: 220 13% 22%;                       /* 다크 보더 (#30363d - GitHub Dark 스타일) */
+    --input: 220 13% 20%;                        /* 다크 인풋 */
+    --ring: 155 60% 55%;                         /* 다크 링 */
+    --chart-1: 217 65% 70%;                      /* 다크 차트 1 */
+    --chart-2: 155 60% 55%;                      /* 다크 차트 2 - 네이처 그린 */
+    --chart-3: 13 75% 70%;                       /* 다크 차트 3 */
+    --chart-4: 54 90% 65%;                       /* 다크 차트 4 - 셀레스티얼 옐로우 */
+    --chart-5: 340 65% 75%;                      /* 다크 차트 5 */
+    --sidebar-background: 155 35% 12%;           /* 다크 사이드바 - 매우 진한 Forest Green */
+    --sidebar-foreground: 155 20% 85%;           /* 다크 사이드바 텍스트 */
+    --sidebar-primary: 155 60% 55%;              /* 다크 사이드바 프라이머리 */
+    --sidebar-primary-foreground: 155 35% 12%;   /* 다크 사이드바 프라이머리 텍스트 */
+    --sidebar-accent: 155 40% 25%;               /* 다크 사이드바 액센트 */
+    --sidebar-accent-foreground: 155 20% 90%;    /* 다크 사이드바 액센트 텍스트 */
+    --sidebar-border: 155 30% 20%;               /* 다크 사이드바 보더 */
+    --sidebar-ring: 155 60% 55%;                 /* 다크 사이드바 링 */
   }
 }
 

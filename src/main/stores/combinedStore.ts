@@ -12,6 +12,14 @@ import { mcpRegistryStore } from './mcp/mcpRegistryStore';
 import { chatStore } from './chat/chatStore';
 import { rendererMCPProxy } from './renderProxy/rendererMCPProxy';
 import { mcpCoordinatorStore } from './integration/ai-mcp-coordinator';
+import { installerStore } from './install/installerStore';
+import { agentOrchestratorStore } from './orchestrator/agentOrchestratorStore';
+import { workflowStore } from './workflow/workflowStore';
+import { overlayStore } from './overlay/overlayStore';
+import { windowStore } from './window/windowStore';
+import { updateStore } from './update/updateStore';
+
+
 export const combinedStore = createStore<CombinedState>((set, get) => ({
   // root: rootStore.getState(),
   transport: transportStore.getState(),
@@ -23,13 +31,22 @@ export const combinedStore = createStore<CombinedState>((set, get) => ({
   mcp_registry: mcpRegistryStore.getState(),
   chat: chatStore.getState(),
   mcp_coordinator: mcpCoordinatorStore.getState(),
-
+  installer: installerStore.getState(),
+  workflow: workflowStore.getState(),
+  overlay: overlayStore.getState(),
+  window: windowStore.getState(),
+  update: updateStore.getState(),
+  // agentOrchestrator: agentOrchestratorStore.getState(),
 }));
 
 // 각 store 구독해서 combined store 업데이트
 // rootStore.subscribe((state) => {
 //   combinedStore.setState((prev) => ({ ...prev, root: state }));
 // });
+
+overlayStore.subscribe((state) => {
+  combinedStore.setState((prev) => ({ ...prev, overlay: state }));
+});
 
 transportStore.subscribe((state) => {
   combinedStore.setState((prev) => ({ ...prev, transport: state }));
@@ -66,3 +83,16 @@ chatStore.subscribe((state) => {
 mcpCoordinatorStore.subscribe((state) => {
   combinedStore.setState((prev) => ({ ...prev, mcp_coordinator: state }));
 });
+
+installerStore.subscribe((state) => {
+  combinedStore.setState((prev) => ({ ...prev, installer: state }));
+});
+workflowStore.subscribe((state) => {
+  combinedStore.setState((prev) => ({ ...prev, workflow: state }));
+});
+windowStore.subscribe((state) => {
+  combinedStore.setState((prev) => ({ ...prev, window: state }));
+});
+// agentOrchestratorStore.subscribe((state) => {
+//   combinedStore.setState((prev) => ({ ...prev, agentOrchestrator: state }));
+// });

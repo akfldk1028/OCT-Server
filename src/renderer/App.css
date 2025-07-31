@@ -30,14 +30,14 @@
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 155 25% 20%;           /* 사이드바 - 깊은 Forest Green 배경 */
+    --sidebar-foreground: 155 15% 85%;           /* 사이드바 텍스트 - 밝은 녹색 계열 */
+    --sidebar-primary: 155 50% 40%;              /* 사이드바 프라이머리 */
+    --sidebar-primary-foreground: 220 14% 98%;   /* 사이드바 프라이머리 텍스트 */
+    --sidebar-accent: 155 35% 35%;               /* 사이드바 액센트 - 중간 톤 Forest Green */
+    --sidebar-accent-foreground: 155 15% 90%;    /* 사이드바 액센트 텍스트 */
+    --sidebar-border: 155 30% 25%;               /* 사이드바 보더 - 배경보다 살짝 밝게 */
+    --sidebar-ring: 155 50% 40%;                 /* 사이드바 링 */
   }
   .dark {
     --background: 20 14.3% 4.1%;
@@ -64,14 +64,14 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 155 35% 12%;           /* 다크 사이드바 - 매우 진한 Forest Green */
+    --sidebar-foreground: 155 20% 85%;           /* 다크 사이드바 텍스트 */
+    --sidebar-primary: 155 60% 55%;              /* 다크 사이드바 프라이머리 */
+    --sidebar-primary-foreground: 155 35% 12%;   /* 다크 사이드바 프라이머리 텍스트 */
+    --sidebar-accent: 155 40% 25%;               /* 다크 사이드바 액센트 */
+    --sidebar-accent-foreground: 155 20% 90%;    /* 다크 사이드바 액센트 텍스트 */
+    --sidebar-border: 155 30% 20%;               /* 다크 사이드바 보더 */
+    --sidebar-ring: 155 60% 55%;                 /* 다크 사이드바 링 */
   }
 }
 

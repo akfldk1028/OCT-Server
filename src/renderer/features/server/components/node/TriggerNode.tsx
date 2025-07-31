@@ -4,6 +4,8 @@ import { useToast } from '@/renderer/hooks/use-toast';
 import { dfsTraverse, FlowNode, FlowEdge } from './FlowDfsUtil';
 import { executeWorkflow } from '../Flow/FlowEngine';
 import { enhanceNodeData, enhanceWorkflowData } from '../Flow/NodeDataEnhancer';
+import { makeSSRClient } from '@/renderer/supa-client';
+import { saveWorkflowExecution, updateWorkflowExecution } from '../../workflow-queries';
 
 interface TriggerNodeProps {
   id: string;
@@ -31,8 +33,17 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
     const nodes = getNodes();
     const edges = getEdges();
 
-    console.log('nodes:', nodes);
-    console.log('edges:', edges);
+    console.log('🔍 [TriggerNode] 전체 노드 데이터:', nodes);
+    console.log('🔍 [TriggerNode] 각 노드별 데이터 확인:');
+    nodes.forEach((node, idx) => {
+      console.log(`  노드 ${idx + 1} (${node.id}):`, {
+        type: node.type,
+        hasData: !!node.data,
+        dataKeys: node.data ? Object.keys(node.data) : [],
+        data: node.data
+      });
+    });
+    console.log('🔍 [TriggerNode] 엣지:', edges);
     const triggerNode = (Array.isArray(nodes) ? nodes : []).find(
       (n) => n.id === id,
     );
@@ -54,38 +65,99 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
     // 순서대로 노드 출력 디버깅 추가
     console.log('순서대로 정렬된 노드들:', orderedNodes);
 
-    // const json = orderedNodes.map((node) => {
-    //   // NodeDataEnhancer를 사용하여 노드 데이터 강화
-    //   const enhancedData = enhanceNodeData({
-    //     id: node.id,
-    //     type: node.type,
-    //     data: node.data,
-    //   });
+    const json = orderedNodes.map((node) => {
+      // NodeDataEnhancer를 사용하여 노드 데이터 강화
+      const enhancedData = enhanceNodeData({
+        id: node.id,
+        type: node.type,
+        data: node.data,
+      });
 
-    //   return {
-    //     ...enhancedData,
-    //     id: node.id,
-    //     position: (node as any).position,
-    //     type: node.type,
-    //   };
-    // });
+      return {
+        ...enhancedData,
+        id: node.id,
+        position: (node as any).position,
+        type: node.type,
+      };
+    });
 
-    // // 로그 추가 - 메타데이터 확인
-    // console.log('강화된 노드 JSON:', json);
+    // 로그 추가 - 메타데이터 확인
+    console.log('강화된 노드 JSON:', json);
 
     // 3. 각 노드 방문 로그 (이모지 + 노드별 JSON)
-    // json.forEach((node, idx) => {
-    //   const emoji = idx === 0 ? '🟢' : idx === json.length - 1 ? '🏁' : '➡️';
-    //   const nodeLog = `${emoji} [${idx + 1}] ${node.type} (${node.id}): ${JSON.stringify(node, null, 2)}`;
-    //   setLogs((prevLogs) => [...prevLogs.slice(-4), nodeLog]);
-    //   console.log(`🟢🟢🟢노드 ${idx+1}: 🟢🟢🟢🟢🟢🟢🟢🟢🟢`, node); // 디버깅용 콘솔 로그 추가
-    // });
+    json.forEach((node, idx) => {
+      const emoji = idx === 0 ? '🟢' : idx === json.length - 1 ? '🏁' : '➡️';
+      const nodeLog = `${emoji} [${idx + 1}] ${node.type} (${node.id})`;
+      setLogs((prevLogs) => [...prevLogs.slice(-4), nodeLog]);
+      console.log(`🔥 노드 ${idx+1} (${node.type}):`, node); // 🔥 DB 데이터 확인용
+      
+      // 🔥 서버 노드의 경우 ID 정보와 DB 데이터 상세 확인
+      if (node.type === 'server') {
+        console.log(`🔍 [${node.type}] 서버 ID 정보:`, {
+          '🆔 노드 ID': node.id,
+          '📊 data.id': node.data?.id,
+          '🔧 original_server_id': node.data?.original_server_id,
+          '📛 서버 이름': node.data?.mcp_servers?.name || node.data?.name,
+          '🎯 DB 테이블 연결': {
+            'user_mcp_usage.id': node.data?.id,
+            'mcp_servers.id': node.data?.original_server_id
+          }
+        });
+        console.log(`📋 [${node.type}] mcp_configs:`, node.mcp_configs);
+        console.log(`📋 [${node.type}] mcp_install_methods:`, node.mcp_install_methods);
+        console.log(`📋 [${node.type}] install_methods:`, node.install_methods);
+        console.log(`📋 [${node.type}] config_options:`, node.config_options);
+        console.log(`📄 [${node.type}] 전체 데이터:`, node.data);
+      }
+    });
 
     // 4. 워크플로우 실행 (FlowEngine 사용)
+    let executionRecord = null;
+    const executionId = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const startTime = Date.now();
+    
     try {
+      // 🔥 실행 기록 저장 (시작)
+      try {
+        const { client } = makeSSRClient();
+        const userId = (window as any).zubridge?.getState?.()?.session?.profile_id;
+        const workflowId = 1; // 임시로 1 사용 (실제로는 저장된 워크플로우 ID)
+        
+        if (userId) {
+          executionRecord = await saveWorkflowExecution(client, {
+            workflow_id: workflowId,
+            user_id: userId,
+            execution_id: executionId,
+            status: 'running',
+            nodes_executed: 0,
+          });
+          console.log('✅ [TriggerNode] 실행 기록 저장됨:', executionRecord);
+        }
+      } catch (dbError) {
+        console.warn('⚠️ [TriggerNode] 실행 기록 저장 실패 (계속 진행):', dbError);
+      }
+      
       // 워크플로우 실행
       const executionResult = await executeWorkflow(id, nodes, edges);
       console.log('워크플로우 실행 결과:', executionResult);
+
+      // executionResult가 없는 경우 기본값 설정
+      if (!executionResult) {
+        setLogs((prevLogs) => [...prevLogs.slice(-4), '❌ 워크플로우 실행 결과를 받지 못했습니다.']);
+        return;
+      }
+
+      // executionResult null/undefined 체크 추가
+      if (!executionResult) {
+        console.error('❌ [TriggerNode] executeWorkflow가 undefined를 반환했습니다');
+        setLogs((prevLogs) => [...prevLogs.slice(-4), '❌ 워크플로우 실행 실패: 결과가 없습니다']);
+        toast({
+          title: '워크플로우 실행 실패',
+          description: '워크플로우 엔진에서 결과를 반환하지 않았습니다',
+          variant: 'error',
+        });
+        throw new Error('워크플로우 실행 결과가 없습니다');
+      }
 
       // finalData 전체를 순회하며 isLast와 message가 있는 객체를 찾는다
       if (executionResult.finalData) {
@@ -125,9 +197,50 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
           setLogs((prevLogs) => [...prevLogs.slice(-4), resultLog]);
         });
       }
+      
+      // 🔥 실행 완료 기록 업데이트
+      if (executionRecord) {
+        try {
+          const { client } = makeSSRClient();
+          const endTime = Date.now();
+          const duration = endTime - startTime;
+          
+          await updateWorkflowExecution(client, executionId, {
+            status: executionResult.success ? 'completed' : 'failed',
+            result_data: executionResult,
+            duration_ms: duration,
+            nodes_executed: nodes.length,
+            nodes_failed: executionResult.success ? 0 : 1,
+          });
+          console.log('✅ [TriggerNode] 실행 완료 기록 업데이트됨');
+        } catch (dbError) {
+          console.warn('⚠️ [TriggerNode] 실행 완료 기록 업데이트 실패:', dbError);
+        }
+      }
+      
     } catch (error) {
       console.error('워크플로우 실행 오류:', error);
       setLogs((prevLogs) => [...prevLogs.slice(-4), `❌ 오류: ${error}`]);
+      
+      // 🔥 실행 실패 기록 업데이트
+      if (executionRecord) {
+        try {
+          const { client } = makeSSRClient();
+          const endTime = Date.now();
+          const duration = endTime - startTime;
+          
+          await updateWorkflowExecution(client, executionId, {
+            status: 'failed',
+            error_message: error instanceof Error ? error.message : String(error),
+            duration_ms: duration,
+            nodes_executed: 0,
+            nodes_failed: 1,
+          });
+          console.log('✅ [TriggerNode] 실행 실패 기록 업데이트됨');
+        } catch (dbError) {
+          console.warn('⚠️ [TriggerNode] 실행 실패 기록 업데이트 실패:', dbError);
+        }
+      }
     }
 
     // 5. 전체 결과 JSON 로그 (이모지 포함)

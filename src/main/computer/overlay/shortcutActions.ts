@@ -116,7 +116,9 @@ export function addShortcutActions(
 
       // 앱 종료 시 단축키 해제
       app.on('will-quit', () => {
-        globalShortcut.unregisterAll();
+        if (app.isReady()) {
+          globalShortcut.unregisterAll();
+        }
       });
     },
 

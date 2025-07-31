@@ -148,12 +148,12 @@ createWindow    -->  await manager.startServer('local-express-server');
 ```
 1. 사용자: "서울 날씨 알려줘"
       ↓
-2. chatStore.sendMessage(sessionId, content)
-      ├─> aiMcpCoordinatorStore.getSessionTools(sessionId)
-      │     └─> 연결된 MCP 서버에서 "weather" 도구 확인
-      ├─> openrouterStore.createCompletion()
-      │     └─> AI가 weather(location: "서울") 호출 결정
-      └─> aiMcpCoordinatorStore.executeToolForSession()
+2. chatStore.sendStreamingMessage()
+      ├─> chatStore.processSelectedTags()
+      │     └─> mcpCoordinatorStore.getSessionTools()
+      ├─> openrouterStore.createStreamingCompletion()
+      │     └─> chatStore.executeMCPTools()
+      └─> mcpCoordinatorStore.executeToolForSession()
             └─> clientStore를 통해 실제 도구 실행
 ```
 
@@ -215,3 +215,9 @@ class StorageManager {
     });
   }
 }
+
+// 1. 세션 시작
+chatStore.initializeSession()
+  → chatStore.connectMCPServers()
+    → mcpRegistryStore.initializeDefaultServers()
+    → mcpCoordinatorStore.connectMCPToSession()

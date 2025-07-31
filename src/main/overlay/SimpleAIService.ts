@@ -21,6 +21,17 @@ export interface GuideStep {
   type: string;
   shortcut?: string;
   arrowPosition?: 'top' | 'bottom' | 'left' | 'right'; // 화살표 위치 속성 추가
+  metadata?: {
+    targetWindow?: string;
+    relativeX?: number;
+    relativeY?: number;
+    windowX?: number;
+    windowY?: number;
+    windowWidth?: number;
+    windowHeight?: number;
+    isWindowBased?: boolean;
+    [key: string]: any;
+  };
 }
 
 // 가이드 응답 인터페이스

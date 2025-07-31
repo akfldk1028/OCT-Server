@@ -9,11 +9,11 @@ export default memo(function ColorPickerNode({ id, data }: NodeProps<{ color?: s
   };
 
   return (
-    <div className="p-3 border-2 border-orange-500 rounded-lg bg-card min-w-[200px] shadow-md">
+    <div className="p-3 border-2 border-chart-3 rounded-lg bg-card min-w-[200px] shadow-md">
       <Handle
         type="target"
         position={Position.Left}
-        className="!w-3 !h-3 !bg-orange-500"
+        className="!w-3 !h-3 !bg-chart-3"
       />
 
       <div className="font-bold text-card-foreground mb-2 text-center">

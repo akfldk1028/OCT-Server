@@ -5,10 +5,15 @@ import type { ClientState } from '@/main/stores/client/client-types';
 import type { ProxyState } from '@/main/stores/proxy/proxy-types';
 import type { OpenRouterState } from '@/main/stores/openrouter/openrouter-type';
 import type { MCPRegistryState } from '@/main/stores/mcp/mcpRegistry-type';
-import type { AppState } from './overlay-types';
+import type { OverlayState } from '@/main/stores/overlay/overlay-types';
 import type { ChatState } from '@/main/stores/chat/chat-types';
 import { MCPProxyState } from '@/main/stores/renderProxy/rendererMCPProxy-type';
 import type { MCPCoordinatorState } from '@/main/stores/integration/ai-mcp-coordinator';
+import { InstallerState } from '@/main/stores/install/installer-types';
+import { AgentState } from '@/main/stores/orchestrator/agent-types';
+import { WorkflowState } from '@/renderer/features/server/types/server-types';
+import { WindowState } from '@/main/stores/window/windowStore';
+import { UpdateState } from '@/main/stores/update/updateStore';
 
 export interface CombinedState {
   // root: AppState;
@@ -19,8 +24,14 @@ export interface CombinedState {
   proxy: ProxyState;
   open_router: OpenRouterState;
   mcp_registry: MCPRegistryState;
-  chat: ChatState;  
+  chat: ChatState;
   mcp_coordinator: MCPCoordinatorState;
-
+  installer: Omit<InstallerState, 'dispatch'>; // dispatch 제외
+  // agentOrchestrator: AgentState;
+  workflow: WorkflowState; // 추가
+  overlay: OverlayState;
+  window: WindowState;
+  update: UpdateState;
+  
   [key: string]: any; // 이 한 줄 추가!
 }

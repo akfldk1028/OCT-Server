@@ -15,6 +15,9 @@ import webpackPaths from './webpack.paths';
 import checkNodeEnv from '../scripts/check-node-env';
 import deleteSourceMaps from '../scripts/delete-source-maps';
 
+// 🔥 package.json에서 버전 정보 가져오기
+const packageJson = require('../../package.json');
+
 checkNodeEnv('production');
 deleteSourceMaps();
 
@@ -108,6 +111,33 @@ const configuration: webpack.Configuration = {
     minimizer: [new TerserPlugin(), new CssMinimizerPlugin()],
   },
 
+  resolve: {
+    fallback: {
+      fs: false,
+      path: false,
+      electron: false,
+      os: false,
+      crypto: false,
+      stream: false,
+      http: false,
+      https: false,
+      zlib: false,
+      url: false,
+    },
+    alias: {
+      fs: false,
+      path: false,
+      electron: false,
+    },
+  },
+
+  externals: [
+    'electron',
+    'fsevents',
+    'crypto-browserify',
+    /\.node$/,
+  ],
+
   plugins: [
     /**
      * Create global constants which can be configured at compile time.
@@ -146,6 +176,8 @@ const configuration: webpack.Configuration = {
 
     new webpack.DefinePlugin({
       'process.type': '"renderer"',
+      // 🔥 앱 버전 정보 주입
+      'process.env.APP_VERSION': JSON.stringify(packageJson.version),
     }),
   ],
 };

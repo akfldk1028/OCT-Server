@@ -17,10 +17,10 @@ checkNodeEnv('production');
 deleteSourceMaps();
 
 // __dirname = .erb/configs (경로에 따라 조정)
-// ../../../node_modules 으로 올라가면 프로젝트 루트의 node_modules
+// ../../../build 으로 올라가면 프로젝트 루트의 build 폴더
 const libnutBinary = path.resolve(
   __dirname,
-  '../../../node_modules/@nut-tree-fork/libnut-win32/build/Release/libnut.node'
+  '../../../build/libnut.node'
 );
 
 const configuration: webpack.Configuration = {
@@ -101,6 +101,10 @@ const configuration: webpack.Configuration = {
       'swagger-ui-express': 'commonjs swagger-ui-express',
       'swagger-jsdoc': 'commonjs swagger-jsdoc',
       'spawn-rx': 'commonjs spawn-rx',
+      'win32-api': 'commonjs win32-api',
+      'koffi': 'commonjs koffi',
+      'ref-napi': 'commonjs ref-napi',
+      'windows-api': 'commonjs windows-api',
     },
   ],
 };

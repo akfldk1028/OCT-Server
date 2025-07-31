@@ -18,7 +18,7 @@ if (process.env.NODE_ENV === 'production') {
 // 실제 libnut.node 바이너리 위치 (환경에 맞게 한 번만 확인)
 const libnutBinary = path.resolve(
   __dirname,
-  '../../../node_modules/@nut-tree-fork/libnut-win32/build/Release/libnut.node'
+  '../../../build/libnut.node'
 );
 
 const configuration: webpack.Configuration = {
@@ -85,6 +85,10 @@ const configuration: webpack.Configuration = {
       'swagger-ui-express': 'commonjs swagger-ui-express',
       'swagger-jsdoc': 'commonjs swagger-jsdoc',
       'spawn-rx': 'commonjs spawn-rx',
+      'win32-api': 'commonjs win32-api',
+      'koffi': 'commonjs koffi',
+      'ref-napi': 'commonjs ref-napi',
+      'windows-api': 'commonjs windows-api',
     },
   ],
 };

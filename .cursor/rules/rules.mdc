@@ -1,19 +1,252 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
+# MCP Server Manager - Cursor Rules
+
+## 🎯 Core Principles
+- Never make up information. Say "I don't know" if uncertain
+- Verify information step by step before answering
+- Always read files correctly before answering
+- Ask for clarification if the request is ambiguous
+
+## 🛠️ Tech Stack
+- React + TypeScript (strict mode)
+- Electron (desktop app)
+- **Zustand** (primary state management - USE THIS OVER IPC)
+- Supabase (database)
+- MCP (Model Context Protocol)
 
 
-Key Principles
+## 🔥 CRITICAL: Common Types (MUST USE EVERYWHERE)
+```typescript
+// shared/types/common.types.ts
+export interface BaseEntity {
+  id: string
+  createdAt: string
+  updatedAt: string
+}
 
-1. If you don't have enough grounds or the information is uncertain, please never make it up arbitrarily and specify "I don't know" or "I'm not sure."
-2. Before answering, verify the possible information step by step, and mark any ambiguous or unclear source as "uncertain."
-3. Finally, complete a concise answer using only solid information. If speculation is inevitable, state "guess".
-4. If your inquiry is ambiguous or you need additional information, first ask for more context or details of the user.
-5. Don't conclude with confidence that something has not been confirmed, but provide evidence together if necessary.
-6. For each answer, if there is a source or basis, please specify that information and, if possible, briefly summarize the relevant links or references.
-7. Please read and answer the file correctly every time you answer aming Conventions
+export interface MCPServer extends BaseEntity {
+  name: string
+  description: string
+  status: ServerStatus
+  config: ServerConfig
+  isActive: boolean
+  hasError: boolean
+}
 
+export type ServerStatus = 'idle' | 'starting' | 'running' | 'stopping' | 'error'
 
+export interface ActionPayload<T = any> {
+  type: string
+  payload: T
+}
 
+// ALWAYS use these types - NO CUSTOM TYPES
+```
+
+## 🐻 Zustand Store Pattern (PRIMARY STATE MANAGEMENT)
+```typescript
+// PROPER ZUSTAND PATTERN - Like mcpRegistryStore
+interface MCPStore {
+  // State
+  servers: Record<string, MCPServer>
+  tools: Record<string, RegisteredTool>
+  prompts: Record<string, RegisteredPrompt>
+  loading: boolean
+  error: Error | null
+  
+  // Actions - Direct methods, NO dispatch pattern
+  registerServer: (server: MCPServer) => void
+  updateServerStatus: (serverId: string, status: ServerStatus) => void
+  executeTool: (toolName: string, args: any) => Promise<any>
+  discoverServerCapabilities: (serverId: string) => Promise<void>
+  
+  // Getters
+  getServer: (serverId: string) => MCPServer | undefined
+  getServerTools: (serverId: string) => RegisteredTool[]
+}
+
+const useMCPStore = create<MCPStore>()(
+  devtools(
+    persist(
+      (set, get) => ({
+        // State
+        servers: {},
+        tools: {},
+        prompts: {},
+        loading: false,
+        error: null,
+        
+        // Actions
+        registerServer: (server) => {
+          set((state) => ({
+            servers: {
+              ...state.servers,
+              [server.id]: server,
+            },
+          }))
+        },
+        
+        updateServerStatus: (serverId, status) => {
+          set((state) => ({
+            servers: {
+              ...state.servers,
+              [serverId]: {
+                ...state.servers[serverId],
+                status,
+              },
+            },
+          }))
+        },
+        
+        executeTool: async (toolName, args) => {
+          const tool = get().tools[toolName]
+          if (!tool) throw new Error(`Tool not found: ${toolName}`)
+          
+          // Implementation
+          return result
+        },
+        
+        // Getters
+        getServer: (serverId) => get().servers[serverId],
+        getServerTools: (serverId) => {
+          return Object.values(get().tools).filter(
+            (tool) => tool.serverId === serverId
+          )
+        },
+      }),
+      { name: 'mcp-store' }
+    )
+  )
+)
+```
+
+## 📊 Supabase Integration
+```typescript
+// shared/types/database.types.ts
+export interface Database {
+  public: {
+    Tables: {
+      mcp_servers: {
+        Row: MCPServer
+        Insert: Omit<MCPServer, 'id' | 'createdAt' | 'updatedAt'>
+        Update: Partial<MCPServer>
+      }
+      user_settings: {
+        Row: UserSettings
+        Insert: Omit<UserSettings, 'id'>
+        Update: Partial<UserSettings>
+      }
+    }
+  }
+}
+
+// Sync pattern
+async function syncWithSupabase(serverId: string) {
+  const server = useMCPStore.getState().getServer(serverId)
+  if (!server) return
+  
+  await supabase
+    .from('mcp_servers')
+    .upsert(server)
+    .eq('id', serverId)
+}
+```
+
+## ⚡ State Management Priority
+```typescript
+// 1. ALWAYS use Zustand for state management
+// 2. IPC only for Electron-specific operations (file system, native APIs)
+// 3. Sync Zustand with Supabase
+
+// Example: Server management flow
+async function startServer(serverId: string) {
+  const { updateServerStatus } = useMCPStore.getState()
+  
+  // 1. Update local state first
+  updateServerStatus(serverId, 'starting')
+  
+  // 2. Sync with Supabase
+  await syncWithSupabase(serverId)
+  
+  // 3. Only use IPC for actual server process
+  const result = await window.electron.startProcess(serverId)
+  
+  // 4. Update state with result
+  updateServerStatus(serverId, result.success ? 'running' : 'error')
+}
+```
+
+## 💻 TypeScript Rules
+```typescript
+// ALWAYS use common types
+import { MCPServer, RegisteredTool } from '@/shared/types/common.types'
+
+// Switch/case for action-like operations
+switch (action.type) {
+  case 'START': return handleStart(action.payload)
+  case 'STOP': return handleStop(action.payload)
+  default: throw new Error(`Unknown: ${action.type}`)
+}
+
+// Error handling pattern
+function processRequest(req: Request): Response {
+  if (!req.id) return { error: 'ID required' }
+  if (!isValid(req)) return { error: 'Invalid request' }
+  
+  try {
+    return { success: true, data: process(req) }
+  } catch (error) {
+    return { error: error.message }
+  }
+}
+```
+
+## 🔥 Critical Rules
+
+### 1. Store Pattern (MUST FOLLOW)
+- Use Record<string, T> for collections, NOT arrays
+- Direct action methods, NOT dispatch pattern
+- Include getters for filtered data
+- Always persist to localStorage
+
+### 2. Component Structure
+```typescript
+interface Props { 
+  server: MCPServer  // Use common types
+}
+
+export function ServerCard({ server }: Props) {
+  const updateStatus = useMCPStore(state => state.updateServerStatus)
+  
+  if (!server) return null
+  
+  return <div>{/* content */}</div>
+}```
+
+### 3. File Naming
+- Components: `PascalCase.tsx`
+- Stores: `camelCaseStore.ts`
+- Types: `kebab-case.types.ts`
+- Utils: `kebab-case.util.ts`
+
+### 4. Performance
+- Use selectors to avoid re-renders
+- Memoize expensive operations
+- Lazy load heavy components
+
+### 5. User Experience (Non-developers)
+- Simple one-click actions
+- Clear Korean labels
+- Visual status indicators (🟢 실행중, 🔴 중지됨)
+- No technical jargon
+
+## 🚨 Must Avoid
+- Custom types when common types exist
+- Arrays for entity collections (use Record)
+- Direct state mutations
+- Console.log in production
+- TypeScript `any` without reason

@@ -2,7 +2,6 @@
 // // src/main/store/create.ts
 // import { createStore } from 'zustand/vanilla';
 // import { BrowserWindow } from 'electron';
-// import { CombinedState } from '@/common/types/root-types';
 // import type {
 //   AppState as OverlayState,
 //   GuideStep,
@@ -17,11 +16,14 @@
 // import { addApiKeyActions } from '../apiKeyActions';
 // import { runAgent as overlayRunAgent, processGuide } from './aiActions';
 // import { runAgent as anthropicRunAgent } from '../antropic/runAgent';
+
 // // OverlayState와 AnthropicState를 합친 타입
+// type LocalAppState = OverlayState & AnthropicState;
 
 // // 상태 생성
-// export const store = createStore<CombinedState>((set, get) => ({
+// export const store = createStore<LocalAppState>((set, get) => ({
 //   // === Overlay & Anthropic 공통 초기 상태 ===
+  
 //   instructions: '',
 //   fullyAuto: false,
 //   running: false,
@@ -54,8 +56,8 @@
 //   ...addUpdaterActions(set, get),
 //   ...addIpcActions(set, get),
 
-//   RUN_AGENT_OVERLAY: async () => overlayRunAgent(set, get),
-//   RUN_AGENT_AUTO: async () => anthropicRunAgent(set, get),
+//   RUN_AGENT_OVERLAY: async () => overlayRunAgent(set as any, get as any),
+//   RUN_AGENT_AUTO: async () => anthropicRunAgent(set as any, get as any),
 
 //   // === Anthropic Actions ===
 //   SET_INSTRUCTIONS: (instructions: string) => set({ instructions }),
@@ -73,7 +75,7 @@
 //     set({ fullyAuto: fullyAuto ?? true }); // changed default to true
 //   },
 //   CLEAR_HISTORY: () => set({ runHistory: [] }),
-//   PROCESS_GUIDE: (payload) => processGuide(set, get, payload), // === 기타 Overlay 함수 필드 ===
+//   PROCESS_GUIDE: (payload: any) => processGuide(set as any, get as any, payload), // === 기타 Overlay 함수 필드 ===
 //   SET_VIEW: (view) => set({ activeView: view }),
 //   TAKE_SCREENSHOT: async (hide, show) => {
 //     /* 구현 */ return '';

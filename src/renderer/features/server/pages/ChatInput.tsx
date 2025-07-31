@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/renderer/common/components/ui/button';
+import { Textarea } from '@/renderer/common/components/ui/textarea';
 import { Loader2, Send, MessageSquare, Zap } from 'lucide-react';
-import TagInput, { type Tag } from '../components/TagInput';
+import TagInput, { type Tag } from '../components/Chat/TagInput';
 
 interface ChatInputProps {
   onSend: (message: string, tags?: Tag[]) => void;
@@ -49,16 +49,7 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({ onSend, isStreaming, a
         />
       )}
       
-      {/* 활성 도구 표시 */}
-      {activeTools.length > 0 && !isStreaming && selectedTags.length === 0 && (
-        <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
-          <Zap className="w-3 h-3 text-blue-500" />
-          <span>사용 가능한 도구: {activeTools.slice(0, 3).join(', ')}</span>
-          {activeTools.length > 3 && <span>외 {activeTools.length - 3}개</span>}
-        </div>
-      )}
-      
-      <div className={`flex gap-3 p-4 bg-background border rounded-xl transition-all duration-200 ${
+      <div className={`flex gap-3 p-3 bg-background border rounded-xl transition-all duration-200 ${
         isFocused ? 'ring-2 ring-primary/20 border-primary/30' : 'border-border'
       } ${isStreaming ? 'opacity-75' : ''}`}>
         
@@ -112,9 +103,9 @@ const ChatInput: React.FC<ChatInputProps> = React.memo(({ onSend, isStreaming, a
             variant={input.trim() && !isStreaming ? "default" : "ghost"}
           >
             {isStreaming ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
-              <Send className={`w-4 h-4 transition-transform ${
+              <Send className={`w-5 h-5 transition-transform ${
                 input.trim() ? 'scale-110' : 'scale-100'
               }`} />
             )}

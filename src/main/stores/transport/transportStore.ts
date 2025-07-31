@@ -14,15 +14,9 @@ import type {
 const activeTransports = new Map<string, Transport>();
 
 function findActualExecutable(command: string, args: string[] = []) {
-  if (process.platform === 'win32') {
-    if (!command.endsWith('.cmd') && !command.endsWith('.exe')) {
-      if (command === 'npx' || command === 'npm' || command === 'yarn') {
-        command = `${command}.cmd`;
-      } else {
-        command = `${command}.exe`;
-      }
-    }
-  }
+  // MCP 서버들은 npx, npm 등의 명령어를 그대로 사용해야 함
+  // Windows에서도 .cmd 확장자를 붙이지 않음
+  console.log(`🔧 [findActualExecutable] 원본 명령어 유지: ${command}`);
   return { cmd: command, args };
 }
 
@@ -44,6 +38,14 @@ export const transportStore = createStore<TransportState>((set, get) => ({
           const origArgs = config.args || [];
           const { cmd, args } = findActualExecutable(config.command, origArgs);
 
+          console.log(`🔧 [Transport] 실행할 명령어:`, {
+            originalCommand: config.command,
+            originalArgs: origArgs,
+            finalCommand: cmd,
+            finalArgs: args,
+            serverId
+          });
+
           const baseEnv: Record<string, string> = {};
           if (config.env) {
             for (const key in config.env) {
@@ -60,12 +62,20 @@ export const transportStore = createStore<TransportState>((set, get) => ({
             }
           }
           
+          console.log(`🌍 [Transport] 환경 변수:`, {
+            baseEnv,
+            hasNodePath: !!processEnvFiltered.NODE_PATH,
+            hasNpm: !!processEnvFiltered.npm_config_registry
+          });
+          
           transport = new StdioClientTransport({
             command: cmd,
             args,
             env: { ...processEnvFiltered, ...baseEnv },
             stderr: 'pipe',
           });
+
+          console.log(`🚀 [Transport] StdioClientTransport 생성 완료: ${sessionId}`);
 
           // Transport를 시작하지만 Client.connect()에서 다시 start()를 호출하지 않도록 주의
           // await transport.start(); // 이 부분을 제거!
@@ -164,35 +174,12 @@ export const transportStore = createStore<TransportState>((set, get) => ({
         error: errorMessage,
       };
 
-
-    // 각 store의 set 호출 전에 디버깅 추가
-    set((state) => {
-      console.log('🔍 Setting state for store:', 'clientStore'); // store 이름 명시
-      console.log('📦 State keys:', Object.keys(state));
-      
-      // 직렬화 불가능한 객체 찾기
-      Object.entries(state).forEach(([key, value]) => {
-        if (value && typeof value === 'object') {
-          if (value.constructor && value.constructor.name !== 'Object' && value.constructor.name !== 'Array') {
-            console.error(`❌ Non-serializable object found in ${key}:`, value.constructor.name);
-          }
-        }
-      });
-      
-      return {
+      set((state) => ({
         sessions: {
           ...state.sessions,
           [sessionId]: session,
         },
-      };
-    });
-
-      // set((state) => ({
-      //   sessions: {
-      //     ...state.sessions,
-      //     [sessionId]: session,
-      //   },
-      // }));
+      }));
 
       throw error;
     }
