@@ -2,6 +2,10 @@
 logs
 *.log
 
+# Large files (exe files to prevent GitHub size limit issues)
+*.exe
+test-*.exe
+
 # Runtime data
 pids
 *.pid
