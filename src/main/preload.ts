@@ -146,7 +146,8 @@ const electronHandler = {
         'devtools:status',
         'auth:social-login',
         'auth:logout',
-        'auth:get-session'
+        'auth:get-session',
+        'get-environment-variables'
 
       ];
       if (validChannels.includes(channel)) {
@@ -217,26 +218,42 @@ const electronHandler = {
   },
 };
 
-// 사용자 역할 확인 (메인 프로세스에서 전달받거나 환경 변수로 설정)
-const isAdmin = process.env.USER_ROLE === 'admin';
+// 🔥 빌드 안전한 환경 변수 처리 - 하드코딩된 기본값 사용
+const DEFAULT_CONFIG = {
+  supabaseUrl: 'https://mcrzlwriffyulnswfckt.supabase.co',
+  supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jcnpsd3JpZmZ5dWxuc3dmY2t0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczMDkwMjIsImV4cCI6MjA2Mjg4NTAyMn0.zHbjwPZnJUBx-u6YWsBVKS36gtO2WnUQT3ieZRLzKRQ',
+  userRole: 'user'
+};
 
-if (isAdmin) {
-  // 관리자용 환경 변수 노출 (모든 키 포함)
-  contextBridge.exposeInMainWorld('electronEnv', {
-    supabaseUrl: process.env.SUPABASE_URL,
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
-    supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY, // 관리자만 접근 가능
-  });
-  console.log('Admin environment variables exposed');
-} else {
-  // 일반 사용자용 환경 변수 노출 (제한된 키)
-  contextBridge.exposeInMainWorld('electronEnv', {
-    supabaseUrl: process.env.SUPABASE_URL,
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
-    // service_role_key는 포함하지 않음
-  });
-  console.log('Regular user environment variables exposed');
+// 🔥 메인 프로세스에서 환경 변수 요청하는 함수 (비동기)
+async function getEnvironmentFromMain() {
+  try {
+    // 메인 프로세스에서 환경 변수 가져오기 시도
+    const envData = await ipcRenderer.invoke('get-environment-variables');
+    if (envData && envData.supabaseUrl && envData.supabaseAnonKey) {
+      return envData;
+    }
+  } catch (error) {
+    console.warn('[preload] Could not get environment from main process:', error);
+  }
+  
+  // 실패 시 기본값 반환
+  return DEFAULT_CONFIG;
 }
+
+// 🔥 즉시 기본값으로 설정 (동기적)
+const isAdmin = DEFAULT_CONFIG.userRole === 'admin';
+
+// 일반 사용자용 환경 변수 노출 (기본값 사용)
+contextBridge.exposeInMainWorld('electronEnv', {
+  supabaseUrl: DEFAULT_CONFIG.supabaseUrl,
+  supabaseAnonKey: DEFAULT_CONFIG.supabaseAnonKey,
+  // service_role_key는 포함하지 않음
+});
+
+console.log('[preload] Environment variables exposed with default values');
+console.log('[preload] - supabaseUrl length:', DEFAULT_CONFIG.supabaseUrl.length);
+console.log('[preload] - supabaseAnonKey length:', DEFAULT_CONFIG.supabaseAnonKey.length);
 
 // IPC 통신 설정 (electronHandler의 invoke 메서드 재사용)
 contextBridge.exposeInMainWorld('electronAPI', {

@@ -22,6 +22,13 @@ declare global {
       onLoggedOut: (callback: () => void) => () => void;
       isAdmin: () => boolean;
       requestAdminOperation: (operation: any, params: any) => Promise<any>;
+      invoke: (channel: string, ...args: any[]) => Promise<any>;
+    };
+    /** 일렉트론 환경 변수 */
+    electronEnv: {
+      supabaseUrl?: string;
+      supabaseAnonKey?: string;
+      supabaseServiceRoleKey?: string;
     };
   }
 }

@@ -203,6 +203,40 @@ async function createAuthWindow(authUrl: string): Promise<string | { type: 'toke
   });
 }
 
+// 🔥 환경 변수 요청 IPC 핸들러 추가 (빌드 안전)
+ipcMain.handle('get-environment-variables', async () => {
+  try {
+    console.log('🔧 [main] Environment variables requested from preload');
+    
+    // 환경 변수 또는 기본값 반환
+    const envData = {
+      supabaseUrl: process.env.SUPABASE_URL || 'https://mcrzlwriffyulnswfckt.supabase.co',
+      supabaseAnonKey: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jcnpsd3JpZmZ5dWxuc3dmY2t0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczMDkwMjIsImV4cCI6MjA2Mjg4NTAyMn0.zHbjwPZnJUBx-u6YWsBVKS36gtO2WnUQT3ieZRLzKRQ',
+      userRole: process.env.USER_ROLE || 'user',
+      nodeEnv: process.env.NODE_ENV || 'development'
+    };
+
+    console.log('🔧 [main] Environment data prepared:', {
+      supabaseUrl: envData.supabaseUrl ? 'exists' : 'missing',
+      supabaseAnonKey: envData.supabaseAnonKey ? 'exists' : 'missing',
+      userRole: envData.userRole,
+      nodeEnv: envData.nodeEnv
+    });
+
+    return envData;
+  } catch (error) {
+    console.error('🔧 [main] Error getting environment variables:', error);
+    
+    // 에러 시 기본값 반환
+    return {
+      supabaseUrl: 'https://mcrzlwriffyulnswfckt.supabase.co',
+      supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jcnpsd3JpZmZ5dWxuc3dmY2t0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczMDkwMjIsImV4cCI6MjA2Mjg4NTAyMn0.zHbjwPZnJUBx-u6YWsBVKS36gtO2WnUQT3ieZRLzKRQ',
+      userRole: 'user',
+      nodeEnv: 'production'
+    };
+  }
+});
+
 // 🔥 현재 세션 정보 가져오기 IPC 핸들러 추가
 ipcMain.handle('auth:get-session', async (event) => {
   try {

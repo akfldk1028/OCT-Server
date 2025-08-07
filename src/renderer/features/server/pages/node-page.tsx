@@ -172,6 +172,8 @@ const getLayoutedElements = async (
 
 export default function NodePage() {
   // 실제 데이터 context에서 받아오기
+  // console.log('NodePage');
+
   const { servers, clients } = useOutletContext<ServerLayoutContext>();
   
   const { toast } = useToast();

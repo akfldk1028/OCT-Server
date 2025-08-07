@@ -1,6 +1,6 @@
 {
-  "name": "electron-react-boilerplate",
-  "version": "0.0.1",
+  "name": "contextor",
+  "version": "0.0.2",
   "description": "Electron application",
   "main": "./dist/main/main.js",
   "scripts": {
