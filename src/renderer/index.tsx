@@ -345,16 +345,16 @@ const webRouter = createBrowserRouter(
                     {
                       index: true,
                       element: <ProductOverviewPage />
-                    }
+                    },
+                    {
+                      path: 'details',
+                      element: <ProductDetailsPage />,
+                    },
+                    {
+                      path: 'tools',
+                      element: <ProductToolsPage />,
+                    },
                   ]
-                },
-                {
-                  path: 'details',
-                  element: <ProductDetailsPage />,
-                },
-                {
-                  path: 'tools',
-                  element: <ProductToolsPage />,
                 },
               ]
             },
@@ -376,6 +376,8 @@ const webRouter = createBrowserRouter(
             },
             {
               path: 'categories',
+              element: <LeaderboardLayout />,
+              loader: leaderboardLoader,
               children: [
                 {
                   index: true,
@@ -397,7 +399,6 @@ const webRouter = createBrowserRouter(
           loader: serverLayoutLoader,
           children: [
             {
-              index: true,
               path: 'inspector',
               element: <JobPage />,
             },

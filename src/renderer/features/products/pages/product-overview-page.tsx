@@ -265,10 +265,19 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
 };
 
 export default function ProductOverviewPage() {
+  console.log('🔥 [ProductOverviewPage] 컴포넌트가 렌더링되었습니다!');
+  
   const { product, isLoggedIn } = useOutletContext<{
     product: MCPServerDetailView;
     isLoggedIn: boolean;
   }>();
+  
+  console.log('🔥 [ProductOverviewPage] product:', product);
+
+  // 🔥 임시 테스트: 간단한 렌더링 확인
+  if (!product) {
+    return <div>❌ Product 데이터가 없습니다</div>;
+  }
 
   // product에서 필요한 데이터 추출
   const enhanced_info = product.enhanced_info;

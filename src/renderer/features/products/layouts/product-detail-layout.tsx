@@ -5,21 +5,35 @@ import { MCPServerDetailView, ProductDetailLoaderData } from "../types/MCPServer
 
 // 로더
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
+  console.log('🔥 [ProductDetailLayoutLoader] 시작 - params:', params);
+  
   const id = params?.id;
   if (!id) {
+    console.error('🔥 [ProductDetailLayoutLoader] ID가 없습니다!');
     throw new Response("Product ID not found in URL params", { status: 400 });
   }
 
-  const { client } = makeSSRClient(request);
-  // getProductDetailById가 반환하는 타입을 MCPServerDetailView로 단언
-  const product = await getProductDetailById(client, { id: Number(id) }) as MCPServerDetailView | null;
-  console.log('[ProductDetailLayout loader] product data:', product);
-  // console.log('[ProductDetailLayout loader] product data id:', product?.id); // unique_id를 사용하거나, MCPServerDetailView에 id가 있는지 확인
-  if (!product) {
-    throw new Response("Product not found", { status: 404 });
-  }
+  console.log('🔥 [ProductDetailLayoutLoader] ID:', id);
 
-  return { product };
+  try {
+    const { client } = makeSSRClient(request);
+    console.log('🔥 [ProductDetailLayoutLoader] Supabase 클라이언트 생성 완료');
+    
+    // getProductDetailById가 반환하는 타입을 MCPServerDetailView로 단언
+    const product = await getProductDetailById(client, { id: Number(id) }) as MCPServerDetailView | null;
+    console.log('🔥 [ProductDetailLayoutLoader] product data:', product);
+    
+    if (!product) {
+      console.error('🔥 [ProductDetailLayoutLoader] Product not found for ID:', id);
+      throw new Response("Product not found", { status: 404 });
+    }
+
+    console.log('🔥 [ProductDetailLayoutLoader] 성공적으로 로드됨!');
+    return { product };
+  } catch (error) {
+    console.error('🔥 [ProductDetailLayoutLoader] 에러 발생:', error);
+    throw error;
+  }
 };
 
 // Layout 컴포넌트

@@ -123,28 +123,49 @@ export const makeSSRClient = (request?: Request) => {
     console.log('[makeSSRClient][WEB] headers 객체:', headers);
 
     const client = createServerClient<Database>(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_ANON_KEY!,
+      'https://mcrzlwriffyulnswfckt.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jcnpsd3JpZmZ5dWxuc3dmY2t0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczMDkwMjIsImV4cCI6MjA2Mjg4NTAyMn0.zHbjwPZnJUBx-u6YWsBVKS36gtO2WnUQT3ieZRLzKRQ',
       {
         cookies: {
           get(name) {
-            const cookies = parseCookieHeader(
-              request?.headers.get('Cookie') ?? '',
-            );
-            const found = cookies.find((c) => c.name === name);
-            return found?.value ?? null;
+            try {
+              const cookieHeader = request?.headers.get('Cookie');
+              if (!cookieHeader) {
+                console.log(`[makeSSRClient][WEB] No cookies found for ${name}`);
+                return null;
+              }
+              
+              const cookies = parseCookieHeader(cookieHeader);
+              const found = cookies.find((c) => c.name === name);
+              const result = found?.value ?? null;
+              console.log(`[makeSSRClient][WEB] Cookie ${name}:`, result);
+              return result;
+            } catch (error) {
+              console.error(`[makeSSRClient][WEB] Error getting cookie ${name}:`, error);
+              return null;
+            }
           },
           set(name, value, options) {
-            headers.append(
-              'Set-Cookie',
-              serializeCookieHeader(name, value, options),
-            );
+            try {
+              headers.append(
+                'Set-Cookie',
+                serializeCookieHeader(name, value, options),
+              );
+              console.log(`[makeSSRClient][WEB] Set cookie ${name}:`, value);
+            } catch (error) {
+              console.error(`[makeSSRClient][WEB] Error setting cookie ${name}:`, error);
+            }
           },
           remove(name, options) {
-            headers.append(
-              'Set-Cookie',
-              serializeCookieHeader(name, '', { ...options, maxAge: 0 }),
-            );
+            try {
+              headers.append(
+                'Set-Cookie',
+                serializeCookieHeader(name, '', { ...options, maxAge: 0 }),
+              );
+              console.log(`[makeSSRClient][WEB] Removed cookie ${name}`);
+            } catch (error) {
+              console.error(`[makeSSRClient][WEB] Error removing cookie ${name}:`, error);
+            }
           },
         },
       },
@@ -177,10 +198,10 @@ export const makeAdminClient = () => {
     );
   }
   if (IS_WEB) {
-    // 웹 환경: process.env 사용 (dotenv로 로드됨)
+    // 웹 환경: 하드코딩된 값 사용 (process.env를 웹에서 사용할 수 없음)
     return createClient<Database>(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      'https://mcrzlwriffyulnswfckt.supabase.co',
+      'dummy-service-key', // 웹에서는 Service Role Key 사용 안함
     );
   }
   console.warn('Unknown environment for Admin Client');

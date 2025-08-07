@@ -849,8 +849,8 @@ type OutletContext = {
 export default  function HomePage() {
   const { products } = useLoaderData() as HomePageLoaderData;
   
-  // 🔥 package.json에서 동적으로 버전 가져오기
-  const appVersion = process.env.APP_VERSION || '0.0.1';
+  // 🔥 package.json에서 동적으로 버전 가져오기 (웹 환경 안전)
+  const appVersion = (typeof process !== 'undefined' && process.env?.APP_VERSION) || '0.0.1';
   // 🔥 root.tsx에서 전달된 모든 데이터 사용
   const { isLoggedIn, userId, servers, clients, workflows } = useOutletContext<OutletContext>();
   const [claudeServers, setClaudeServers] = useState<string[]>([]);
@@ -922,14 +922,14 @@ export default  function HomePage() {
             <div className="flex flex-col text-center md:space-y-5 items-center">
               <BlurFade delay={0.25} duration={1} inView>
                 <h2 className="font-bold text-5xl md:text-8xl">
-                  welcome to Context
+                  Welcome to Contextor
                 </h2>
               </BlurFade>
-              <BlurFade delay={1} duration={1} inView>
+              {/* <BlurFade delay={1} duration={1} inView>
                 <span className="text-2xl md:text-5xl">
                   the home of MCP
                 </span>
-              </BlurFade>
+              </BlurFade> */}
             </div>
           </div>
         ) : (
@@ -959,10 +959,10 @@ export default  function HomePage() {
                         />
                         <Button
                           asChild
-                          className="gap-2 px-12 py-8 text-base font-semibold bg-primary text-white hover:bg-primary/90 shadow-none transition-shadow relative"
+                          className="gap-2 px-12 py-8 text-base font-semibold bg-secondary text-white hover:bg-secondary/90 shadow-none transition-shadow relative"
                         >
                           <a
-                            href={`https://pub-453f6f0e9aab4be4a88dd25cff24d9bd.r2.dev/downloads/OCT-Server-Setup-${appVersion}.exe`}
+                            href={(typeof process !== 'undefined' && process.env?.ELECTRON_DOWNLOAD_URL) || `https://pub-453f6f0e9aab4be4a88dd25cff24d9bd.r2.dev/Contextor-Setup-NewLogo-${appVersion}.exe`}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
@@ -983,10 +983,10 @@ export default  function HomePage() {
                         <Button
                           asChild
                           variant="outline"
-                          className="gap-2 px-12 py-8 text-base font-semibold border-primary text-primary hover:bg-primary/10 shadow-none transition-shadow relative bg-white/80 dark:bg-zinc-900/80"
+                          className="gap-2 px-12 py-8 text-base font-semibold bg-secondary text-white hover:bg-secondary/90 shadow-none transition-shadow relative"
                         >
                           <a
-                            href={`https://pub-453f6f0e9aab4be4a88dd25cff24d9bd.r2.dev/downloads/OCT-Server-Setup-${appVersion}.exe`}
+                            href={(typeof process !== 'undefined' && process.env?.ELECTRON_DOWNLOAD_URL) || `https://pub-453f6f0e9aab4be4a88dd25cff24d9bd.r2.dev/Contextor-Setup-NewLogo-${appVersion}.exe`}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
@@ -1194,6 +1194,7 @@ export default  function HomePage() {
             <div className="flex h-[75vh] relative flex-col justify-center items-center text-center md:text-left">
               <h2 className="md:text-5xl text-3xl font-bold leading-tight tracking-tight ">
                 MCP 개발 기회
+                
               </h2>
               <p className="max-w-2xl md:text-xl font-light text-foreground">
                 MCP 생태계에서 새로운 커리어를 시작하세요

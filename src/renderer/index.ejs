@@ -1,14 +1,126 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       http-equiv="Content-Security-Policy"
       content="script-src 'self' 'unsafe-inline'"
     />
-    <title>Hello Electron React!</title>
+    
+    <!-- 🎯 Contextor 브랜드 메타데이터 -->
+    <title>Contextor - MCP Server Management Platform</title>
+    <meta name="description" content="Contextor는 Model Context Protocol (MCP) 서버를 쉽게 관리하고 설치할 수 있는 플랫폼입니다. AI 워크플로우를 간단하게 구축하세요." />
+    <meta name="keywords" content="MCP, Model Context Protocol, AI, Contextor, Server Management, Workflow, Automation" />
+    <meta name="author" content="Contextor Team" />
+    
+    <!-- 🔗 Open Graph 메타태그 (소셜 미디어 공유용) -->
+    <meta property="og:title" content="Contextor - MCP Server Management Platform" />
+    <meta property="og:description" content="Model Context Protocol (MCP) 서버를 쉽게 관리하고 설치할 수 있는 플랫폼" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="./og-image.png" />
+    <meta property="og:image:width" content="1024" />
+    <meta property="og:image:height" content="1024" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta property="og:site_name" content="Contextor" />
+    
+    <!-- 🐦 Twitter Card 메타태그 -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Contextor - MCP Server Management Platform" />
+    <meta name="twitter:description" content="Model Context Protocol (MCP) 서버를 쉽게 관리하고 설치할 수 있는 플랫폼" />
+    <meta name="twitter:image" content="./og-image.png" />
+    <meta name="twitter:image:alt" content="Contextor 로고" />
+    
+    <!-- 🎨 파비콘 및 아이콘 -->
+    <link rel="icon" type="image/x-icon" href="./icon.ico" />
+    <link rel="icon" type="image/png" sizes="16x16" href="./icon-16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./icon-32.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="./icon-96.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png" />
+    <link rel="mask-icon" href="./icon.svg" color="#e11d48" />
+    
+    <!-- 📱 모바일 웹앱 설정 -->
+    <meta name="theme-color" content="#e11d48" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Contextor" />
+    
+    <!-- 🔍 검색엔진 최적화 -->
+    <meta name="robots" content="index, follow" />
+    <meta name="googlebot" content="index, follow" />
+    
+    <!-- 🎭 브랜드 색상 CSS 변수 -->
+    <style>
+      :root {
+        --brand-primary: #e11d48;
+        --brand-secondary: #f43f5e;
+        --brand-accent: #a21caf;
+      }
+      
+      /* 로딩 스피너 */
+      .loading-spinner {
+        display: inline-block;
+        width: 40px;
+        height: 40px;
+        border: 3px solid #f3f3f3;
+        border-radius: 50%;
+        border-top-color: var(--brand-primary);
+        animation: spin 1s ease-in-out infinite;
+      }
+      
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      
+      .loading-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: white;
+        z-index: 9999;
+      }
+      
+      .loading-text {
+        margin-top: 16px;
+        color: var(--brand-primary);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        font-weight: 600;
+      }
+    </style>
   </head>
   <body>
+    <!-- 🎯 로딩 화면 -->
+    <div id="loading" class="loading-container">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Contextor 로딩 중...</div>
+    </div>
+    
+    <!-- 🎯 메인 앱 컨테이너 -->
     <div id="root"></div>
+    
+    <!-- 🎯 로딩 화면 제거 스크립트 -->
+    <script>
+      // React 앱이 마운트되면 로딩 화면 제거
+      window.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+          const loading = document.getElementById('loading');
+          if (loading) {
+            loading.style.opacity = '0';
+            loading.style.transition = 'opacity 0.3s ease';
+            setTimeout(() => loading.remove(), 300);
+          }
+        }, 500);
+      });
+    </script>
   </body>
 </html>

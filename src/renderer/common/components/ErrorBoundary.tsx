@@ -2,7 +2,14 @@ import { isRouteErrorResponse } from 'react-router';
 import { Button } from '@/components/ui/button';
 
 export function ErrorBoundary({ error }: { error: unknown }) {
+  console.error('🔥 [ErrorBoundary] 에러 발생:', error);
+  
   if (isRouteErrorResponse(error)) {
+    console.error('🔥 [ErrorBoundary] Route Error Response:', {
+      status: error.status,
+      statusText: error.statusText,
+      data: error.data
+    });
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-8">
         <h1 className="text-2xl font-bold mb-4">

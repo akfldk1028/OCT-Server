@@ -1,31 +1,30 @@
 {
-  "name": "electron-react-boilerplate",
+  "name": "contextor",
   "version": "0.0.1",
-  "description": "A foundation for scalable desktop apps",
+  "description": "MCP Server Management Platform",
   "keywords": [
     "electron",
-    "boilerplate",
+    "mcp",
+    "server",
+    "contextor",
+    "python",
     "react",
     "typescript",
-    "ts",
-    "sass",
-    "webpack",
-    "hot",
-    "reload"
+    "management"
   ],
-  "homepage": "https://github.com/electron-react-boilerplate/electron-react-boilerplate#readme",
+  "homepage": "https://contextor-download-page.pages.dev",
   "bugs": {
-    "url": "https://github.com/electron-react-boilerplate/electron-react-boilerplate/issues"
+    "url": "https://github.com/your-org/contextor/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/electron-react-boilerplate/electron-react-boilerplate.git"
+    "url": "git+https://github.com/your-org/contextor.git"
   },
   "license": "MIT",
   "author": {
-    "name": "Electron React Boilerplate Maintainers",
-    "email": "electronreactboilerplate@gmail.com",
-    "url": "https://electron-react-boilerplate.js.org"
+    "name": "Contextor Team",
+    "email": "team@contextor.app",
+    "url": "https://contextor-download-page.pages.dev"
   },
   "contributors": [
     {
@@ -316,8 +315,8 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "electron-react-boilerplate",
-      "repo": "electron-react-boilerplate"
+      "owner": "your-org",
+      "repo": "contextor"
     }
   },
   "collective": {

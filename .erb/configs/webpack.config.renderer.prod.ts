@@ -8,6 +8,7 @@ import HtmlWebpackPlugin from 'html-webpack-plugin';
 import MiniCssExtractPlugin from 'mini-css-extract-plugin';
 import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer';
 import CssMinimizerPlugin from 'css-minimizer-webpack-plugin';
+import CopyWebpackPlugin from 'copy-webpack-plugin';
 import { merge } from 'webpack-merge';
 import TerserPlugin from 'terser-webpack-plugin';
 import baseConfig from './webpack.config.base';
@@ -172,6 +173,48 @@ const configuration: webpack.Configuration = {
       },
       isBrowser: false,
       isDevelopment: false,
+    }),
+
+    // 🎯 Contextor 아이콘 파일들 복사
+    new CopyWebpackPlugin({
+      patterns: [
+        {
+          from: path.resolve(webpackPaths.rootPath, 'assets/icon.ico'),
+          to: 'icon.ico'
+        },
+        {
+          from: path.resolve(webpackPaths.rootPath, 'assets/icon.svg'),
+          to: 'icon.svg'
+        },
+        {
+          from: path.resolve(webpackPaths.rootPath, 'assets/icons/16x16.png'),
+          to: 'icon-16.png'
+        },
+        {
+          from: path.resolve(webpackPaths.rootPath, 'assets/icons/32x32.png'),
+          to: 'icon-32.png'
+        },
+        {
+          from: path.resolve(webpackPaths.rootPath, 'assets/icons/96x96.png'),
+          to: 'icon-96.png'
+        },
+        {
+          from: path.resolve(webpackPaths.rootPath, 'assets/icons/256x256.png'),
+          to: 'icon-192.png'
+        },
+        {
+          from: path.resolve(webpackPaths.rootPath, 'assets/icons/256x256.png'),
+          to: 'icon-180.png'
+        },
+        {
+          from: path.resolve(webpackPaths.rootPath, 'assets/icons/512x512.png'),
+          to: 'icon-512.png'
+        },
+        {
+          from: path.resolve(webpackPaths.rootPath, 'assets/icons/1024x1024.png'),
+          to: 'og-image.png'
+        }
+      ]
     }),
 
     new webpack.DefinePlugin({
