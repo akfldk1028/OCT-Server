@@ -962,7 +962,7 @@ export default  function HomePage() {
                           className="gap-2 px-12 py-8 text-base font-semibold bg-secondary text-white hover:bg-secondary/90 shadow-none transition-shadow relative"
                         >
                           <a
-                            href={(typeof process !== 'undefined' && process.env?.ELECTRON_DOWNLOAD_URL) || `https://pub-453f6f0e9aab4be4a88dd25cff24d9bd.r2.dev/Contextor-Setup-NewLogo-${appVersion}.exe`}
+                            href={(typeof process !== 'undefined' && process.env?.ELECTRON_DOWNLOAD_URL) || `https://pub-453f6f0e9aab4be4a88dd25cff24d9bd.r2.dev/Contextor-Setup-${appVersion}.exe`}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
@@ -986,7 +986,7 @@ export default  function HomePage() {
                           className="gap-2 px-12 py-8 text-base font-semibold bg-secondary text-white hover:bg-secondary/90 shadow-none transition-shadow relative"
                         >
                           <a
-                            href={(typeof process !== 'undefined' && process.env?.ELECTRON_DOWNLOAD_URL) || `https://pub-453f6f0e9aab4be4a88dd25cff24d9bd.r2.dev/Contextor-Setup-NewLogo-${appVersion}.exe`}
+                            href={(typeof process !== 'undefined' && process.env?.ELECTRON_DOWNLOAD_URL) || `https://pub-453f6f0e9aab4be4a88dd25cff24d9bd.r2.dev/Contextor-Setup-${appVersion}.exe`}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
