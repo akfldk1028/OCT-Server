@@ -395,24 +395,17 @@ export default function ChannelSidebar({
         };
       default:
         return {
-          title: 'Contextor',
+          title: 'Products',
           sections: [
-            { 
-              name: 'Channel', 
+            {
+              name: 'Categories',
               items: [
-                { name: 'general', path: '/channels/general' },
-                { name: 'random', path: '/channels/random' },
-                { name: 'dev-team', path: '/channels/dev-team' },
-                { name: 'design', path: '/channels/design' }
-              ]
-            },
-            { 
-              name: 'Direct Message', 
-              items: [
-                { name: 'DongHyeon KIM', path: '/dm/1' },
-                { name: 'Bandi97', path: '/dm/2' },
-                { name: 'kanjooyoung', path: '/dm/3' },
-                { name: 'pjh7083', path: '/dm/4' }
+                { name: 'All Categories', path: '/products/categories' },
+                // 🔥 동적 카테고리 생성 - 최대 8개까지만 표시
+                ...categories.slice(0, 8).map(category => ({
+                  name: category.name.charAt(0).toUpperCase() + category.name.slice(1).toLowerCase(),
+                  path: `/products/categories?category=${encodeURIComponent(category.name)}`
+                }))
               ]
             },
           ]

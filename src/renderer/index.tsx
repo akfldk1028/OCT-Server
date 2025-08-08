@@ -58,6 +58,10 @@ import ChatRoomPage from './features/chat/pages/chat-room-page';
 import TestSharePage from './features/server/pages/test-share-page';
 import EnvLayout, { loader as envLayoutLoader } from './features/env/layout/env-layout';
 import EnvPage from './features/env/pages/Env-page';
+import WorkflowLayout, { loader as workflowLayoutLoader } from './features/workflow/layouts/workflow-layout';
+import WorkflowHomePage, { loader as workflowHomeLoader } from './features/workflow/pages/workflow-home-page';
+import WorkflowTemplatesPage, { loader as workflowTemplatesLoader } from './features/workflow/pages/workflow-templates-page';
+import WorkflowTemplateDetailPage, { loader as workflowTemplateDetailLoader } from './features/workflow/pages/workflow-template-detail-page';
 
 console.log('📍 Loaded renderer entry index.tsx');
 
@@ -249,6 +253,29 @@ const electronRouter = createHashRouter(
             {
               path: 'share/:shareToken',
               element: <TestSharePage />,
+            }
+          ]
+        },
+        // 🔥 워크플로우 라우팅 (커뮤니티/템플릿)
+        {
+          path: 'workflows',
+          element: <WorkflowLayout />,
+          loader: workflowLayoutLoader,
+          children: [
+            {
+              index: true,
+              element: <WorkflowHomePage />,
+              loader: workflowHomeLoader,
+            },
+            {
+              path: 'templates',
+              element: <WorkflowTemplatesPage />,
+              loader: workflowTemplatesLoader,
+            },
+            {
+              path: 'templates/:id',
+              element: <WorkflowTemplateDetailPage />,
+              loader: workflowTemplateDetailLoader,
             }
           ]
         },
@@ -454,6 +481,29 @@ const webRouter = createBrowserRouter(
             {
               path: 'share/:shareToken',
               element: <TestSharePage />,
+            }
+          ]
+        },
+        // 🔥 워크플로우 라우팅 (웹)
+        {
+          path: 'workflows',
+          element: <WorkflowLayout />,
+          loader: workflowLayoutLoader,
+          children: [
+            {
+              index: true,
+              element: <WorkflowHomePage />,
+              loader: workflowHomeLoader,
+            },
+            {
+              path: 'templates',
+              element: <WorkflowTemplatesPage />,
+              loader: workflowTemplatesLoader,
+            },
+            {
+              path: 'templates/:id',
+              element: <WorkflowTemplateDetailPage />,
+              loader: workflowTemplateDetailLoader,
             }
           ]
         }
