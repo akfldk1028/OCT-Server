@@ -637,6 +637,7 @@ export default function ChannelSidebar({
     </div>
   );
 
+
   // 🔥 Chat 메뉴 선택 시 깔끔한 스타일 렌더링
   if (selectedMenu === 'Chat') {
     return (

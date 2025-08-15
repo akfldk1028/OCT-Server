@@ -1,0 +1,87 @@
+{
+  "sessionId": "mcp-test-1755231828179",
+  "startTime": "2025-08-15T04:23:48.179Z",
+  "endTime": "",
+  "totalDuration": 0,
+  "config": {
+    "maxServersToTest": 3,
+    "testUserId": "3aef9f20-79db-4325-8761-609f2c5b1b7b",
+    "supportedMethods": [
+      "npx",
+      "python"
+    ],
+    "delayBetweenTests": 3000,
+    "maxRetries": 2,
+    "timeout": 120000,
+    "reportPath": "D:\\Data\\06_OCT\\electorn\\OCT-Server\\reports\\enhanced-mcp-test-1755231828169.json",
+    "environment": "test"
+  },
+  "systemRequirements": {
+    "npx": true,
+    "python": true,
+    "pip": true
+  },
+  "results": [
+    {
+      "serverId": 83,
+      "serverName": "n8n-mcp",
+      "method": "npx",
+      "installSuccess": false,
+      "dbVerificationSuccess": false,
+      "uninstallSuccess": false,
+      "installDuration": 5,
+      "verificationDuration": 0,
+      "uninstallDuration": 0,
+      "totalDuration": 5,
+      "errors": [
+        "설치 실패: NPX 프로세스 오류: spawn npx ENOENT"
+      ],
+      "logs": [
+        "NPX 프로세스 오류: spawn npx ENOENT"
+      ],
+      "timestamp": "2025-08-15T04:23:52.033Z",
+      "retryCount": 0
+    },
+    {
+      "serverId": 83,
+      "serverName": "n8n-mcp",
+      "method": "npx",
+      "installSuccess": false,
+      "dbVerificationSuccess": false,
+      "uninstallSuccess": false,
+      "installDuration": 3,
+      "verificationDuration": 0,
+      "uninstallDuration": 0,
+      "totalDuration": 3,
+      "errors": [
+        "설치 실패: NPX 프로세스 오류: spawn npx ENOENT"
+      ],
+      "logs": [
+        "NPX 프로세스 오류: spawn npx ENOENT"
+      ],
+      "timestamp": "2025-08-15T04:23:53.050Z",
+      "retryCount": 1
+    }
+  ],
+  "summary": {
+    "totalTests": 1,
+    "successfulTests": 0,
+    "failedTests": 2,
+    "successRate": 0,
+    "averageDuration": 4,
+    "methodBreakdown": {
+      "npx": {
+        "success": 0,
+        "failed": 2
+      }
+    },
+    "errorSummary": {
+      "설치 실패: NPX 프로세스 오류: spawn npx ENOENT": 2
+    },
+    "performanceStats": {
+      "fastestInstall": null,
+      "slowestInstall": 0,
+      "averageInstallTime": 0
+    }
+  }
+}

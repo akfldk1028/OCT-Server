@@ -1,6 +1,7 @@
 import { LoaderFunctionArgs } from 'react-router';
 import { makeSSRClient, supabase } from '../supa-client';
 import { getUserById } from '../features/users/queries';
+import { createUserProfileIfNotExists } from '../../common/utils/profile-utils';
 import { IS_ELECTRON } from '../utils/environment';
 import { getClients } from '../features/server/queries';
 import { getUserInstalledServers, getCategories } from '../features/products/queries';
@@ -80,7 +81,7 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<LoaderDat
 
     console.log('🔥 [Root Loader] 사용자 로그인됨 - 데이터 로딩 시작:', user.email);
 
-    // 4. 프로필 정보 가져오기
+    // 4. 프로필 정보 가져오기 (없으면 자동 생성)
     let profile = null;
     try {
       const profileData = await getUserById(supabase as any, { id: user.id });
@@ -92,6 +93,24 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<LoaderDat
           avatar: profileData.avatar || null,
         };
         console.log('🔥 [Root Loader] 프로필 정보 로드 성공:', profile.name);
+      } else {
+        // 🔥 프로필이 없으면 자동 생성 (기존 OAuth 사용자용)
+        console.log('🔧 [Root Loader] 프로필 없음 - 자동 생성 시도:', user.email);
+        try {
+          const newProfile = await createUserProfileIfNotExists(supabase as any, user, console.log);
+          
+          if (newProfile) {
+            profile = {
+              id: newProfile.profile_id || user.id,
+              name: newProfile.name || '사용자',
+              username: newProfile.username || 'user',
+              avatar: newProfile.avatar || null,
+            };
+            console.log('✅ [Root Loader] 프로필 자동 생성 완료:', profile.name);
+          }
+        } catch (createError) {
+          console.error('❌ [Root Loader] 프로필 자동 생성 실패:', createError);
+        }
       }
     } catch (profileError) {
       console.warn('🔥 [Root Loader] 프로필 로드 실패:', profileError);

@@ -1,0 +1,39 @@
+{
+  "sessionId": "mcp-test-1755231700261",
+  "startTime": "2025-08-15T04:21:40.261Z",
+  "endTime": "",
+  "totalDuration": 0,
+  "config": {
+    "maxServersToTest": 3,
+    "testUserId": "3aef9f20-79db-4325-8761-609f2c5b1b7b",
+    "supportedMethods": [
+      "npx",
+      "python"
+    ],
+    "delayBetweenTests": 3000,
+    "maxRetries": 2,
+    "timeout": 120000,
+    "reportPath": "D:\\Data\\06_OCT\\electorn\\OCT-Server\\reports\\enhanced-mcp-test-1755231700253.json",
+    "environment": "test"
+  },
+  "systemRequirements": {
+    "npx": false,
+    "python": true,
+    "pip": true
+  },
+  "results": [],
+  "summary": {
+    "totalTests": 0,
+    "successfulTests": 0,
+    "failedTests": 0,
+    "successRate": 0,
+    "averageDuration": 0,
+    "methodBreakdown": {},
+    "errorSummary": {},
+    "performanceStats": {
+      "fastestInstall": null,
+      "slowestInstall": 0,
+      "averageInstallTime": 0
+    }
+  }
+}

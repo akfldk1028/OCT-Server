@@ -63,6 +63,7 @@ interface SidebarProps {
   name?: string;
   collapsed?: boolean;
   onMenuSelect?: (menuName: string) => void; // 🔥 메뉴 선택 핸들러
+  installedServers?: any[]; // 🔥 설치된 MCP 서버 목록
 }
 
 export default function Sidebar({
@@ -74,12 +75,17 @@ export default function Sidebar({
   name,
   collapsed: collapsedProp,
   onMenuSelect,
+  installedServers = [],
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(true); // 🔥 항상 true로 고정 (Slack 스타일 - 아이콘만)
   const [theme, setTheme] = useTheme();
   const navigate = useNavigate();
-  const store = useStore();
-  const { createNewChat } = useChatCreation();
+  
+  // 🔥 디버깅 로그
+  console.log('🔍 [Sidebar-M] Debug:', {
+    installedServers,
+    serverCount: installedServers?.length || 0
+  });
 
   // 메뉴 배열
   const menus = [
@@ -282,10 +288,16 @@ export default function Sidebar({
               <button
                 key={menu.name}
                 onClick={() => onMenuSelect?.(menu.name)} // 🔥 메뉴 선택 시 ChannelSidebar 업데이트
-                className="p-2 rounded-md hover:bg-sidebar-accent transition-colors focus:outline-none focus:bg-sidebar-accent text-sidebar-foreground"
+                className="p-2 rounded-md hover:bg-sidebar-accent transition-colors focus:outline-none focus:bg-sidebar-accent text-sidebar-foreground relative"
                 title={menu.name}
               >
                 {menu.icon || <Folder className="w-4 h-4" />}
+                {/* 🔥 Server 메뉴에 MCP 서버 개수 배지 추가 */}
+                {menu.name === 'Server' && (
+                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center font-medium">
+                    {installedServers?.length || 0}
+                  </div>
+                )}
               </button>
             ))}
           </div>
@@ -299,6 +311,12 @@ export default function Sidebar({
                       <div className="flex items-center gap-2">
                         {menu.icon || <Folder className="w-4 h-4" />}
                         <span>{menu.name}</span>
+                        {/* 🔥 Server 메뉴에 MCP 서버 개수 배지 추가 */}
+                        {menu.name === 'Server' && (
+                          <div className="ml-auto bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full font-medium">
+                            {installedServers?.length || 0}
+                          </div>
+                        )}
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>

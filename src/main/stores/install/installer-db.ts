@@ -10,18 +10,28 @@ import {
 
 // 🔥 Supabase 클라이언트 생성 (일렉트론 메인 프로세스용)
 export const getSupabaseClient = () => {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-  
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('⚠️ [getSupabaseClient] Supabase 환경 변수가 설정되지 않았습니다:', {
+  const supabaseUrl = process.env.SUPABASE_URL || 'https://mcrzlwriffyulnswfckt.supabase.co';
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jcnpsd3JpZmZ5dWxuc3dmY2t0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDczMDkwMjIsImV4cCI6MjA2Mjg4NTAyMn0.zHbjwPZnJUBx-u6YWsBVKS36gtO2WnUQT3ieZRLzKRQ';
+
+  const keyToUse = serviceRoleKey || supabaseAnonKey;
+
+  if (!supabaseUrl || !keyToUse) {
+    console.warn('⚠️ [getSupabaseClient] Supabase 환경 변수가 부족합니다:', {
       hasUrl: !!supabaseUrl,
-      hasKey: !!supabaseAnonKey
+      hasServiceRoleKey: !!serviceRoleKey,
+      hasAnonKey: !!supabaseAnonKey
     });
     return null;
   }
-  
-  return createClient<Database>(supabaseUrl, supabaseAnonKey);
+
+  if (serviceRoleKey) {
+    console.log('🔐 [getSupabaseClient] Service Role Key 사용하여 서버 사이드 클라이언트 생성');
+  } else {
+    console.log('🔑 [getSupabaseClient] Anon Key로 클라이언트 생성 (세션 필요, RLS 주의)');
+  }
+
+  return createClient<Database>(supabaseUrl, keyToUse);
 };
 
 // 🔥 사용자 MCP 사용 기록 생성 (설치 시작)
@@ -55,13 +65,52 @@ export const recordInstallStart = async (
       return null;
     }
 
-    // 🔥 설치 방법 ID 찾기
+    // 🔥 설치 방법 ID 찾기 (안전 검증 추가)
     let installMethodId = null;
     try {
-      // 🚀 Zero-install인 경우 config_id 직접 사용
-      if (selectedMethod?.is_zero_install && (selectedMethod?.config_id || selectedMethod?.id)) {
-        installMethodId = selectedMethod.config_id || selectedMethod.id;
-        console.log('⚡ [recordInstallStart] Zero-install config_id 직접 사용:', installMethodId);
+      // 🚀 Zero-install인 경우 config_id 검증 후 사용
+      if (selectedMethod?.is_zero_install) {
+        const candidateId = selectedMethod?.config_id || selectedMethod?.id;
+        
+        if (candidateId) {
+          // config_id가 실제로 mcp_configs 테이블에 존재하는지 확인
+          const { data: configExists } = await client
+            .from('mcp_configs')
+            .select('id')
+            .eq('id', candidateId)
+            .maybeSingle();
+          
+          if (configExists) {
+            installMethodId = candidateId;
+            console.log('⚡ [recordInstallStart] Zero-install config_id 검증 완료:', installMethodId);
+          } else {
+            console.log('⚠️ [recordInstallStart] config_id가 mcp_configs에 없음 (크롤링으로 업데이트됨):', candidateId);
+            
+            // 🔄 크롤링으로 인해 config_id가 변경된 경우, 최신 config를 찾아서 사용
+            if (selectedMethod?.config_name) {
+              console.log('🔍 [recordInstallStart] config_name으로 최신 config 검색:', selectedMethod.config_name);
+              
+              const { data: latestConfig } = await client
+                .from('mcp_configs')
+                .select('id')
+                .eq('original_server_id', originalServerId)
+                .eq('config_name', selectedMethod.config_name)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              
+              if (latestConfig) {
+                installMethodId = latestConfig.id;
+                console.log('✅ [recordInstallStart] 최신 config_id 찾음:', installMethodId);
+              } else {
+                console.log('⚠️ [recordInstallStart] 최신 config도 찾을 수 없음 - null로 설정');
+                installMethodId = null;
+              }
+            } else {
+              installMethodId = null; // config_name이 없으면 null로 설정
+            }
+          }
+        }
       } else {
         // 🔧 일반 설치 방법의 경우 DB에서 찾기
         installMethodId = await findInstallMethodId(client, {
@@ -72,6 +121,7 @@ export const recordInstallStart = async (
       }
     } catch (error) {
       console.log('⚠️ [recordInstallStart] 설치 방법 ID 찾기 실패:', error);
+      installMethodId = null; // 에러 시 null로 설정
     }
 
     // 🔥 Zero-install인 경우 config_id 사용, 일반 설치는 install_method_id 사용

@@ -17,13 +17,14 @@ import {
   recordUninstall,
   getSupabaseClient
 } from './installer-db';
-import { deleteUserMcpUsage } from '../../../renderer/features/products/queries';
-import {
+import { deleteUserMcpUsage, findInstallMethodId, createUserMcpUsage, updateUserMcpInstallStatus } from '../../../renderer/features/products/queries';
+import { 
   checkAvailableMethods as checkMethods,
   selectBestMethod,
   handleZeroInstall,
   getAppDataPath,
-  verifyAndFixInstallStatus
+  verifyAndFixInstallStatus,
+  writeFinalConfigJson
 } from './installer-helpers';
 import {
   ensureRequiredTools,
@@ -90,6 +91,12 @@ export const installerStore = createStore<InstallerState & {
   
   // === 설치 방법 확인 ===
   checkAvailableMethods: async (payload?: {}) => {
+    // 🔥 이미 확인 중이면 스킵
+    const currentState = get();
+    if (Object.keys(currentState.availableMethods).length > 0) {
+      return currentState.availableMethods;
+    }
+    
     console.log('🔍 [installerStore] 설치 방법 확인 시작...');
     
     const methods = await checkMethods();
@@ -124,6 +131,45 @@ export const installerStore = createStore<InstallerState & {
       );
     } catch (recordError) {
       console.log('⚠️ [installServer] 사용 기록 생성 실패, 설치는 계속 진행:', recordError);
+    }
+    // 🚑 시작-fallback: usageRecord가 없고 userProfileId가 있으면 attempted 기록 직접 생성
+    if (!usageRecord && userProfileId) {
+      try {
+        const client = getSupabaseClient();
+        if (client) {
+          const originalServerId = parseInt(serverName);
+          const isZeroInstall = !!config.is_zero_install || !!selectedInstallMethod?.is_zero_install;
+          let methodId: number | null = null;
+          try {
+            if (isZeroInstall) {
+              methodId = selectedInstallMethod?.config_id || selectedInstallMethod?.id || null;
+            } else {
+              const selected = selectedInstallMethod || { command: config.command, args: config.args, is_zero_install: false };
+              methodId = await findInstallMethodId(client, {
+                original_server_id: originalServerId,
+                selectedMethod: selected
+              });
+            }
+          } catch (e) {
+            console.log('⚠️ [installServer] start-fallback: installMethodId 확인 실패:', e);
+          }
+          const created = await createUserMcpUsage(client, {
+            profile_id: userProfileId,
+            original_server_id: originalServerId,
+            install_method_id: isZeroInstall ? null : methodId,
+            config_id: isZeroInstall ? methodId : null,
+            user_platform: 'electron',
+            user_client: 'oct-client',
+            user_env_variables: config.env || null,
+          });
+          if (created) usageRecord = created as any;
+          console.log('✅ [installServer] start-fallback attempted 기록 생성 완료');
+        } else {
+          console.log('🚫 [installServer] start-fallback 실패: Supabase 클라이언트 없음');
+        }
+      } catch (e) {
+        console.log('⚠️ [installServer] start-fallback attempted 기록 생성 중 오류:', e);
+      }
     }
     
     try {
@@ -194,7 +240,31 @@ export const installerStore = createStore<InstallerState & {
 
           // 🔥 Zero-install 사용자 MCP 설치 상태 업데이트 (설치 완료)
           try {
-            await recordInstallResult(usageRecord?.id || null, true);
+            if (usageRecord?.id) {
+              await recordInstallResult(usageRecord.id, true);
+            } else if (userProfileId) {
+              const client = getSupabaseClient();
+              if (client) {
+                const originalServerId = parseInt(serverName);
+                let methodId: number | null = selectedInstallMethod?.config_id || selectedInstallMethod?.id || null;
+                const created = await createUserMcpUsage(client, {
+                  profile_id: userProfileId,
+                  original_server_id: originalServerId,
+                  install_method_id: null,
+                  config_id: methodId,
+                  user_platform: 'electron',
+                  user_client: 'oct-client',
+                  user_env_variables: config.env || null,
+                });
+                if (created?.id) {
+                  await updateUserMcpInstallStatus(client, {
+                    usage_id: created.id,
+                    install_status: 'success'
+                  });
+                  console.log('✅ [installServer] Zero-install fallback 기록 성공');
+                }
+              }
+            }
           } catch (recordError) {
             console.log('⚠️ [installServer] Zero-install 설치 성공 기록 실패:', recordError);
           }
@@ -323,6 +393,16 @@ export const installerStore = createStore<InstallerState & {
           lastStateChangeType: 'installed',
           lastStateChangeServerId: serverName,
         }));
+
+        // 공통 config.json 보강 작성(혹시 방식별에서 빠진 경우 대비)
+        try {
+          await writeFinalConfigJson(installDir, {
+            ...config,
+            command: config.command ?? null,
+            args: Array.isArray(config.args) ? config.args : [],
+            env: config.env || {},
+          });
+        } catch {}
         
         // 🔥 설치 정보 백업 파일 저장
         const installInfoPath = path.join(installDir, `install-info.json`);
@@ -340,7 +420,51 @@ export const installerStore = createStore<InstallerState & {
 
         // 🔥 사용자 MCP 설치 상태 업데이트 (설치 완료)
         try {
-          await recordInstallResult(usageRecord?.id || null, true);
+          if (usageRecord?.id) {
+            await recordInstallResult(usageRecord.id, true);
+          } else if (userProfileId) {
+            // 🚑 Fallback: 설치 시작 기록이 없을 경우 성공 기록을 직접 생성 후 업데이트
+            const client = getSupabaseClient();
+            if (client) {
+              const originalServerId = parseInt(serverName);
+              const isZeroInstall = !!config.is_zero_install || !!selectedInstallMethod?.is_zero_install;
+              let methodId: number | null = null;
+              try {
+                if (isZeroInstall) {
+                  methodId = selectedInstallMethod?.config_id || selectedInstallMethod?.id || null;
+                } else {
+                  // 현재 선택된 방법이 있으면 우선 사용, 없으면 config 기반 유추
+                  const selected = selectedInstallMethod || { command: config.command, args: config.args, is_zero_install: false };
+                  methodId = await findInstallMethodId(client, {
+                    original_server_id: originalServerId,
+                    selectedMethod: selected
+                  });
+                }
+              } catch (e) {
+                console.log('⚠️ [installServer] fallback: installMethodId 확인 실패:', e);
+              }
+
+              const created = await createUserMcpUsage(client, {
+                profile_id: userProfileId,
+                original_server_id: originalServerId,
+                install_method_id: isZeroInstall ? null : methodId,
+                config_id: isZeroInstall ? methodId : null,
+                user_platform: 'electron',
+                user_client: 'oct-client',
+                user_env_variables: config.env || null,
+              });
+
+              if (created?.id) {
+                await updateUserMcpInstallStatus(client, {
+                  usage_id: created.id,
+                  install_status: 'success'
+                });
+                console.log('✅ [installServer] fallback 기록 성공 (success로 업데이트 완료)');
+              }
+            } else {
+              console.log('🚫 [installServer] fallback 실패: Supabase 클라이언트 없음');
+            }
+          }
         } catch (recordError) {
           console.log('⚠️ [installServer] 설치 성공 기록 실패:', recordError);
         }
@@ -370,7 +494,45 @@ export const installerStore = createStore<InstallerState & {
       
       // 🔥 사용자 MCP 설치 상태 업데이트 (설치 실패)
       try {
-        await recordInstallResult(usageRecord?.id || null, false, errorMessage);
+        if (usageRecord?.id) {
+          await recordInstallResult(usageRecord.id, false, errorMessage);
+        } else if (userProfileId) {
+          // 실패 시에도 attempted 기록을 남기고 failed로 업데이트
+          const client = getSupabaseClient();
+          if (client) {
+            const originalServerId = parseInt(serverName);
+            const isZeroInstall = !!config.is_zero_install || !!selectedInstallMethod?.is_zero_install;
+            let methodId: number | null = null;
+            try {
+              if (isZeroInstall) {
+                methodId = selectedInstallMethod?.config_id || selectedInstallMethod?.id || null;
+              } else {
+                const selected = selectedInstallMethod || { command: config.command, args: config.args, is_zero_install: false };
+                methodId = await findInstallMethodId(client, {
+                  original_server_id: originalServerId,
+                  selectedMethod: selected
+                });
+              }
+            } catch {}
+            const created = await createUserMcpUsage(client, {
+              profile_id: userProfileId,
+              original_server_id: originalServerId,
+              install_method_id: isZeroInstall ? null : methodId,
+              config_id: isZeroInstall ? methodId : null,
+              user_platform: 'electron',
+              user_client: 'oct-client',
+              user_env_variables: config.env || null,
+            });
+            if (created?.id) {
+              await updateUserMcpInstallStatus(client, {
+                usage_id: created.id,
+                install_status: 'failed',
+                install_error: errorMessage
+              });
+              console.log('✅ [installServer] 실패 fallback 기록 생성 및 failed 업데이트 완료');
+            }
+          }
+        }
       } catch (recordError) {
         console.log('⚠️ [installServer] 설치 실패 기록 실패:', recordError);
       }

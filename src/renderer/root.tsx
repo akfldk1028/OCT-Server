@@ -434,6 +434,7 @@ export function Root() {
                 hasMessages={false}
                 collapsed={true}
                 onMenuSelect={setSelectedMenu}
+                installedServers={servers}
               />
               <ChannelSidebar 
                 selectedMenu={selectedMenu} 

@@ -49,6 +49,7 @@ import { integrateOverlayWithWindow, setupWindowSelectionTrigger } from './store
 import { registerWindowApi } from './windowApi';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../renderer/database.types';
+import { createUserProfileIfNotExists } from '../common/utils/profile-utils';
 import http from 'http';
 import fs from 'fs'; // 🔥 파일 시스템 모듈 추가
 import os from 'os'; // 🔥 OS 모듈 추가
@@ -297,8 +298,7 @@ ipcMain.handle('auth:social-login', async (event, provider: string) => {
       options: {
         redirectTo: `https://mcrzlwriffyulnswfckt.supabase.co/auth/v1/callback`,
         queryParams: {
-          access_type: 'offline',
-          prompt: 'consent'
+          access_type: 'offline'
         },
         skipBrowserRedirect: true,
       },
@@ -419,6 +419,15 @@ ipcMain.handle('auth:social-login', async (event, provider: string) => {
 
               debugLog('✅ [OAuth] 토큰 세션 설정 성공: ' + (sessionData?.user?.email || 'No user'));
 
+              // 🔥 프로필이 없으면 자동 생성 (일렉트론 OAuth 전용)
+              if (sessionData?.user) {
+                try {
+                  await createUserProfileIfNotExists(supabase, sessionData.user, debugLog);
+                } catch (profileError) {
+                  debugLog('❌ [OAuth] 프로필 처리 중 오류: ' + JSON.stringify(profileError));
+                }
+              }
+
               // 메인 윈도우에 세션 전달
               if (mainWindow) {
                 debugLog('📤 [OAuth] 메인 윈도우에 세션 정보 전달');
@@ -449,6 +458,15 @@ ipcMain.handle('auth:social-login', async (event, provider: string) => {
               }
 
               debugLog('✅ [OAuth] 세션 교환 성공: ' + (sessionData?.user?.email || 'No user'));
+
+              // 🔥 프로필이 없으면 자동 생성 (일렉트론 OAuth 전용)
+              if (sessionData?.user) {
+                try {
+                  await createUserProfileIfNotExists(supabase, sessionData.user, debugLog);
+                } catch (profileError) {
+                  debugLog('❌ [OAuth] 프로필 처리 중 오류: ' + JSON.stringify(profileError));
+                }
+              }
 
               // 메인 윈도우에 세션 전달
               if (mainWindow) {

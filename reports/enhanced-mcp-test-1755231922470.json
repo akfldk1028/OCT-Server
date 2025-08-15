@@ -1,0 +1,87 @@
+{
+  "sessionId": "mcp-test-1755231922475",
+  "startTime": "2025-08-15T04:25:22.475Z",
+  "endTime": "",
+  "totalDuration": 0,
+  "config": {
+    "maxServersToTest": 3,
+    "testUserId": "3aef9f20-79db-4325-8761-609f2c5b1b7b",
+    "supportedMethods": [
+      "npx",
+      "python"
+    ],
+    "delayBetweenTests": 3000,
+    "maxRetries": 2,
+    "timeout": 120000,
+    "reportPath": "D:\\Data\\06_OCT\\electorn\\OCT-Server\\reports\\enhanced-mcp-test-1755231922470.json",
+    "environment": "test"
+  },
+  "systemRequirements": {
+    "npx": true,
+    "python": true,
+    "pip": true
+  },
+  "results": [
+    {
+      "serverId": 83,
+      "serverName": "n8n-mcp",
+      "method": "npx",
+      "installSuccess": false,
+      "dbVerificationSuccess": false,
+      "uninstallSuccess": false,
+      "installDuration": 30021,
+      "verificationDuration": 0,
+      "uninstallDuration": 0,
+      "totalDuration": 30022,
+      "errors": [
+        "설치 실패: NPX 설치 타임아웃 (30초)"
+      ],
+      "logs": [
+        "NPX 설치 타임아웃 (30초)"
+      ],
+      "timestamp": "2025-08-15T04:25:25.709Z",
+      "retryCount": 0
+    },
+    {
+      "serverId": 83,
+      "serverName": "n8n-mcp",
+      "method": "npx",
+      "installSuccess": false,
+      "dbVerificationSuccess": false,
+      "uninstallSuccess": false,
+      "installDuration": 30013,
+      "verificationDuration": 0,
+      "uninstallDuration": 0,
+      "totalDuration": 30013,
+      "errors": [
+        "설치 실패: NPX 설치 타임아웃 (30초)"
+      ],
+      "logs": [
+        "NPX 설치 타임아웃 (30초)"
+      ],
+      "timestamp": "2025-08-15T04:25:56.745Z",
+      "retryCount": 1
+    }
+  ],
+  "summary": {
+    "totalTests": 1,
+    "successfulTests": 0,
+    "failedTests": 2,
+    "successRate": 0,
+    "averageDuration": 30017.5,
+    "methodBreakdown": {
+      "npx": {
+        "success": 0,
+        "failed": 2
+      }
+    },
+    "errorSummary": {
+      "설치 실패: NPX 설치 타임아웃 (30초)": 2
+    },
+    "performanceStats": {
+      "fastestInstall": null,
+      "slowestInstall": 0,
+      "averageInstallTime": 0
+    }
+  }
+}

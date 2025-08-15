@@ -15,9 +15,57 @@ export const getAppDataPath = () => path.join(
   'mcp-server-manager'
 );
 
+// ================================================================
+// 📝 공통 config.json 작성 유틸
+// ================================================================
+export async function writeFinalConfigJson(
+  installDir: string,
+  config: {
+    name?: string;
+    package?: string;
+    description?: string;
+    command?: string | null;
+    args?: string[];
+    env?: Record<string, any>;
+    install_method_id?: number | null;
+    is_zero_install?: boolean;
+    installedPath?: string;
+    installedAt?: string;
+  }
+) {
+  const finalConfig = {
+    name: config.name || config.package || 'mcp-server',
+    package: config.package || config.name || 'mcp-server',
+    description: config.description || '',
+    command: config.command ?? null,
+    args: Array.isArray(config.args) ? config.args : [],
+    env: config.env || {},
+    install_method_id: config.install_method_id ?? null,
+    is_zero_install: !!config.is_zero_install,
+    installedPath: config.installedPath || installDir,
+    installedAt: config.installedAt || new Date().toISOString(),
+  };
+
+  const configPath = path.join(installDir, 'config.json');
+  await fs.writeFile(configPath, JSON.stringify(finalConfig, null, 2));
+  return finalConfig;
+}
+
+// 🔥 캐시된 결과 저장
+let cachedMethods: Record<string, boolean> | null = null;
+let lastCheckTime = 0;
+const CACHE_DURATION = 30000; // 30초
+
 // 사용 가능한 설치 방법 확인
 export const checkAvailableMethods = async (): Promise<Record<string, boolean>> => {
-  console.log('🔍 [checkAvailableMethods] 번들링 시스템용 설치 방법 확인 중...');
+  const now = Date.now();
+  
+  // 🔥 캐시된 결과가 유효하면 바로 반환 (로그 없이)
+  if (cachedMethods && (now - lastCheckTime) < CACHE_DURATION) {
+    return cachedMethods;
+  }
+  
+  console.log('🔍 [checkAvailableMethods] 설치 방법 확인 중...');
   
   const methods: Record<string, boolean> = {
     npm: false,
@@ -36,9 +84,8 @@ export const checkAvailableMethods = async (): Promise<Record<string, boolean>> 
   try {
     await execAsync('npx --version');
     methods.npx = true;
-    console.log('✅ [checkAvailableMethods] NPX 사용 가능 (최우선)');
   } catch {
-    console.log('❌ [checkAvailableMethods] NPX 사용 불가');
+    // 로그 생략 - 결과에서만 표시
   }
 
   // NPM 체크 (NPX가 있으면 보통 있음)
@@ -46,9 +93,8 @@ export const checkAvailableMethods = async (): Promise<Record<string, boolean>> 
     try {
       await execAsync('npm --version');
       methods.npm = true;
-      console.log('✅ [checkAvailableMethods] NPM 사용 가능');
     } catch {
-      console.log('❌ [checkAvailableMethods] NPM 사용 불가');
+      // 로그 생략
     }
   }
 
@@ -56,7 +102,7 @@ export const checkAvailableMethods = async (): Promise<Record<string, boolean>> 
   try {
     // py -3.10 명령어 체크
     await execAsync('py -3.10 --version');
-    console.log(`✅ [checkAvailableMethods] 시스템 Python 3.10 사용 가능`);
+    // 시스템 Python 3.10 확인됨
     
     // 번들링된 libs 폴더 확인
     const { app } = require('electron');
@@ -68,16 +114,13 @@ export const checkAvailableMethods = async (): Promise<Record<string, boolean>> 
     
     try {
       await fs.access(libsDir);
-      console.log(`✅ [checkAvailableMethods] 번들링된 libs 폴더 존재: ${libsDir}`);
-      
-      // 📦 시스템 Python + 번들링된 libs 조합 사용 가능
+      // 번들링된 libs 확인됨
       methods.pip = true;
-      console.log(`✅ [checkAvailableMethods] PIP 설치 방식 사용 가능 (py -3.10 + 번들링된 libs)`);
     } catch {
-      console.log(`⚠️ [checkAvailableMethods] 번들링된 libs 폴더 없음, pip 사용 제한`);
+      // 번들링된 libs 없음
     }
   } catch {
-    console.log(`❌ [checkAvailableMethods] 시스템 Python 3.10 사용 불가 또는 번들링된 환경 없음`);
+    // Python 3.10 없음
   }
 
   // 🔧 시스템 도구들은 선택적으로만 체크 (개발자가 있을 때만)
@@ -91,10 +134,10 @@ export const checkAvailableMethods = async (): Promise<Record<string, boolean>> 
     try {
       await execAsync(cmd);
       methods[method] = true;
-      console.log(`✅ [checkAvailableMethods] ${method} 사용 가능 (선택적)`);
+      // OK
     } catch {
       methods[method] = false;
-      console.log(`➖ [checkAvailableMethods] ${method} 사용 불가 (무시)`);
+      // N/A
     }
   }
   
@@ -103,7 +146,7 @@ export const checkAvailableMethods = async (): Promise<Record<string, boolean>> 
     try {
       await execAsync('powershell -Command "Get-Host"');
       methods.powershell = true;
-      console.log('✅ [checkAvailableMethods] PowerShell 사용 가능 (Windows)');
+      // PowerShell OK
     } catch {
       methods.powershell = false;
       console.log('➖ [checkAvailableMethods] PowerShell 사용 불가');
@@ -139,16 +182,20 @@ export const checkAvailableMethods = async (): Promise<Record<string, boolean>> 
     console.log('➖ [checkAvailableMethods] Docker 사용 불가 (무시)');
   }
   
-  console.log('🎯 [checkAvailableMethods] 번들링 시스템 결과:', methods);
+  console.log('🎯 [checkAvailableMethods] 결과:', methods);
   
-  // 🚀 비개발자용 권장 사항 로그
+  // 🚀 비개발자용 권장 사항 로그 (간소화)
   if (methods.npx) {
-    console.log('💡 [checkAvailableMethods] 권장: NPX 방식 사용 (가장 안정적)');
+    console.log('💡 권장: NPX 방식 (가장 안정적)');
   } else if (methods.pip) {
-    console.log('💡 [checkAvailableMethods] 권장: 번들링된 Python 방식 사용');
+    console.log('💡 권장: Python 방식');
   } else {
-    console.log('⚠️ [checkAvailableMethods] 주의: 제한된 설치 방법만 사용 가능');
+    console.log('⚠️ 제한된 설치 방법만 사용 가능');
   }
+  
+  // 🔥 캐시 저장
+  cachedMethods = methods;
+  lastCheckTime = now;
   
   return methods;
 };

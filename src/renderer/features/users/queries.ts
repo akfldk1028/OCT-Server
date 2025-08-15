@@ -99,6 +99,7 @@ export const getLoggedInUserId = async (client: SupabaseClient<Database>) => {
   return data.user.id;
 };
 
+
 export const getProductsByUserId = async (
   client: SupabaseClient<Database>,
   { userId }: { userId: string },

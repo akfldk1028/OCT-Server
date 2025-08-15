@@ -3,11 +3,19 @@ import { promisify } from 'util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import type { InstallResult } from './installer-types';
+import { writeFinalConfigJson } from './installer-helpers';
 
 const execAsync = promisify(exec);
 
+// 🔥 캐시된 확인 결과
+let toolsChecked = false;
+
 // 🔥 필수 도구 자동 설치 함수
 export async function ensureRequiredTools() {
+  if (toolsChecked) {
+    return; // 이미 확인됨
+  }
+  
   console.log('🔍 [ensureRequiredTools] 필수 도구 확인 중...');
   
   const tools = [
@@ -29,6 +37,8 @@ export async function ensureRequiredTools() {
       }
     }
   }
+  
+  toolsChecked = true; // 확인 완료 플래그 설정
 }
 
 // NPM/NPX 설치
@@ -64,15 +74,12 @@ pause`;
       const scriptPath = path.join(installDir, 'run.bat');
       await fs.writeFile(scriptPath, scriptContent);
 
-      // 설정 파일 저장
-      const configPath = path.join(installDir, 'config.json');
-      const finalConfig = {
+      await writeFinalConfigJson(installDir, {
         ...config,
-        installedAt: new Date().toISOString(),
-        install_method_id: config.install_method_id || null
-      };
-      
-      await fs.writeFile(configPath, JSON.stringify(finalConfig, null, 2));
+        command: 'npx',
+        args: actualArgs,
+        env: config.env || {},
+      });
 
       return {
         success: true,
@@ -92,13 +99,17 @@ pause`;
         packageJson.dependencies[config.package || config.source] = config.version || 'latest';
       }
       
-      await fs.writeFile(
-        path.join(installDir, 'package.json'),
-        JSON.stringify(packageJson, null, 2)
-      );
-      
+      await fs.writeFile(path.join(installDir, 'package.json'), JSON.stringify(packageJson, null, 2));
       await execAsync('npm install', { cwd: installDir });
-      
+
+      // 실행 정보는 mcp_configs 기준으로 넘어온 command/args가 있다면 우선 기록
+      await writeFinalConfigJson(installDir, {
+        ...config,
+        command: config.command || null,
+        args: Array.isArray(config.args) ? config.args : [],
+        env: config.env || {},
+      });
+
       return {
         success: true,
         method: 'npm',
@@ -135,6 +146,14 @@ export const installWithDocker = async (payload: {
       );
     }
     
+    // docker run 실행 정보가 있으면 기록
+    await writeFinalConfigJson(installDir, {
+      ...config,
+      command: config.command || (imageName ? 'docker' : null),
+      args: Array.isArray(config.args) ? config.args : (imageName ? ['run'] : []),
+      env: config.env || {},
+    });
+
     return {
       success: true,
       method: 'docker',
@@ -247,16 +266,12 @@ ${uvCommand} ${args.join(' ')}`;
 
     // 설정 파일 저장 (install_method_id 포함)
     const configPath = path.join(installDir, 'config.json');
-    const finalConfig = {
+    await writeFinalConfigJson(installDir, {
       ...config,
-      installedAt: new Date().toISOString(),
-      uvPath: uvPath,
       command: uvCommand,
-      args: args,
-      install_method_id: config.install_method_id || null // 🔥 설치 방법 ID 추가
-    };
-    
-    await fs.writeFile(configPath, JSON.stringify(finalConfig, null, 2));
+      args,
+      env: config.env || {},
+    });
 
     console.log(`✅ [installWithUv] ${method.toUpperCase()} 설치 완료: ${scriptPath}`);
     
@@ -320,18 +335,12 @@ set PYTHONPATH=${libsDir};%PYTHONPATH%
     const scriptPath = path.join(installDir, 'run.bat');
     await fs.writeFile(scriptPath, scriptContent);
 
-    // 설정 파일 저장 (install_method_id 포함)
-    const configPath = path.join(installDir, 'config.json');
-    const finalConfig = {
+    await writeFinalConfigJson(installDir, {
       ...config,
-      installedAt: new Date().toISOString(),
-      pythonPath: bundledPythonPath,
-      libsPath: libsDir,
-      installMethod: 'pip',
-      install_method_id: config.install_method_id || null // 🔥 설치 방법 ID 추가
-    };
-    
-    await fs.writeFile(configPath, JSON.stringify(finalConfig, null, 2));
+      command: bundledPythonPath,
+      args,
+      env: { PYTHONPATH: libsDir, ...(config.env || {}) },
+    });
 
     console.log(`✅ [installWithPip] PIP 설치 완료: ${scriptPath}`);
 
@@ -432,19 +441,12 @@ pause`;
     await fs.writeFile(scriptPath, scriptContent);
 
     // 설정 파일 저장
-    const configPath = path.join(installDir, 'config.json');
-    const finalConfig = {
+    await writeFinalConfigJson(installDir, {
       ...config,
-      installedAt: new Date().toISOString(),
       command: 'powershell',
-      args: args,
-      originalScript: powershellScript,
-      install_method_id: config.install_method_id || null,
-      actuallyInstalled: installationSuccessful,
-      installationNote: installationError ? '스크립트 exit code는 실패였으나 실제 설치는 성공' : '정상 설치 완료'
-    };
-    
-    await fs.writeFile(configPath, JSON.stringify(finalConfig, null, 2));
+      args,
+      env: config.env || {},
+    });
 
     console.log(`✅ [installWithPowershell] PowerShell 설치 완료: ${scriptPath}`);
     
@@ -508,16 +510,13 @@ read -p "Press Enter to continue..."`;
     await execAsync(`chmod +x "${scriptPath}"`);
 
     // 설정 파일 저장
-    const configPath = path.join(installDir, 'config.json');
-    const finalConfig = {
+    await writeFinalConfigJson(installDir, {
       ...config,
-      installedAt: new Date().toISOString(),
-      command: 'brew',
-      args: args,
-      install_method_id: config.install_method_id || null
-    };
-    
-    await fs.writeFile(configPath, JSON.stringify(finalConfig, null, 2));
+      // brew는 설치 전용으로 처리. 실행은 npx/uv 등으로 별도 지정
+      command: config.command || null,
+      args: Array.isArray(config.args) ? config.args : [],
+      env: config.env || {},
+    });
 
     console.log(`✅ [installWithBrew] Brew 설치 완료: ${scriptPath}`);
     

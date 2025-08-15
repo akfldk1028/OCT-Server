@@ -52,7 +52,16 @@
     "start:preload": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack --config ./.erb/configs/webpack.config.preload.dev.ts",
     "start:renderer": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack serve --config ./.erb/configs/webpack.config.renderer.dev.ts",
     "start:web": "cross-env NODE_ENV=development PLATFORM=web TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack serve --config ./.erb/configs/webpack.config.web.dev.ts --port 3000",
-    "test": "jest"
+    "test": "jest",
+    "test:mcp": "cross-env NODE_ENV=test ts-node scripts/test-mcp-installations.ts",
+    "test:mcp:enhanced": "cross-env NODE_ENV=test ts-node scripts/enhanced-mcp-tester.ts",
+    "test:mcp:quick": "cross-env NODE_ENV=test MAX_SERVERS_TO_TEST=3 ts-node scripts/enhanced-mcp-tester.ts",
+    "test:mcp:full": "cross-env NODE_ENV=test MAX_SERVERS_TO_TEST=20 ts-node scripts/enhanced-mcp-tester.ts",
+    "test:mcp:sequential": "cross-env NODE_ENV=test ts-node scripts/enhanced-logger-wrapper.ts sequential",
+    "test:mcp:bundling": "cross-env NODE_ENV=test ts-node scripts/enhanced-logger-wrapper.ts bundling",
+    "test:mcp:database": "cross-env NODE_ENV=test ts-node scripts/enhanced-logger-wrapper.ts database",
+    "test:mcp:comprehensive": "cross-env NODE_ENV=test ts-node scripts/comprehensive-report-generator.ts",
+    "test:mcp:enhanced:logged": "cross-env NODE_ENV=test ts-node scripts/enhanced-logger-wrapper.ts enhanced"
   },
   "browserslist": [
     "Chrome >= 108",
@@ -138,6 +147,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.2.1",
     "electron-debug": "^4.1.0",
     "electron-log": "^5.3.2",
     "electron-updater": "^6.3.9",
