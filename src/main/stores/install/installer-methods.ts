@@ -30,10 +30,24 @@ export async function ensureRequiredTools() {
     } catch {
       console.log(`📦 [ensureRequiredTools] ${tool.name} 설치 중...`);
       try {
+        // Windows ENOTEMPTY 에러 방지: 기존 패키지 완전 제거 후 설치
+        try {
+          await execAsync(`npm uninstall -g ${tool.package}`);
+          console.log(`🗑️ [ensureRequiredTools] 기존 ${tool.name} 제거 완료`);
+        } catch (uninstallError) {
+          // 제거 실패해도 계속 진행
+          console.log(`⚠️ [ensureRequiredTools] 기존 ${tool.name} 제거 실패 (무시하고 계속):`, uninstallError);
+        }
+        
+        // npm 캐시 정리
+        await execAsync('npm cache clean --force');
+        
+        // 새로 설치
         await execAsync(`npm install -g ${tool.package}`);
         console.log(`✅ [ensureRequiredTools] ${tool.name} 설치 완료`);
       } catch (error) {
         console.error(`❌ [ensureRequiredTools] ${tool.name} 설치 실패:`, error);
+        // 설치 실패해도 계속 진행 (npx만 사용하면 됨)
       }
     }
   }

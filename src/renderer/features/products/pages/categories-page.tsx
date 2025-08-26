@@ -21,6 +21,7 @@ type MCPServer = {
   forks: number;
   repository_url: string;
   unique_id: string;
+  local_image_path: string | null;
 };
 
 // 로더 데이터 타입 정의
@@ -68,8 +69,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             popularity_category: server.popularity_category || '',
             stars: server.stars || 0,
             forks: server.forks || 0,
-            repository_url: server.repository_url || '',
+            repository_url: server.github_url || '',
             unique_id: server.unique_id || server.id.toString(),
+            local_image_path: server.local_image_path || null,
           });
         }
       });
@@ -228,7 +230,7 @@ export default function CategoriesPage() {
                       votesCount={null}
                       isUpvoted={null}
                       promotedFrom={null}
-                      localImagePath={(server as any).local_image_path || null}
+                      localImagePath={server.local_image_path || null}
                     />
                   ))}
                 </div>
