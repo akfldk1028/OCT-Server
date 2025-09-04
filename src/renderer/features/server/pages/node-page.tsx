@@ -49,11 +49,12 @@ import type { ServerLayoutContext } from '../types/server-types';
 import FlowToolbar from '../components/Flow/FlowToolbar';
 import { DnDProvider } from '../hook/DnDContext';
 // Validation 및 Toast 추가
-import { 
-  isValidConnection, 
-  getValidationErrorMessage 
+import {
+  isValidConnection,
+  getValidationErrorMessage
 } from '../utils/NodeValidation';
 import { useToast } from '@/hooks/use-toast';
+import { convertWorkflowToReactFlow } from '../workflow-queries';
 
 // ResizeObserver 에러 무시 (ReactFlow의 알려진 무해한 에러)
 const suppressResizeObserverError = () => {
@@ -175,7 +176,7 @@ export default function NodePage() {
   // console.log('NodePage');
 
   const { servers, clients } = useOutletContext<ServerLayoutContext>();
-  
+
   const { toast } = useToast();
 
   const dynamicInitNodes: MyNode[] = [
@@ -202,7 +203,7 @@ export default function NodePage() {
     right?: number;
     bottom?: number;
   } | null>(null);
-  
+
   const { onDrop, onDragOver } = useDragAndDrop();
 
   const {
@@ -234,7 +235,7 @@ export default function NodePage() {
         });
         return;
       }
-      
+
       // 검사 통과하면 연결 추가
       toast({
         title: '✅ 연결 성공',
@@ -246,12 +247,49 @@ export default function NodePage() {
     [setEdges, nodes, toast],
   );
 
+  // 🔥 워크플로우 로딩 콜백 (FlowToolbar에서 호출됨)
+  const handleLoadWorkflow = useCallback((workflowData: any) => {
+    console.log('🔥 [NodePage] 워크플로우 로딩:', workflowData);
+
+    if (workflowData.nodes && workflowData.edges) {
+      // 1. MCP JSON 또는 레거시 구조를 ReactFlow 형식으로 변환
+      const reactFlowData = convertWorkflowToReactFlow(workflowData);
+
+      // 2. ReactFlow 상태 업데이트
+      setNodes(reactFlowData.nodes || []);
+      setEdges(reactFlowData.edges || []);
+
+      // 3. 뷰 맞춤
+      setTimeout(() => {
+        fitView();
+      }, 100);
+
+      console.log('✅ [NodePage] 워크플로우 로딩 완료:', {
+        nodes: reactFlowData.nodes?.length || 0,
+        edges: reactFlowData.edges?.length || 0
+      });
+
+      toast({
+        title: "워크플로우 로딩 완료",
+        description: `${reactFlowData.nodes?.length || 0}개 노드, ${reactFlowData.edges?.length || 0}개 연결이 로딩되었습니다.`,
+        variant: 'default',
+      });
+    } else {
+      console.warn('⚠️ [NodePage] 유효하지 않은 워크플로우 데이터:', workflowData);
+      toast({
+        title: "워크플로우 로딩 실패",
+        description: "유효하지 않은 워크플로우 데이터입니다.",
+        variant: 'destructive',
+      });
+    }
+  }, [setNodes, setEdges, fitView, toast]);
+
   return (
     <DnDProvider>
       <div className="w-full h-full flex flex-col bg-background">
         {/* 상단 툴바 */}
-        <FlowToolbar />
-        
+        <FlowToolbar onLoadWorkflow={handleLoadWorkflow} />
+
         {/* 메인 플로우 영역 */}
         <div className="flex-1 relative">
           <div ref={reactFlowWrapper} style={{ width: '100%', height: '100%' }}>

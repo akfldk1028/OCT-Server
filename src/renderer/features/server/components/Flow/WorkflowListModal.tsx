@@ -5,7 +5,7 @@ import { Input } from '@/renderer/common/components/ui/input';
 import { useToast } from '@/renderer/hooks/use-toast';
 import { X, Search, Clock, Star, Download, Trash2 } from 'lucide-react';
 import { makeSSRClient } from '@/renderer/supa-client';
-import { getUserWorkflows, getWorkflowWithDetails } from '../../workflow-queries';
+import { getUserWorkflows, getWorkflowWithMcpJson, convertWorkflowToReactFlow } from '../../workflow-queries';
 import { useWorkflowMutations, WorkflowItem } from '../../workflow-mutations';
 import { dfsTraverse } from '../node/FlowDfsUtil';
 
@@ -24,10 +24,10 @@ interface WorkflowListModalProps {
   description?: string;
 }
 
-export default function WorkflowListModal({ 
-  isOpen, 
-  onClose, 
-  onLoadWorkflow, 
+export default function WorkflowListModal({
+  isOpen,
+  onClose,
+  onLoadWorkflow,
   onServerAdded,
   userId,
   filterClientType = null,
@@ -45,10 +45,24 @@ export default function WorkflowListModal({
   const [editingNameValue, setEditingNameValue] = useState('');
   const { toast } = useToast();
 
-  // 🚨 userId가 없으면 early return
+  // 🚨 userId가 없으면 로그인 안내 표시
   if (!userId) {
-    console.warn('⚠️ [WorkflowListModal] userId가 필요합니다.');
-    return null;
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-card border border-border rounded-lg p-6 max-w-md mx-4">
+          <h2 className="text-lg font-semibold mb-4">로그인이 필요합니다</h2>
+          <p className="text-muted-foreground mb-4">
+            워크플로우를 불러오려면 먼저 로그인해주세요.
+          </p>
+          <Button
+            onClick={onClose}
+            className="w-full"
+          >
+            확인
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   // 🔥 Mutation Hook 사용 (userId 확인 후)
@@ -78,13 +92,13 @@ export default function WorkflowListModal({
 
   // 🔥 DFS를 활용한 최적화된 워크플로우 클라이언트 타입 분석
   // 📊 DFS 기반 워크플로우 분석 시스템 (리팩토링)
-  
+
   // 타입 정의
   type AnalysisResult = {
     clients: string[];
     mcpServers: string[];
     hasClaudeClient: boolean;
-    hasOpenAIClient: boolean; 
+    hasOpenAIClient: boolean;
     hasLocalClient: boolean;
     hasMCPServers: boolean;
     primaryClientType: string | null;
@@ -107,32 +121,40 @@ export default function WorkflowListModal({
 
       // 3. 최종 클라이언트 타입 결정
       const clientType = determineClientType(analysisResult, workflowDetails);
-      
+
       console.log('🎯 분석 완료:', { clientType, clients: analysisResult.clients });
-      return { 
-        client_type: clientType, 
-        target_clients: [...new Set(analysisResult.clients)] 
+      return {
+        client_type: clientType,
+        target_clients: [...new Set(analysisResult.clients)]
       };
-      
+
     } catch (error) {
       console.error('❌ 워크플로우 분석 실패:', error);
       return { client_type: 'unknown', target_clients: [] };
     }
   };
 
-  // 📥 워크플로우 상세 정보 로드
+  // 📥 워크플로우 상세 정보 로드 (새로운 MCP JSON 방식)
   const loadWorkflowDetails = async (workflowId: number) => {
     const { client } = makeSSRClient();
-    const workflowDetails = await getWorkflowWithDetails(client as any, {
+    const workflowDetails = await getWorkflowWithMcpJson(client as any, {
       workflow_id: workflowId,
       profile_id: userId!,
     });
-    
-    if (!workflowDetails?.nodes || !workflowDetails?.edges) {
+
+    if (!workflowDetails) {
       return null;
     }
-    
-    return workflowDetails;
+
+    // MCP JSON 또는 레거시 구조를 ReactFlow 형식으로 변환
+    const reactFlowData = convertWorkflowToReactFlow(workflowDetails);
+
+    return {
+      ...workflowDetails,
+      nodes: reactFlowData.nodes,
+      edges: reactFlowData.edges,
+      metadata: reactFlowData.metadata
+    };
   };
 
   // 🔄 DFS 기반 노드 분석
@@ -146,7 +168,7 @@ export default function WorkflowListModal({
 
     // ReactFlow 형식으로 변환
     const { nodes, edges } = convertToReactFlowFormat(workflowDetails);
-    
+
     // DFS 순회
     const orderedNodes = dfsTraverse(triggerNode.node_id, nodes, edges);
     console.log('🔍 실행 순서:', orderedNodes.map(n => `${n.type}(${n.id})`).join(' → '));
@@ -201,14 +223,14 @@ export default function WorkflowListModal({
   const analyzeServiceNode = (node: any, result: AnalysisResult) => {
     const config = node.data?.config || node.data;
     const clientName = config?.name;
-    
+
     if (!clientName) return;
 
     // 첫 번째 클라이언트가 주요 타겟
     if (!result.primaryClientType) {
       result.clients.push(clientName);
       result.primaryClientType = classifyClientType(clientName);
-      
+
       // 플래그 설정
       if (result.primaryClientType === 'claude_desktop') {
         result.hasClaudeClient = true;
@@ -223,7 +245,7 @@ export default function WorkflowListModal({
     } else if (!result.clients.includes(clientName)) {
       // 추가 클라이언트 수집
       result.clients.push(clientName);
-      
+
       const additionalType = classifyClientType(clientName);
       if (additionalType === 'claude_desktop') result.hasClaudeClient = true;
       else if (additionalType === 'openai') result.hasOpenAIClient = true;
@@ -243,7 +265,7 @@ export default function WorkflowListModal({
   // 🏷️ 클라이언트 타입 분류
   const classifyClientType = (clientName: string): string => {
     const name = clientName.toLowerCase();
-    
+
     if (name.includes('claude')) {
       return 'claude_desktop';
     } else if (name.includes('openai') || name.includes('gpt')) {
@@ -274,15 +296,15 @@ export default function WorkflowListModal({
   const checkMixedType = (result: AnalysisResult): string | null => {
     const activeTypes = [
       result.hasClaudeClient,
-      result.hasOpenAIClient, 
+      result.hasOpenAIClient,
       result.hasLocalClient
     ].filter(Boolean).length;
-    
+
     if (activeTypes > 1) {
       console.log('🔀 여러 클라이언트 타입 → mixed');
       return 'mixed';
     }
-    
+
     return null;
   };
 
@@ -290,12 +312,12 @@ export default function WorkflowListModal({
   const analyzeWorkflowMetadata = (workflowDetails: any, result: AnalysisResult): string => {
     const workflowName = workflowDetails.name?.toLowerCase() || '';
     const workflowDesc = workflowDetails.description?.toLowerCase() || '';
-    
+
     const localKeywords = ['local', 'prototype', 'test', '로컬', '테스트', '개발'];
-    const hasLocalKeywords = localKeywords.some(keyword => 
+    const hasLocalKeywords = localKeywords.some(keyword =>
       workflowName.includes(keyword) || workflowDesc.includes(keyword)
     );
-    
+
     if (hasLocalKeywords) {
       console.log('🏠 로컬 키워드 감지 → local');
       result.hasLocalClient = true;
@@ -310,22 +332,22 @@ export default function WorkflowListModal({
   // 워크플로우 목록 로드
   const loadWorkflows = async () => {
     if (!userId) return;
-    
+
     setLoading(true);
     try {
       const { client } = makeSSRClient();
-      
+
       const params: any = {
         profile_id: userId,
         limit: 100,
       };
-      
+
       if (selectedStatus !== 'all') {
         params.status = selectedStatus;
       }
-      
+
       const data = await getUserWorkflows(client as any, params);
-      
+
       // 각 워크플로우의 클라이언트 타입 분석
       const workflowsWithClientInfo = await Promise.all(
         (data || []).map(async (workflow: any) => {
@@ -339,9 +361,9 @@ export default function WorkflowListModal({
           };
         })
       );
-      
+
       setWorkflows(workflowsWithClientInfo);
-      
+
     } catch (error) {
       console.error('❌ [WorkflowListModal] 워크플로우 로드 실패:', error);
       toast({
@@ -358,61 +380,39 @@ export default function WorkflowListModal({
   const handleSelectWorkflow = async (workflowItem: WorkflowItem) => {
     try {
       setLoading(true);
-      
+
       const { client } = makeSSRClient();
-      const workflowWithDetails = await getWorkflowWithDetails(client as any, {
+      const workflowWithDetails = await getWorkflowWithMcpJson(client as any, {
         workflow_id: workflowItem.id,
         profile_id: userId!,
       });
-      
+
       if (!workflowWithDetails) {
         throw new Error('워크플로우 상세 정보를 찾을 수 없습니다.');
       }
-      
-      // ReactFlow 형식으로 변환
-      const reactFlowData = {
+
+      // 새로운 MCP JSON 변환 방식 사용
+      const reactFlowData = convertWorkflowToReactFlow(workflowWithDetails);
+      const workflowData = {
         name: workflowWithDetails.name,
         description: workflowWithDetails.description,
-        nodes: workflowWithDetails.nodes.map((node: any) => ({
-          id: node.node_id,
-          type: node.node_type,
-          position: { 
-            x: node.position_x || 0, 
-            y: node.position_y || 0 
-          },
-          data: node.node_config || {},
-          // 서버 정보가 있으면 추가
-          ...(node.mcp_servers && {
-            data: {
-              ...node.node_config,
-              original_server_id: node.original_server_id,
-              mcp_servers: node.mcp_servers,
-            }
-          })
-        })),
-        edges: workflowWithDetails.edges.map((edge: any) => ({
-          id: edge.edge_id,
-          source: edge.source_node_id,
-          target: edge.target_node_id,
-          sourceHandle: edge.source_handle,
-          targetHandle: edge.target_handle,
-          type: edge.edge_config?.type || 'default',
-          animated: edge.edge_config?.animated || false,
-        }))
+        nodes: reactFlowData.nodes,
+        edges: reactFlowData.edges,
+        metadata: reactFlowData.metadata
       };
-      
-      console.log('🔥 [WorkflowListModal] 변환된 데이터:', reactFlowData);
-      
-      await onLoadWorkflow(reactFlowData);
-      
+
+      console.log('🔥 [WorkflowListModal] 변환된 데이터:', workflowData);
+
+      await onLoadWorkflow(workflowData);
+
       toast({
         title: '워크플로우 로드 완료',
         description: `"${workflowItem.name}"를 성공적으로 불러왔습니다.`,
         variant: 'default',
       });
-      
+
       onClose();
-      
+
     } catch (error) {
       console.error('❌ [WorkflowListModal] 워크플로우 로드 실패:', error);
       toast({
@@ -468,20 +468,20 @@ export default function WorkflowListModal({
   const filteredWorkflows = workflows.filter(workflow => {
     const matchesSearch = workflow.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (workflow.description && workflow.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    
+
     // 부모에서 특정 클라이언트 타입 필터가 설정된 경우 해당 타입만 보여주기
     const matchesParentFilter = !filterClientType || workflow.client_type === filterClientType;
-    
+
     const matchesClientType = selectedClientTab === 'all' || workflow.client_type === selectedClientTab;
-    
+
     return matchesSearch && matchesParentFilter && matchesClientType;
   });
 
   // 클라이언트 타입별 카운트 (부모 필터 적용)
-  const baseWorkflows = filterClientType 
+  const baseWorkflows = filterClientType
     ? workflows.filter(w => w.client_type === filterClientType)
     : workflows;
-    
+
   const clientTypeCounts = {
     all: baseWorkflows.length,
     claude_desktop: baseWorkflows.filter(w => w.client_type === 'claude_desktop').length,
@@ -528,9 +528,9 @@ export default function WorkflowListModal({
   if (!isOpen) return null;
 
     const modalContent = (
-    <div 
+    <div
       className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
-      style={{ 
+      style={{
         zIndex: 999999,
         position: 'fixed',
         top: 0,
@@ -543,9 +543,9 @@ export default function WorkflowListModal({
       }}
       onClick={handleBackdropClick}
     >
-       <div 
+       <div
          className="bg-card rounded-2xl shadow-2xl w-[900px] max-h-[700px] flex flex-col relative border border-border"
-         style={{ 
+         style={{
            zIndex: 1000000,
            maxWidth: '95vw',
            maxHeight: '95vh',
@@ -708,7 +708,7 @@ export default function WorkflowListModal({
                             </button>
                           </div>
                         ) : (
-                          <h3 
+                          <h3
                             className="text-sm font-semibold text-card-foreground group-hover:text-primary transition-colors truncate cursor-pointer hover:bg-muted rounded px-1 py-0.5"
                             onDoubleClick={(e) => {
                               e.stopPropagation();
@@ -719,7 +719,7 @@ export default function WorkflowListModal({
                             {workflow.name}
                           </h3>
                         )}
-                        
+
                         {/* 🔥 상태 드롭다운 (Excel/Notion 스타일) */}
                         <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                           <select
@@ -744,7 +744,7 @@ export default function WorkflowListModal({
                             </div>
                           )}
                         </div>
-                        
+
                         {/* 클라이언트 타입 뱃지 */}
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
                           workflow.client_type === 'claude_desktop' ? 'bg-chart-2/10 text-chart-2' :
@@ -768,8 +768,8 @@ export default function WorkflowListModal({
                           }}
                           disabled={updatingStatus.has(workflow.id)}
                           className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 transition-all ${
-                            workflow.is_template 
-                              ? 'bg-chart-4/10 text-chart-4 hover:bg-chart-4/20' 
+                            workflow.is_template
+                              ? 'bg-chart-4/10 text-chart-4 hover:bg-chart-4/20'
                               : 'bg-muted text-muted-foreground hover:bg-chart-4/5'
                           } ${updatingStatus.has(workflow.id) ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
                           title={workflow.is_template ? '템플릿 해제하기' : '템플릿으로 설정하기'}
@@ -777,7 +777,7 @@ export default function WorkflowListModal({
                           <Star className={`h-3 w-3 ${workflow.is_template ? 'fill-current' : ''}`} />
                           {workflow.is_template ? '템플릿' : '템플릿?'}
                         </button>
-                        
+
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -785,8 +785,8 @@ export default function WorkflowListModal({
                           }}
                           disabled={updatingStatus.has(workflow.id)}
                           className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 transition-all ${
-                            workflow.is_public 
-                              ? 'bg-chart-1/10 text-chart-1 hover:bg-chart-1/20' 
+                            workflow.is_public
+                              ? 'bg-chart-1/10 text-chart-1 hover:bg-chart-1/20'
                               : 'bg-muted text-muted-foreground hover:bg-chart-1/5'
                           } ${updatingStatus.has(workflow.id) ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
                           title={workflow.is_public ? '비공개로 변경하기' : '공개로 변경하기'}
@@ -794,14 +794,14 @@ export default function WorkflowListModal({
                           {workflow.is_public ? '공개' : '비공개'}
                         </button>
                       </div>
-                      
+
                       {/* 두 번째 줄: 설명 (짧게 표시) */}
                       {workflow.description && (
                         <p className="text-xs text-muted-foreground mb-2 line-clamp-1">
                           {workflow.description}
                         </p>
                       )}
-                      
+
                       {/* 세 번째 줄: 메타 정보 */}
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
@@ -824,7 +824,7 @@ export default function WorkflowListModal({
                         )}
                       </div>
                     </div>
-                    
+
                     {/* 🔥 액션 버튼들 (불러오기 + 삭제) */}
                     <div className="flex items-center gap-2 ml-4 flex-shrink-0">
                       <Button
@@ -834,7 +834,7 @@ export default function WorkflowListModal({
                         <Download className="h-3 w-3 mr-1" />
                         불러오기
                       </Button>
-                      
+
                       <Button
                         size="sm"
                         variant="ghost"
@@ -870,8 +870,8 @@ export default function WorkflowListModal({
                 </span>
               )}
             </div>
-            <Button 
-              onClick={onClose} 
+            <Button
+              onClick={onClose}
               variant="outline"
               className="rounded-xl hover:bg-muted transition-colors"
             >
@@ -885,4 +885,4 @@ export default function WorkflowListModal({
 
   // Portal을 사용해서 body에 직접 렌더링
   return createPortal(modalContent, document.body);
-} 
+}

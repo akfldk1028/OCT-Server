@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { Button } from '@/renderer/common/components/ui/button';
 import { Input } from '@/renderer/common/components/ui/input';
 import { useToast } from '@/renderer/hooks/use-toast';
-import { 
-  Save, 
-  Upload, 
-  Download, 
-  Plus, 
+import {
+  Save,
+  Upload,
+  Download,
+  Plus,
   Copy,
   FileText,
   Share2,
@@ -20,31 +20,34 @@ import {
 import { useOutletContext } from 'react-router';
 import type { ServerLayoutContext } from '../../types/server-types';
 import { makeSSRClient } from '@/renderer/supa-client';
-import { 
-  getUserInstalledServers, 
-  getMcpConfigsByServerId, 
-  getProductById 
+import {
+  getUserInstalledServers,
+  getMcpConfigsByServerId,
+  getProductById
 } from '../../../products/queries';
 import { getClients } from '../../queries';
-import { createWorkflow, saveWorkflowNodes, saveWorkflowEdges, getUserWorkflows, createWorkflowShare } from '../../workflow-queries';
+import { createWorkflow, getUserWorkflows, createWorkflowShare, updateWorkflowMcpJson, convertToMcpWorkflow } from '../../workflow-queries';
 import { publishAsTemplate } from '../../template-queries';
 import WorkflowListModal from './WorkflowListModal';
+import { runAllTests } from '../../test-mcp-converter';
+import { runEndToEndTest } from '../../test-end-to-end';
 
 interface FlowToolbarProps {
   className?: string;
+  onLoadWorkflow?: (workflowData: any) => void; // 🔥 워크플로우 로딩 콜백
 }
 
-export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
+export default function FlowToolbar({ className = '', onLoadWorkflow }: FlowToolbarProps) {
   const { getNodes, getEdges, setNodes, setEdges, fitView } = useReactFlow();
   const { toast } = useToast();
   const [workflowName, setWorkflowName] = useState('');
   const [showWorkflowModal, setShowWorkflowModal] = useState(false);
-  
+
   // 🔥 Colab 스타일 워크플로우 상태 관리
   const [currentWorkflowId, setCurrentWorkflowId] = useState<number | null>(null);
   const [isModified, setIsModified] = useState(false);
   const [originalWorkflowName, setOriginalWorkflowName] = useState('');
-  
+
   // 서버/클라이언트 데이터 컨텍스트 가져오기
   const { servers, clients, userId } = useOutletContext<ServerLayoutContext>();
 
@@ -101,44 +104,44 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
       switch (dataRef.type) {
         case 'server':
           console.log('🔍 [restoreNodeData] 서버 복원 시작:', dataRef);
-          
+
           try {
             // 🔥 1단계: userMcpUsageId가 있으면 사용자 설치 기록에서 찾기
             if (dataRef.userMcpUsageId && userId) {
               const userServers = await getUserInstalledServers(client, {
                 profile_id: userId,
               });
-              
-              const userServer = userServers.find(server => 
+
+              const userServer = userServers.find(server =>
                 server.id === dataRef.userMcpUsageId
               );
-              
+
               if (userServer) {
                 // 설정도 함께 로드
                 const configs = await getMcpConfigsByServerId(client, {
                   original_server_id: userServer.original_server_id
                 });
-                
+
                 const serverWithConfigs = {
                   ...userServer,
                   mcp_configs: configs
                 };
-                
+
                 console.log('✅ [restoreNodeData] 사용자 서버 복원:', serverWithConfigs);
                 return serverWithConfigs;
               }
             }
-            
+
             // 🔥 2단계: serverId로 원본 서버 정보 가져오기
             if (dataRef.serverId) {
               const serverInfo = await getProductById(client, {
                 id: dataRef.serverId
               });
-              
+
               const configs = await getMcpConfigsByServerId(client, {
                 original_server_id: dataRef.serverId
               });
-              
+
               const fallbackServer = {
                 id: null,
                 original_server_id: dataRef.serverId,
@@ -147,35 +150,35 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
                 mcp_install_methods: null,
                 isFromDB: true, // 🔥 DB에서 가져온 것 표시
               };
-              
+
               console.log('✅ [restoreNodeData] DB 서버 복원:', fallbackServer);
               return fallbackServer;
             }
-            
+
           } catch (dbError) {
             console.error('❌ [restoreNodeData] DB 조회 실패:', dbError);
           }
-          
+
           // 🔥 3단계: 모든 방법 실패시 에러 객체 반환
           console.warn('⚠️ [restoreNodeData] 서버 복원 실패, 에러 객체 반환');
-          return { 
-            id: dataRef.serverId, 
+          return {
+            id: dataRef.serverId,
             original_server_id: dataRef.serverId,
-            mcp_servers: { 
-              name: '삭제된 서버', 
-              description: '이 서버는 더 이상 존재하지 않습니다.' 
+            mcp_servers: {
+              name: '삭제된 서버',
+              description: '이 서버는 더 이상 존재하지 않습니다.'
             },
-            error: true 
+            error: true
           };
 
         case 'client':
           console.log('🔍 [restoreNodeData] 클라이언트 복원 시작:', dataRef);
-          
+
           try {
             // 🔥 Supabase에서 클라이언트 정보 가져오기
             const clientsData = await getClients(client, { limit: 1000 });
             const clientInfo = clientsData.find(c => c.client_id === dataRef.clientId);
-            
+
             if (clientInfo) {
               console.log('✅ [restoreNodeData] 클라이언트 복원:', clientInfo);
               return { config: clientInfo };
@@ -183,15 +186,15 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
           } catch (dbError) {
             console.error('❌ [restoreNodeData] 클라이언트 DB 조회 실패:', dbError);
           }
-          
+
           console.warn('⚠️ [restoreNodeData] 클라이언트 복원 실패');
-          return { 
-            config: { 
-              client_id: dataRef.clientId, 
+          return {
+            config: {
+              client_id: dataRef.clientId,
               name: '삭제된 클라이언트',
               description: '이 클라이언트는 더 이상 존재하지 않습니다.',
-              error: true 
-            } 
+              error: true
+            }
           };
 
         case 'trigger':
@@ -215,7 +218,7 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
   const saveAsNewWorkflow = async (name: string) => {
     const nodes = getNodes();
     const edges = getEdges();
-    
+
     const workflowData = {
       name: name || `Workflow_${new Date().toISOString().slice(0, 19)}`,
       version: '1.0.0',
@@ -244,7 +247,7 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
     };
 
     const dbResult = await saveWorkflowToDB(workflowData);
-    
+
     // 새로 저장한 후 현재 워크플로우로 설정
     if (dbResult?.id) {
       setCurrentWorkflowId(dbResult.id);
@@ -252,22 +255,22 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
       setWorkflowName(name);
       setIsModified(false);
     }
-    
+
     return dbResult;
   };
 
   const updateExistingWorkflow = async () => {
     if (!currentWorkflowId) return null;
-    
+
     const nodes = getNodes();
     const edges = getEdges();
-    
+
     try {
       const { client } = makeSSRClient();
-      
+
       // 기존 워크플로우 업데이트 (TODO: 실제 업데이트 쿼리 구현 필요)
       console.log('🔄 [updateExistingWorkflow] 기존 워크플로우 업데이트:', currentWorkflowId);
-      
+
       // 임시로 새로 저장하는 방식 (나중에 실제 업데이트 로직으로 교체)
       const workflowData = {
         name: workflowName,
@@ -297,13 +300,13 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
       };
 
       const result = await saveWorkflowToDB(workflowData);
-      
+
       // 수정 상태 초기화
       setIsModified(false);
       setOriginalWorkflowName(workflowName);
-      
+
       return result;
-      
+
     } catch (error) {
       console.error('❌ [updateExistingWorkflow] 업데이트 실패:', error);
       throw error;
@@ -319,9 +322,9 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
       }
 
       console.log('🔥 [saveWorkflowToDB] Supabase 저장 시작:', workflowData.name);
-      
+
       const { client } = makeSSRClient();
-      
+
       // 1. 워크플로우 생성
       const workflowResult = await createWorkflow(client as any, {
         profile_id: userId,
@@ -339,65 +342,36 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
         is_public: false,
         is_template: false
       });
-      
+
       if (!workflowResult?.id) {
         throw new Error('워크플로우 생성 실패');
       }
-      
+
       console.log('✅ [saveWorkflowToDB] 워크플로우 생성됨:', workflowResult);
-      
-      // 2. 노드들 저장
+
+            // ✅ MCP JSON 구조로 간단 저장 (새로운 방식)
       const nodes = getNodes();
-      if (nodes.length > 0) {
-        const nodeData = nodes
-          .filter(node => node.type) // type이 있는 노드만 필터링
-          .map(node => ({
-            node_id: String(node.id),
-            node_type: node.type!,
-            position_x: Math.round(node.position.x), // 🔥 정수로 반올림
-            position_y: Math.round(node.position.y), // 🔥 정수로 반올림
-            node_config: node.data,
-            // 🔥 노드 타입별로 ID 연결 (타입 안전하게)
-            original_server_id: node.type === 'server' && node.data ? 
-              (Number((node.data as any)?.original_server_id) || Number((node.data as any)?.mcp_servers?.id) || undefined) : undefined,
-            user_mcp_usage_id: node.type === 'server' && node.data ? 
-              (Number((node.data as any)?.id) || undefined) : undefined,
-            client_id: (node.type === 'service' || node.type === 'client') && node.data ? 
-              (Number((node.data as any)?.config?.client_id) || Number((node.data as any)?.client_id) || undefined) : undefined
-          }));
-        
-        await saveWorkflowNodes(client as any, {
-          workflow_id: workflowResult.id,
-          nodes: nodeData
-        });
-        
-        console.log('✅ [saveWorkflowToDB] 노드 저장 완료:', nodeData.length, '개');
-      }
-      
-      // 3. 엣지들 저장
       const edges = getEdges();
-      if (edges.length > 0) {
-        const edgeData = edges.map(edge => ({
-          edge_id: String(edge.id),
-          source_node_id: String(edge.source),
-          target_node_id: String(edge.target),
-          source_handle: edge.sourceHandle || undefined,
-          target_handle: edge.targetHandle || undefined,
-          edge_config: {
-            type: edge.type,
-            animated: edge.animated,
-            style: edge.style,
-            label: edge.label ? String(edge.label) : undefined
-          }
-        }));
-        
-        await saveWorkflowEdges(client as any, {
-          workflow_id: workflowResult.id,
-          edges: edgeData
-        });
-        
-        console.log('✅ [saveWorkflowToDB] 엣지 저장 완료:', edgeData.length, '개');
-      }
+
+      // ReactFlow 데이터를 MCP JSON으로 변환
+      const mcpWorkflow = convertToMcpWorkflow(nodes, edges, {
+        name: workflowData.name,
+        description: workflowData.description
+      });
+
+      // MCP JSON을 데이터베이스에 저장
+      await updateWorkflowMcpJson(client as any, {
+        workflow_id: workflowResult.id,
+        mcp_workflow_json: mcpWorkflow
+      });
+
+      console.log('✅ [saveWorkflowToDB] MCP JSON 저장 완료:', {
+        workflow_id: workflowResult.id,
+        mcp_version: mcpWorkflow.mcp_version,
+        servers: mcpWorkflow.workflow.servers.length,
+        nodes: mcpWorkflow.workflow.execution_graph.nodes.length,
+        edges: mcpWorkflow.workflow.execution_graph.edges.length
+      });
 
       console.log('🎉 [saveWorkflowToDB] Supabase 저장 완료!', {
         workflowId: workflowResult.id,
@@ -405,9 +379,9 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
         nodes: nodes.length,
         edges: edges.length
       });
-      
+
       return workflowResult;
-      
+
     } catch (error) {
       console.error('❌ [saveWorkflowToDB] Supabase 저장 실패:', error);
       throw error;
@@ -431,13 +405,13 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
       if (currentWorkflowId) {
         // 기존 워크플로우 업데이트
         const result = await updateExistingWorkflow();
-        
+
         toast({
           title: '워크플로우 업데이트 완료! 🔄',
           description: `${workflowName} 기존 워크플로우가 업데이트되었습니다.`,
           variant: 'success',
         });
-        
+
         console.log('🔄 [FlowToolbar] 워크플로우 업데이트됨:', result);
       } else {
         // 새 워크플로우로 저장 (이름 입력 필요)
@@ -451,13 +425,13 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
         }
 
         const result = await saveAsNewWorkflow(workflowName);
-        
+
         toast({
           title: '새 워크플로우 저장 완료! 🎉',
           description: `${workflowName} 새로운 워크플로우로 저장되었습니다.`,
           variant: 'success',
         });
-        
+
         console.log('💾 [FlowToolbar] 새 워크플로우 저장됨:', result);
       }
 
@@ -475,15 +449,15 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
   const handleSaveAsNewWorkflow = async () => {
     try {
       const newName = workflowName ? `${workflowName}_복사본` : `Workflow_${new Date().toISOString().slice(0, 19)}`;
-      
+
       const result = await saveAsNewWorkflow(newName);
-      
+
       toast({
         title: '다른 이름으로 저장 완료! 📑',
         description: `${newName} 새로운 복사본이 생성되었습니다.`,
         variant: 'success',
       });
-      
+
       console.log('📑 [FlowToolbar] 다른 이름으로 저장됨:', result);
 
     } catch (error) {
@@ -503,7 +477,7 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
       const confirm = window.confirm('현재 워크플로우에 저장되지 않은 변경사항이 있습니다. 새 워크플로우를 시작하시겠습니까?');
       if (!confirm) return;
     }
-    
+
     // 모든 상태 초기화
     setNodes([]);
     setEdges([]);
@@ -511,13 +485,13 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
     setCurrentWorkflowId(null);
     setOriginalWorkflowName('');
     setIsModified(false);
-    
+
     toast({
       title: '새 워크플로우 시작! 🆕',
       description: '새로운 워크플로우를 시작합니다.',
       variant: 'default',
     });
-    
+
     console.log('🆕 [FlowToolbar] 새 워크플로우 시작');
   };
 
@@ -559,7 +533,7 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
         // React Flow에 복원된 데이터 로드
         setNodes(restoredNodes);
         setEdges(workflowData.edges);
-        
+
         // 이름 설정
         setWorkflowName(workflowData.name || '');
 
@@ -592,81 +566,66 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
   };
   */
 
-  // Supabase에서 워크플로우를 불러와서 ReactFlow에 로드
-  const handleLoadWorkflowFromDB = async (workflowData: any) => {
+  // 🔥 Supabase에서 워크플로우를 불러와서 ReactFlow에 로드 (새로운 MCP JSON 방식)
+  const handleLoadWorkflowFromDB = useCallback(async (workflowData: any) => {
     try {
-      console.log('🔥 [FlowToolbar] 워크플로우 로드 시작:', workflowData);
-      
-      // 워크플로우 이름 설정
+      console.log('🔥 [FlowToolbar] MCP JSON 워크플로우 로드 시작:', workflowData);
+
+      // 1. MCP JSON 또는 레거시 구조를 ReactFlow 형식으로 변환
+      const reactFlowData = convertWorkflowToReactFlow(workflowData);
+
+      // 2. 워크플로우 이름 설정
       if (workflowData.name) {
         setWorkflowName(workflowData.name);
       }
-      
-      // 노드 데이터 복원 (서버/클라이언트 정보를 실제 데이터로 변환)
-      const restoredNodes = await Promise.all(
-        workflowData.nodes.map(async (node: any) => {
-          console.log('🔍 [FlowToolbar] 노드 복원:', node);
-          
-          // 노드 데이터에서 실제 서버/클라이언트 정보 복원
-          let restoredData = node.data;
-          
-          // 서버 노드인 경우 실제 서버 데이터 복원
-          if (node.type === 'server' && node.data?.original_server_id) {
-            try {
-              const serverData = await restoreNodeData({
-                type: 'server',
-                serverId: node.data.original_server_id,
-                userMcpUsageId: node.data.id,
-              });
-              restoredData = serverData;
-            } catch (error) {
-              console.warn('⚠️ [FlowToolbar] 서버 데이터 복원 실패:', error);
-            }
-          }
-          
-          // 클라이언트 노드인 경우 실제 클라이언트 데이터 복원
-          if ((node.type === 'service' || node.type === 'client') && node.data?.config?.client_id) {
-            try {
-              const clientData = await restoreNodeData({
-                type: 'client',
-                clientId: node.data.config.client_id,
-              });
-              restoredData = clientData;
-            } catch (error) {
-              console.warn('⚠️ [FlowToolbar] 클라이언트 데이터 복원 실패:', error);
-            }
-          }
-          
-          return {
-            ...node,
-            data: restoredData,
-          };
-        })
-      );
-      
-      console.log('✅ [FlowToolbar] 노드 복원 완료:', restoredNodes);
-      
-      // ReactFlow에 노드와 엣지 설정
-      setNodes(restoredNodes);
-      setEdges(workflowData.edges || []);
-      
-      // 🔥 현재 워크플로우 상태 설정 (기존 워크플로우로 인식)
+
+      // 3. FlowToolbar 내부 상태 업데이트
+      setNodes(reactFlowData.nodes || []);
+      setEdges(reactFlowData.edges || []);
+
+      // 4. 외부 콜백 호출 (node-page.tsx의 handleLoadWorkflow)
+      if (onLoadWorkflow) {
+        onLoadWorkflow({
+          ...workflowData,
+          nodes: reactFlowData.nodes,
+          edges: reactFlowData.edges
+        });
+      }
+
+      // 5. 현재 워크플로우 상태 설정 (기존 워크플로우로 인식)
       setCurrentWorkflowId(workflowData.id);
       setOriginalWorkflowName(workflowData.name || '');
       setIsModified(false);
-      
-      // 화면에 맞게 조정
+
+      // 6. 화면에 맞게 조정
       setTimeout(() => {
         fitView();
       }, 100);
-      
-      console.log('🎉 [FlowToolbar] 워크플로우 로드 완료 - 현재 워크플로우로 설정:', workflowData.id);
-      
+
+      console.log('🎉 [FlowToolbar] MCP JSON 워크플로우 로드 완료:', {
+        id: workflowData.id,
+        name: workflowData.name,
+        nodes: reactFlowData.nodes?.length || 0,
+        edges: reactFlowData.edges?.length || 0,
+        has_mcp_json: !!workflowData.mcp_workflow_json
+      });
+
+      toast({
+        title: "워크플로우 로딩 완료",
+        description: `"${workflowData.name}" - ${reactFlowData.nodes?.length || 0}개 노드, ${reactFlowData.edges?.length || 0}개 연결`,
+        variant: 'default',
+      });
+
     } catch (error) {
-      console.error('❌ [FlowToolbar] 워크플로우 로드 실패:', error);
+      console.error('❌ [FlowToolbar] MCP JSON 워크플로우 로드 실패:', error);
+      toast({
+        title: "워크플로우 로딩 실패",
+        description: "워크플로우를 불러오는 중 오류가 발생했습니다.",
+        variant: "destructive"
+      });
       throw error;
     }
-  };
+  }, [setNodes, setEdges, fitView, onLoadWorkflow, toast]);
 
   // Supabase에서 사용자 워크플로우 목록 보기 (모달 열기)
   const handleShowSavedWorkflows = async () => {
@@ -686,11 +645,11 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
   const handleShowCurrentFlow = () => {
     const nodes = getNodes();
     const edges = getEdges();
-    
+
     console.log('🔍 [FlowToolbar] 현재 워크플로우 정보:');
     console.log('📊 노드들:', nodes);
     console.log('🔗 엣지들:', edges);
-    
+
     toast({
       title: '워크플로우 정보',
       description: `현재 ${nodes.length}개 노드, ${edges.length}개 연결 (콘솔 확인)`,
@@ -712,7 +671,7 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
 
       const nodes = getNodes();
       const edges = getEdges();
-      
+
       if (nodes.length === 0) {
         toast({
           title: '공유할 워크플로우가 없습니다',
@@ -724,13 +683,13 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
 
       // 1. 먼저 워크플로우 저장 (저장되지 않은 경우)
       let workflowId = currentWorkflowId;
-      
+
       if (!workflowId || isModified) {
         if (!workflowName.trim()) {
           const autoName = `공유_워크플로우_${new Date().toISOString().slice(0, 19)}`;
           setWorkflowName(autoName);
         }
-        
+
         const savedWorkflow = await saveWorkflowToDB({
           name: workflowName || `공유_워크플로우_${new Date().toISOString().slice(0, 19)}`,
           version: '1.0.0',
@@ -755,11 +714,11 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
             label: edge.label
           }))
         });
-        
+
         if (!savedWorkflow?.id) {
           throw new Error('워크플로우 저장 실패');
         }
-        
+
         workflowId = savedWorkflow.id;
         setCurrentWorkflowId(workflowId);
         setIsModified(false);
@@ -768,7 +727,7 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
       // 2. 공유 링크 생성
       const { client } = makeSSRClient();
       const shareToken = `share_${workflowId}_${Date.now()}`;
-      
+
       const shareResult = await createWorkflowShare(client as any, {
         workflow_id: workflowId,
         shared_by_user_id: userId,
@@ -784,23 +743,23 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
       // 3. 공유 URL 생성 및 클립보드 복사 (환경별 처리)
       // 일렉트론(HashRouter) vs 웹(BrowserRouter) 환경 감지
       const isElectron = window.location.protocol === 'file:' || window.location.hostname === 'localhost';
-      const baseUrl = isElectron 
+      const baseUrl = isElectron
         ? `${window.location.origin}/#`
         : window.location.origin;
       const shareUrl = `${baseUrl}/workflow/share/${shareToken}`;
-      
+
       await navigator.clipboard.writeText(shareUrl);
-      
+
       toast({
         title: '공유 링크 복사 완료! 📋',
         description: `링크가 클립보드에 복사되었습니다. 다른 사람과 공유해보세요!`,
       });
-      
+
       console.log('🔗 공유 링크 생성:', shareUrl);
 
     } catch (error) {
       console.error('워크플로우 공유 실패:', error);
-      
+
       // 클립보드 접근 실패시 대체 방법
       if (error instanceof Error && error.name === 'NotAllowedError') {
         toast({
@@ -832,7 +791,7 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
               <Zap className="h-5 w-5 text-primary" />
               <span className="text-sm font-medium text-muted-foreground">워크플로우</span>
             </div>
-            
+
             <div className="relative">
               <Input
                 type="text"
@@ -874,11 +833,15 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
             <Button
               onClick={handleSaveWorkflow}
               size="sm"
+              disabled={!userId}
               className={`h-9 px-4 gap-2 transition-all ${
-                isModified 
-                  ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-md' 
-                  : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                !userId
+                  ? 'opacity-50 cursor-not-allowed bg-muted text-muted-foreground'
+                  : isModified
+                    ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-md'
+                    : 'bg-muted hover:bg-muted/80 text-muted-foreground'
               }`}
+              title={!userId ? "로그인 후 사용 가능합니다" : "워크플로우 저장"}
             >
               <Save className="h-4 w-4" />
               저장
@@ -908,10 +871,61 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
               onClick={handleShowSavedWorkflows}
               size="sm"
               variant="outline"
-              className="h-9 px-4 gap-2 hover:bg-accent"
+              disabled={!userId}
+              className={`h-9 px-4 gap-2 ${userId ? 'hover:bg-accent' : 'opacity-50 cursor-not-allowed'}`}
+              title={!userId ? "로그인 후 사용 가능합니다" : "저장된 워크플로우 불러오기"}
             >
               <Upload className="h-4 w-4" />
               불러오기
+            </Button>
+
+            {/* 🧪 개발용 테스트 버튼들 (나중에 제거 예정) */}
+            <Button
+              onClick={() => {
+                console.log('🧪 MCP JSON 변환 테스트 실행 중...');
+                const testResult = runAllTests();
+                if (testResult.isValid) {
+                  toast({ title: "✅ 변환 테스트 성공", description: "MCP JSON 변환이 성공적으로 완료되었습니다." });
+                } else {
+                  toast({ title: "❌ 변환 테스트 실패", description: "MCP JSON 변환에 문제가 있습니다.", variant: "destructive" });
+                }
+              }}
+              size="sm"
+              variant="secondary"
+              className="h-9 px-3 gap-1 bg-orange-100 hover:bg-orange-200 text-orange-800 border-orange-300"
+            >
+              🧪 변환
+            </Button>
+
+            <Button
+              onClick={async () => {
+                console.log('🚀 E2E 테스트 실행 중...');
+                try {
+                  // ServerLayoutContext에서 userId 가져오기
+                  const testUserId = userId || 'test-user-id';
+                  const e2eResult = await runEndToEndTest(testUserId);
+                  if (e2eResult.success) {
+                    toast({
+                      title: "✅ E2E 테스트 성공",
+                      description: `${e2eResult.summary.passed}/${e2eResult.summary.total} 테스트 통과`
+                    });
+                  } else {
+                    toast({
+                      title: "❌ E2E 테스트 실패",
+                      description: `${e2eResult.summary.failed}/${e2eResult.summary.total} 테스트 실패`,
+                      variant: "destructive"
+                    });
+                  }
+                } catch (error) {
+                  console.error('E2E 테스트 오류:', error);
+                  toast({ title: "❌ E2E 테스트 오류", description: "테스트 실행 중 오류가 발생했습니다.", variant: "destructive" });
+                }
+              }}
+              size="sm"
+              variant="secondary"
+              className="h-9 px-3 gap-1 bg-blue-100 hover:bg-blue-200 text-blue-800 border-blue-300"
+            >
+              🚀 E2E
             </Button>
           </div>
         </div>
@@ -966,7 +980,7 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
       </div>
 
       {/* 워크플로우 목록 모달 */}
-      <WorkflowListModal 
+      <WorkflowListModal
         isOpen={showWorkflowModal}
         onClose={() => setShowWorkflowModal(false)}
         onLoadWorkflow={handleLoadWorkflowFromDB}
@@ -974,4 +988,4 @@ export default function FlowToolbar({ className = '' }: FlowToolbarProps) {
       />
     </div>
   );
-} 
+}

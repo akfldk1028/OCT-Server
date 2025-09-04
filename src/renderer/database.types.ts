@@ -1299,6 +1299,7 @@ export type Database = {
           is_public: boolean | null
           is_template: boolean | null
           last_executed_at: string | null
+          mcp_workflow_json: Json | null
           name: string
           profile_id: string
           status: string | null
@@ -1315,6 +1316,7 @@ export type Database = {
           is_public?: boolean | null
           is_template?: boolean | null
           last_executed_at?: string | null
+          mcp_workflow_json?: Json | null
           name: string
           profile_id: string
           status?: string | null
@@ -1331,6 +1333,7 @@ export type Database = {
           is_public?: boolean | null
           is_template?: boolean | null
           last_executed_at?: string | null
+          mcp_workflow_json?: Json | null
           name?: string
           profile_id?: string
           status?: string | null

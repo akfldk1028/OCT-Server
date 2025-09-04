@@ -1,0 +1,156 @@
+{
+  "mcp_version": "1.0",
+  "workflow": {
+    "metadata": {
+      "id": "workflow-test-001",
+      "name": "파일 처리 테스트 워크플로우",
+      "description": "파일을 읽고 분석하는 간단한 테스트 워크플로우",
+      "created_at": "2024-01-15T10:00:00Z",
+      "version": "1.0"
+    },
+    "servers": [
+      {
+        "id": "server-filesystem",
+        "server_id": 42,
+        "config": {
+          "name": "filesystem",
+          "command": "uvx",
+          "args": ["mcp-server-filesystem", "/tmp"],
+          "env": {}
+        }
+      },
+      {
+        "id": "server-git",
+        "server_id": 43,
+        "config": {
+          "name": "git",
+          "command": "uvx",
+          "args": ["mcp-server-git", "--repository", "/tmp/repo"],
+          "env": {}
+        }
+      }
+    ],
+    "execution_graph": {
+      "nodes": [
+        {
+          "id": "read-input",
+          "type": "server",
+          "position": { "x": 100, "y": 100 },
+          "data": {
+            "mcp_servers": {
+              "id": 42,
+              "name": "filesystem",
+              "description": "File system operations"
+            },
+            "mcp_configs": [
+              {
+                "command": "uvx",
+                "args": ["mcp-server-filesystem", "/tmp"],
+                "env": {}
+              }
+            ]
+          },
+          "server_id": "server-filesystem",
+          "tools": [
+            {
+              "name": "read_file",
+              "description": "Read a file from the filesystem",
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string", "description": "File path" }
+                },
+                "required": ["path"]
+              }
+            },
+            {
+              "name": "write_file",
+              "description": "Write content to a file",
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string", "description": "File path" },
+                  "content": { "type": "string", "description": "File content" }
+                },
+                "required": ["path", "content"]
+              }
+            }
+          ]
+        },
+        {
+          "id": "process-data",
+          "type": "server",
+          "position": { "x": 400, "y": 100 },
+          "data": {
+            "mcp_servers": {
+              "id": 43,
+              "name": "git",
+              "description": "Git operations"
+            },
+            "mcp_configs": [
+              {
+                "command": "uvx",
+                "args": ["mcp-server-git", "--repository", "/tmp/repo"],
+                "env": {}
+              }
+            ]
+          },
+          "server_id": "server-git",
+          "tools": [
+            {
+              "name": "git_log",
+              "description": "Get git commit history",
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "max_count": { "type": "number", "description": "Maximum number of commits" }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "output-result",
+          "type": "server",
+          "position": { "x": 700, "y": 100 },
+          "data": {
+            "mcp_servers": {
+              "id": 42,
+              "name": "filesystem",
+              "description": "File system operations"
+            }
+          },
+          "server_id": "server-filesystem",
+          "tools": [
+            {
+              "name": "write_file",
+              "description": "Write processed result to file"
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-1",
+          "source": "read-input",
+          "target": "process-data",
+          "sourceHandle": "output",
+          "targetHandle": "input",
+          "type": "smoothstep",
+          "animated": true,
+          "style": { "stroke": "#0ea5e9" }
+        },
+        {
+          "id": "edge-2",
+          "source": "process-data",
+          "target": "output-result",
+          "sourceHandle": "output",
+          "targetHandle": "input",
+          "type": "smoothstep",
+          "animated": true,
+          "style": { "stroke": "#10b981" }
+        }
+      ]
+    }
+  }
+}
