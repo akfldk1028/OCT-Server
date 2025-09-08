@@ -6,22 +6,33 @@ import { BaseNodeExecutor } from './BaseNodeExecutor';
 import { Logger } from '../logger';
 import { ExecutePayload, ExecuteResult } from './node-executor-types';
 import { IDesktopIntegration } from '../interfaces/workflow-interfaces';
+import { MCPClientManager, ClientType } from '../clients/MCPClientManager';
+import { MCPServerConfig } from '../clients/IMCPClient';
 
 export class ServerNodeExecutor extends BaseNodeExecutor<ServerNodeData> {
+  private mcpClientManager: MCPClientManager;
+
   constructor(
     node: ServerNodeData,
     private integration: IDesktopIntegration,
     logger?: Logger
   ) {
     super(node, logger);
+
+    // 🔥 NEW: 다중 클라이언트 관리자 초기화
+    this.mcpClientManager = new MCPClientManager({
+      enabledClients: ['claude-desktop', 'openai-api', 'vscode-extension'],
+      autoDetectClients: true,
+      defaultClient: 'claude-desktop'
+    });
   }
-  
+
   protected async doExecute(payload: ExecutePayload): Promise<Partial<ExecuteResult>> {
     const { context, edges } = payload;
     const previousResults = context.getPreviousResults(String(this.node.id), edges);
-    
+
     const message = await this.handlePreviousService(previousResults, context);
-    
+
     return {
       data: {
         server: (this.node as any).data,
@@ -31,21 +42,21 @@ export class ServerNodeExecutor extends BaseNodeExecutor<ServerNodeData> {
       message
     };
   }
-  
+
   private async handlePreviousService(previousResults: any[], context: any): Promise<string> {
     // 이전 결과에서 AI 서비스 찾기
     const aiService = this.findAIService(previousResults);
-    
+
     if (aiService) {
       return await this.processAIService(aiService, context);
     }
-    
+
     // 기존 컨텍스트에서 AI 서비스 확인 (하위 노드용)
     const existingAI = context.get('currentAI');
     if (existingAI) {
       return await this.processExistingAI(existingAI, context);
     }
-    
+
     return '서비스 연결 완료';
   }
 
@@ -68,7 +79,7 @@ export class ServerNodeExecutor extends BaseNodeExecutor<ServerNodeData> {
         context.set('currentAI', service);
         const claudeResult = await this.connectClaudeMCPServer();
         return claudeResult.message;
-        
+
       case 'OpenAI':
       case 'ChatGPT':
       case 'GPT-4':
@@ -76,19 +87,19 @@ export class ServerNodeExecutor extends BaseNodeExecutor<ServerNodeData> {
         this.logger.info('🔧 OpenAI 서비스 감지!');
         context.set('currentAI', service);
         return await this.connectOpenAIServer();
-        
+
       case 'Gemini':
       case 'Google AI':
         this.logger.info('🌟 Google AI 서비스 감지!');
         context.set('currentAI', service);
         return await this.connectGeminiServer();
-        
+
       case 'Llama':
       case 'Meta AI':
         this.logger.info('🦙 Meta AI 서비스 감지!');
         context.set('currentAI', service);
         return await this.connectLlamaServer();
-        
+
       default:
         this.logger.debug(`❓ 알 수 없는 서비스: ${service.name}`);
         return `${service.name} 연결 완료 (지원 예정)`;
@@ -97,28 +108,28 @@ export class ServerNodeExecutor extends BaseNodeExecutor<ServerNodeData> {
 
   private async processExistingAI(service: any, context: any): Promise<string> {
     this.logger.info(`🔗 기존 ${service.name} 연결 → 추가 서버 연결`);
-    
+
     switch (service.name) {
       case 'Claude AI':
       case 'Anthropic':
       case 'Claude':
         const claudeResult = await this.connectClaudeMCPServer();
         return claudeResult.message;
-        
+
       case 'OpenAI':
       case 'ChatGPT':
       case 'GPT-4':
       case 'GPT-3.5':
         return await this.connectOpenAIServer();
-        
+
       case 'Gemini':
       case 'Google AI':
         return await this.connectGeminiServer();
-        
+
       case 'Llama':
       case 'Meta AI':
         return await this.connectLlamaServer();
-        
+
       default:
         return `${service.name} 추가 연결 완료`;
     }
@@ -138,156 +149,131 @@ export class ServerNodeExecutor extends BaseNodeExecutor<ServerNodeData> {
     // Llama 서버 연결 로직
     return '🦙 Llama 서버 연결 완료';
   }
-  
+
   private async connectClaudeMCPServer(): Promise<{ message: string }> {
     try {
       const nodeData = (this.node as any).data;
       const serverInfo = nodeData?.mcp_servers;
       const mcpConfigs = nodeData?.mcp_configs;
-      
+
       if (!serverInfo || !mcpConfigs?.length) {
         return { message: '⚠️ MCP 설정 없음' };
       }
-      
-      const platform = process.platform;
-      
-      switch (platform) {
-        case 'win32':
-          return await this.connectMCPWindows(serverInfo, mcpConfigs);
-        case 'darwin':
-          return await this.connectMCPMacOS(serverInfo, mcpConfigs);
-        case 'linux':
-          return await this.connectMCPLinux(serverInfo, mcpConfigs);
-        default:
-          return { message: `❌ 지원하지 않는 플랫폼: ${platform}` };
+
+      // 🔥 NEW: 플랫폼별 최적 설정 선택
+      const bestConfig = this.selectBestConfigForPlatform(mcpConfigs);
+      if (!bestConfig) {
+        return { message: '❌ 현재 플랫폼에 호환되는 설정이 없습니다' };
       }
-      
+
+      // 🔥 NEW: MCP 서버 설정 생성
+      const serverConfig: MCPServerConfig = {
+        name: serverInfo.name,
+        command: bestConfig.command,
+        args: bestConfig.args || [],
+        env: bestConfig.env || {},
+        cwd: bestConfig.cwd
+      };
+
+      // 🔥 NEW: 모든 사용 가능한 클라이언트에 연결
+      const connectionResults = await this.mcpClientManager.connectServerToAllClients(serverConfig);
+
+      // 결과 요약
+      const successfulConnections = connectionResults.filter(r => r.success);
+      const failedConnections = connectionResults.filter(r => !r.success);
+
+      let message = '';
+      if (successfulConnections.length > 0) {
+        message += `🎉 ${serverInfo.name} 연결 성공:\n`;
+        successfulConnections.forEach(r => {
+          message += `  ${r.message}\n`;
+        });
+      }
+
+      if (failedConnections.length > 0) {
+        message += `⚠️ 일부 연결 실패:\n`;
+        failedConnections.forEach(r => {
+          message += `  ${r.message}\n`;
+        });
+      }
+
+      return { message: message.trim() || '✅ MCP 서버 연결 완료' };
+
     } catch (error) {
       this.logger.error('MCP 연결 오류:', error);
       return { message: `❌ 연결 오류: ${error}` };
     }
   }
 
-  private async connectMCPWindows(serverInfo: any, mcpConfigs: any[]): Promise<{ message: string }> {
-    this.logger.info('🪟 Windows MCP 연결 시작');
-    
-    const serverName = serverInfo.name;
-    if (this.integration.isServerConnected(serverName)) {
-      return { message: `✅ 이미 연결됨: ${serverName}` };
-    }
-    
-    const config = this.selectBestConfigForWindows(mcpConfigs);
-    if (!config) {
-      return { message: '❌ Windows 호환 설정 없음' };
-    }
-    
-    const serverConfig = {
-      command: config.command,
-      args: config.args || [],
-      ...(config.env && { env: config.env })
-    };
-    
-    const success = this.integration.connectServer(serverName, serverConfig);
-    return {
-      message: success 
-        ? `🎉 ${serverName} Windows에 추가됨! Claude Desktop 재시작 필요`
-        : `❌ Windows 연결 실패: ${serverName}`
-    };
-  }
+  /**
+   * 🔥 NEW: 현재 플랫폼에 최적화된 설정 선택
+   */
+  private selectBestConfigForPlatform(configs: any[]): any {
+    const platform = process.platform;
 
-  private async connectMCPMacOS(serverInfo: any, mcpConfigs: any[]): Promise<{ message: string }> {
-    this.logger.info('🍎 macOS MCP 연결 시작');
-    
-    const serverName = serverInfo.name;
-    if (this.integration.isServerConnected(serverName)) {
-      return { message: `✅ 이미 연결됨: ${serverName}` };
-    }
-    
-    const config = this.selectBestConfigForMacOS(mcpConfigs);
-    if (!config) {
-      return { message: '❌ macOS 호환 설정 없음' };
-    }
-    
-    const serverConfig = {
-      command: config.command,
-      args: config.args || [],
-      ...(config.env && { env: config.env })
-    };
-    
-    const success = this.integration.connectServer(serverName, serverConfig);
-    return {
-      message: success 
-        ? `🎉 ${serverName} macOS에 추가됨! Claude Desktop 재시작 필요`
-        : `❌ macOS 연결 실패: ${serverName}`
-    };
-  }
-
-  private async connectMCPLinux(serverInfo: any, mcpConfigs: any[]): Promise<{ message: string }> {
-    this.logger.info('🐧 Linux MCP 연결 시작');
-    
-    const serverName = serverInfo.name;
-    if (this.integration.isServerConnected(serverName)) {
-      return { message: `✅ 이미 연결됨: ${serverName}` };
-    }
-    
-    const config = this.selectBestConfigForLinux(mcpConfigs);
-    if (!config) {
-      return { message: '❌ Linux 호환 설정 없음' };
-    }
-    
-    const serverConfig = {
-      command: config.command,
-      args: config.args || [],
-      ...(config.env && { env: config.env })
-    };
-    
-    const success = this.integration.connectServer(serverName, serverConfig);
-    return {
-      message: success 
-        ? `🎉 ${serverName} Linux에 추가됨! Claude Desktop 재시작 필요`
-        : `❌ Linux 연결 실패: ${serverName}`
-    };
-  }
-  
-  private selectBestConfigForWindows(configs: any[]): any {
-    // Windows 우선순위 (비개발자 친화적): npx > npm > pip > uvx > uv > python > docker
+    // 모든 플랫폼 공통 우선순위 (비개발자 친화적)
     const priorities = ['npx', 'npm', 'pip', 'uvx', 'uv', 'python', 'docker'];
-    
-    // 🔥 강제로 순서대로만 확인 - is_recommended 완전 무시
+
+    this.logger?.info(`🔧 ${platform}에서 최적 설정 선택 중... (${configs.length}개 옵션)`);
+
+    // 우선순위에 따라 설정 선택
     for (const priority of priorities) {
       const config = configs.find(c => c.command === priority);
-      if (config) return config;
+      if (config) {
+        this.logger?.info(`✅ ${priority} 설정 선택됨`);
+        return config;
+      }
     }
-    
-    // 위에서 못 찾으면 첫 번째
-    return configs[0] || null;
+
+    // 위에서 못 찾으면 첫 번째 사용 가능한 설정
+    if (configs.length > 0) {
+      this.logger?.warn(`⚠️ 우선순위 설정을 찾지 못함, 첫 번째 설정 사용: ${configs[0].command}`);
+      return configs[0];
+    }
+
+    return null;
   }
 
-  private selectBestConfigForMacOS(configs: any[]): any {
-    // macOS 우선순위 (비개발자 친화적): npx > npm > pip > uvx > uv > python > docker
-    const priorities = ['npx', 'npm', 'pip', 'uvx', 'uv', 'python', 'docker'];
-    
-    // 🔥 강제로 순서대로만 확인 - is_recommended 완전 무시
-    for (const priority of priorities) {
-      const config = configs.find(c => c.command === priority);
-      if (config) return config;
-    }
-    
-    // 위에서 못 찾으면 첫 번째
-    return configs[0] || null;
+  /**
+   * 🔥 NEW: 연결 상태 요약 반환
+   */
+  getConnectionSummary(): any {
+    return this.mcpClientManager.getConnectionSummary();
   }
 
-  private selectBestConfigForLinux(configs: any[]): any {
-    // Linux 우선순위 (비개발자 친화적): npx > npm > pip > uvx > uv > python > docker
-    const priorities = ['npx', 'npm', 'pip', 'uvx', 'uv', 'python', 'docker'];
-    
-    // 🔥 강제로 순서대로만 확인 - is_recommended 완전 무시
-    for (const priority of priorities) {
-      const config = configs.find(c => c.command === priority);
-      if (config) return config;
+  /**
+   * 🔥 NEW: 특정 클라이언트에만 연결
+   */
+  async connectToSpecificClient(clientType: ClientType): Promise<{ message: string }> {
+    try {
+      const nodeData = (this.node as any).data;
+      const serverInfo = nodeData?.mcp_servers;
+      const mcpConfigs = nodeData?.mcp_configs;
+
+      if (!serverInfo || !mcpConfigs?.length) {
+        return { message: '⚠️ MCP 설정 없음' };
+      }
+
+      const bestConfig = this.selectBestConfigForPlatform(mcpConfigs);
+      if (!bestConfig) {
+        return { message: '❌ 호환되는 설정이 없습니다' };
+      }
+
+      const serverConfig: MCPServerConfig = {
+        name: serverInfo.name,
+        command: bestConfig.command,
+        args: bestConfig.args || [],
+        env: bestConfig.env || {},
+        cwd: bestConfig.cwd
+      };
+
+      const result = await this.mcpClientManager.connectServerToClient(serverConfig, clientType);
+
+      return { message: result.message };
+
+    } catch (error) {
+      this.logger?.error(`${clientType} 연결 오류:`, error);
+      return { message: `❌ ${clientType} 연결 오류: ${error}` };
     }
-    
-    // 위에서 못 찾으면 첫 번째
-    return configs[0] || null;
   }
 }

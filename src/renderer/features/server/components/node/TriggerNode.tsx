@@ -6,6 +6,7 @@ import { executeWorkflow } from '../Flow/FlowEngine';
 import { enhanceNodeData, enhanceWorkflowData } from '../Flow/NodeDataEnhancer';
 import { makeSSRClient } from '@/renderer/supa-client';
 import { saveWorkflowExecution, updateWorkflowExecution } from '../../workflow-queries';
+import { useMCPConnectionStore } from '@/renderer/stores/mcpConnectionStore';
 
 interface TriggerNodeProps {
   id: string;
@@ -23,15 +24,64 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
 
+  // 🔥 NEW: 실시간 MCP 연결 상태 관리
+  const {
+    startWorkflowProgress,
+    updateWorkflowProgress,
+    completeWorkflowProgress,
+    addConnection,
+    updateConnectionStatus,
+    getActiveWorkflows,
+    globalStats
+  } = useMCPConnectionStore();
+
   const handleTrigger = async () => {
     setIsRunning(true);
 
-    // 디버깅용 로그 추가
-    console.log('TriggerNode handleTrigger 호출');
-
-    // useReactFlow로 전체 노드/엣지 가져오기
+    // 🔥 NEW: 워크플로우 진행 상황 추적 시작
+    const executionId = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const nodes = getNodes();
     const edges = getEdges();
+
+    // 서버 노드 수 계산
+    const serverNodes = nodes.filter(node => node.type === 'server');
+    const totalLevels = Math.max(1, Math.ceil(nodes.length / 3)); // 임시 레벨 계산
+
+    // 워크플로우 진행 상황 시작
+    startWorkflowProgress(executionId, {
+      workflowName: data.label || 'Untitled Workflow',
+      totalServers: serverNodes.length,
+      connectedServers: 0,
+      runningServers: 0,
+      completedServers: 0,
+      failedServers: 0,
+      currentLevel: 0,
+      totalLevels,
+      startTime: new Date(),
+      status: 'starting'
+    });
+
+    console.log('🚀 [TriggerNode] 워크플로우 시작:', {
+      executionId,
+      totalServers: serverNodes.length,
+      totalNodes: nodes.length
+    });
+
+    // 서버 노드들을 MCP 연결 스토어에 등록
+    serverNodes.forEach((node) => {
+      const serverData = node.data?.mcp_servers;
+      if (serverData) {
+        addConnection({
+          serverId: node.id,
+          serverName: serverData.name || `Server ${node.id}`,
+          clientType: 'claude-desktop', // 기본값
+          status: 'connecting',
+          retryCount: 0,
+          maxRetries: 3,
+          capabilities: ['mcp-standard']
+        });
+      }
+    });
 
     console.log('🔍 [TriggerNode] 전체 노드 데이터:', nodes);
     console.log('🔍 [TriggerNode] 각 노드별 데이터 확인:');
@@ -90,7 +140,7 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
       const nodeLog = `${emoji} [${idx + 1}] ${node.type} (${node.id})`;
       setLogs((prevLogs) => [...prevLogs.slice(-4), nodeLog]);
       console.log(`🔥 노드 ${idx+1} (${node.type}):`, node); // 🔥 DB 데이터 확인용
-      
+
       // 🔥 서버 노드의 경우 ID 정보와 DB 데이터 상세 확인
       if (node.type === 'server') {
         console.log(`🔍 [${node.type}] 서버 ID 정보:`, {
@@ -113,16 +163,21 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
 
     // 4. 워크플로우 실행 (FlowEngine 사용)
     let executionRecord = null;
-    const executionId = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const startTime = Date.now();
-    
+
+    // 🔥 NEW: 워크플로우 실행 상태로 변경
+    updateWorkflowProgress(executionId, {
+      status: 'running',
+      runningServers: serverNodes.length
+    });
+
     try {
       // 🔥 실행 기록 저장 (시작)
       try {
         const { client } = makeSSRClient();
         const userId = (window as any).zubridge?.getState?.()?.session?.profile_id;
         const workflowId = 1; // 임시로 1 사용 (실제로는 저장된 워크플로우 ID)
-        
+
         if (userId) {
           executionRecord = await saveWorkflowExecution(client, {
             workflow_id: workflowId,
@@ -136,14 +191,55 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
       } catch (dbError) {
         console.warn('⚠️ [TriggerNode] 실행 기록 저장 실패 (계속 진행):', dbError);
       }
-      
+
       // 워크플로우 실행
       const executionResult = await executeWorkflow(id, nodes, edges);
       console.log('워크플로우 실행 결과:', executionResult);
 
+      // 🔥 NEW: 실행 완료 후 상태 업데이트
+      if (executionResult && executionResult.success) {
+        // 성공한 서버 노드 수 계산
+        const completedServers = serverNodes.length;
+        updateWorkflowProgress(executionId, {
+          completedServers,
+          runningServers: 0,
+          status: 'completed',
+          estimatedEndTime: new Date()
+        });
+
+        // 각 서버 연결 상태를 성공으로 업데이트
+        serverNodes.forEach(node => {
+          updateConnectionStatus(node.id, 'connected');
+        });
+
+        completeWorkflowProgress(executionId, true);
+      } else {
+        // 실패 처리
+        updateWorkflowProgress(executionId, {
+          failedServers: serverNodes.length,
+          runningServers: 0,
+          status: 'failed'
+        });
+
+        serverNodes.forEach(node => {
+          updateConnectionStatus(node.id, 'error', '워크플로우 실행 실패');
+        });
+
+        completeWorkflowProgress(executionId, false);
+      }
+
       // executionResult가 없는 경우 기본값 설정
       if (!executionResult) {
         setLogs((prevLogs) => [...prevLogs.slice(-4), '❌ 워크플로우 실행 결과를 받지 못했습니다.']);
+
+        // 🔥 NEW: 실패 상태 업데이트
+        updateWorkflowProgress(executionId, {
+          failedServers: serverNodes.length,
+          runningServers: 0,
+          status: 'failed'
+        });
+        completeWorkflowProgress(executionId, false);
+
         return;
       }
 
@@ -156,6 +252,15 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
           description: '워크플로우 엔진에서 결과를 반환하지 않았습니다',
           variant: 'error',
         });
+
+        // 🔥 NEW: 실패 상태 업데이트
+        updateWorkflowProgress(executionId, {
+          failedServers: serverNodes.length,
+          runningServers: 0,
+          status: 'failed'
+        });
+        completeWorkflowProgress(executionId, false);
+
         throw new Error('워크플로우 실행 결과가 없습니다');
       }
 
@@ -197,14 +302,14 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
           setLogs((prevLogs) => [...prevLogs.slice(-4), resultLog]);
         });
       }
-      
+
       // 🔥 실행 완료 기록 업데이트
       if (executionRecord) {
         try {
           const { client } = makeSSRClient();
           const endTime = Date.now();
           const duration = endTime - startTime;
-          
+
           await updateWorkflowExecution(client, executionId, {
             status: executionResult.success ? 'completed' : 'failed',
             result_data: executionResult,
@@ -217,18 +322,18 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
           console.warn('⚠️ [TriggerNode] 실행 완료 기록 업데이트 실패:', dbError);
         }
       }
-      
+
     } catch (error) {
       console.error('워크플로우 실행 오류:', error);
       setLogs((prevLogs) => [...prevLogs.slice(-4), `❌ 오류: ${error}`]);
-      
+
       // 🔥 실행 실패 기록 업데이트
       if (executionRecord) {
         try {
           const { client } = makeSSRClient();
           const endTime = Date.now();
           const duration = endTime - startTime;
-          
+
           await updateWorkflowExecution(client, executionId, {
             status: 'failed',
             error_message: error instanceof Error ? error.message : String(error),
@@ -332,6 +437,23 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
           </>
         )}
       </button>
+
+      {/* 🔥 NEW: 실시간 상태 표시 */}
+      {(globalStats.activeConnections > 0 || getActiveWorkflows().length > 0) && (
+        <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <div className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+            🔗 실시간 연결 상태
+          </div>
+          <div className="text-xs text-blue-600 dark:text-blue-300 space-y-1">
+            <div>활성 연결: {globalStats.activeConnections}/{globalStats.totalConnections}</div>
+            <div>성공률: {globalStats.successRate.toFixed(1)}%</div>
+            {getActiveWorkflows().length > 0 && (
+              <div>실행 중인 워크플로우: {getActiveWorkflows().length}개</div>
+            )}
+          </div>
+        </div>
+      )}
+
       {logs.length > 0 && (
         <div className="mt-3 text-xs bg-gray-100 dark:bg-gray-800 rounded p-2 max-h-[500px] overflow-y-auto">
           {logs.map((log, index) => (

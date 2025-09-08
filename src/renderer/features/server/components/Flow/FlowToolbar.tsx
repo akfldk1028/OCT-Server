@@ -26,7 +26,7 @@ import {
   getProductById
 } from '../../../products/queries';
 import { getClients } from '../../queries';
-import { createWorkflow, getUserWorkflows, createWorkflowShare, updateWorkflowMcpJson, convertToMcpWorkflow } from '../../workflow-queries';
+import { createWorkflow, updateWorkflow, getUserWorkflows, createWorkflowShare, updateWorkflowMcpJson, convertToMcpWorkflow, convertWorkflowToReactFlow } from '../../workflow-queries';
 import { publishAsTemplate } from '../../template-queries';
 import WorkflowListModal from './WorkflowListModal';
 import { runAllTests } from '../../test-mcp-converter';
@@ -313,7 +313,70 @@ export default function FlowToolbar({ className = '', onLoadWorkflow }: FlowTool
     }
   };
 
-  // DB에 워크플로우 저장
+  // DB에 워크플로우 저장 (중복 이름 확인 후 업데이트 또는 생성)
+  // 🔍 DB 쿼리 테스트 함수
+  const testDatabaseQuery = async () => {
+    if (!userId) {
+      toast({ title: "로그인 필요", description: "DB 테스트를 위해 로그인해주세요.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      console.log('🔍 [testDatabaseQuery] DB 직접 쿼리 테스트 시작');
+      const { client } = makeSSRClient();
+
+      // 1. 모든 워크플로우 조회 (원시 쿼리)
+      const { data: rawWorkflows, error: rawError } = await client
+        .from('workflows')
+        .select('*')
+        .eq('profile_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(3);
+
+      if (rawError) {
+        console.error('❌ Raw 쿼리 에러:', rawError);
+        throw rawError;
+      }
+
+      console.log('📋 Raw 워크플로우 데이터:', rawWorkflows?.map(w => ({
+        id: w.id,
+        name: w.name,
+        has_mcp_json: !!w.mcp_workflow_json,
+        has_flow_structure: !!w.flow_structure,
+        mcp_json_type: typeof w.mcp_workflow_json,
+        flow_structure_type: typeof w.flow_structure,
+        mcp_json_preview: w.mcp_workflow_json ? JSON.stringify(w.mcp_workflow_json).slice(0, 100) + '...' : null,
+        flow_structure_preview: w.flow_structure ? JSON.stringify(w.flow_structure).slice(0, 100) + '...' : null
+      })));
+
+      // 2. getUserWorkflows 함수 테스트
+      const workflowsFromFunction = await getUserWorkflows(client as any, {
+        profile_id: userId,
+        limit: 3
+      });
+
+      console.log('📋 Function 워크플로우 데이터:', workflowsFromFunction?.map(w => ({
+        id: w.id,
+        name: w.name,
+        has_mcp_json: !!w.mcp_workflow_json,
+        has_flow_structure: !!w.flow_structure
+      })));
+
+      toast({
+        title: "✅ DB 테스트 완료",
+        description: `${rawWorkflows?.length || 0}개 워크플로우 조회됨. 콘솔 확인하세요.`
+      });
+
+    } catch (error) {
+      console.error('❌ [testDatabaseQuery] 실패:', error);
+      toast({
+        title: "❌ DB 테스트 실패",
+        description: error instanceof Error ? error.message : '알 수 없는 오류',
+        variant: "destructive"
+      });
+    }
+  };
+
   const saveWorkflowToDB = async (workflowData: any) => {
     try {
       if (!userId) {
@@ -325,31 +388,19 @@ export default function FlowToolbar({ className = '', onLoadWorkflow }: FlowTool
 
       const { client } = makeSSRClient();
 
-      // 1. 워크플로우 생성
-      const workflowResult = await createWorkflow(client as any, {
-        profile_id: userId,
-        name: workflowData.name,
-        description: workflowData.description,
-        flow_structure: {
-          nodes: workflowData.nodes,
-          edges: workflowData.edges,
-          metadata: {
-            version: workflowData.version,
-            createdAt: workflowData.createdAt
-          }
-        },
-        status: 'draft' as any,
-        is_public: false,
-        is_template: false
-      });
+      // 🔥 1. 같은 이름의 워크플로우가 이미 있는지 확인
+      const { data: existingWorkflows, error: searchError } = await client
+        .from('workflows')
+        .select('id, name, created_at')
+        .eq('profile_id', userId)
+        .eq('name', workflowData.name);
 
-      if (!workflowResult?.id) {
-        throw new Error('워크플로우 생성 실패');
+      if (searchError) {
+        console.error('❌ [saveWorkflowToDB] 기존 워크플로우 검색 실패:', searchError);
+        throw searchError;
       }
 
-      console.log('✅ [saveWorkflowToDB] 워크플로우 생성됨:', workflowResult);
-
-            // ✅ MCP JSON 구조로 간단 저장 (새로운 방식)
+      let workflowResult;
       const nodes = getNodes();
       const edges = getEdges();
 
@@ -359,25 +410,84 @@ export default function FlowToolbar({ className = '', onLoadWorkflow }: FlowTool
         description: workflowData.description
       });
 
-      // MCP JSON을 데이터베이스에 저장
-      await updateWorkflowMcpJson(client as any, {
-        workflow_id: workflowResult.id,
-        mcp_workflow_json: mcpWorkflow
-      });
+      if (existingWorkflows && existingWorkflows.length > 0) {
+        // 🔄 2-A. 기존 워크플로우 업데이트
+        const existingWorkflow = existingWorkflows[0];
+        console.log('🔄 [saveWorkflowToDB] 기존 워크플로우 업데이트:', existingWorkflow.id);
 
-      console.log('✅ [saveWorkflowToDB] MCP JSON 저장 완료:', {
-        workflow_id: workflowResult.id,
-        mcp_version: mcpWorkflow.mcp_version,
-        servers: mcpWorkflow.workflow.servers.length,
-        nodes: mcpWorkflow.workflow.execution_graph.nodes.length,
-        edges: mcpWorkflow.workflow.execution_graph.edges.length
-      });
+        workflowResult = await updateWorkflow(client as any, {
+          workflow_id: existingWorkflow.id,
+          profile_id: userId,
+          data: {
+            name: workflowData.name,
+            description: workflowData.description,
+            flow_structure: {
+              nodes: workflowData.nodes,
+              edges: workflowData.edges,
+              metadata: {
+                version: workflowData.version,
+                updatedAt: new Date().toISOString()
+              }
+            }
+          }
+        });
+
+        // MCP JSON도 업데이트
+        await updateWorkflowMcpJson(client as any, {
+          workflow_id: existingWorkflow.id,
+          mcp_workflow_json: mcpWorkflow
+        });
+
+        console.log('✅ [saveWorkflowToDB] 기존 워크플로우 업데이트 완료:', {
+          workflow_id: existingWorkflow.id,
+          name: workflowData.name,
+          action: 'UPDATED'
+        });
+
+      } else {
+        // ➕ 2-B. 새로운 워크플로우 생성
+        console.log('➕ [saveWorkflowToDB] 새로운 워크플로우 생성');
+
+        workflowResult = await createWorkflow(client as any, {
+          profile_id: userId,
+          name: workflowData.name,
+          description: workflowData.description,
+          flow_structure: {
+            nodes: workflowData.nodes,
+            edges: workflowData.edges,
+            metadata: {
+              version: workflowData.version,
+              createdAt: workflowData.createdAt
+            }
+          },
+          status: 'draft' as any,
+          is_public: false,
+          is_template: false
+        });
+
+        if (!workflowResult?.id) {
+          throw new Error('워크플로우 생성 실패');
+        }
+
+        // MCP JSON 저장
+        await updateWorkflowMcpJson(client as any, {
+          workflow_id: workflowResult.id,
+          mcp_workflow_json: mcpWorkflow
+        });
+
+        console.log('✅ [saveWorkflowToDB] 새로운 워크플로우 생성 완료:', {
+          workflow_id: workflowResult.id,
+          name: workflowData.name,
+          action: 'CREATED'
+        });
+      }
 
       console.log('🎉 [saveWorkflowToDB] Supabase 저장 완료!', {
         workflowId: workflowResult.id,
         name: workflowData.name,
         nodes: nodes.length,
-        edges: edges.length
+        edges: edges.length,
+        mcp_version: mcpWorkflow.mcp_version
       });
 
       return workflowResult;
@@ -424,15 +534,33 @@ export default function FlowToolbar({ className = '', onLoadWorkflow }: FlowTool
           return;
         }
 
-        const result = await saveAsNewWorkflow(workflowName);
+        // 🔥 NEW: 중복 이름 체크 후 저장/업데이트 결정
+        const result = await saveWorkflowToDB({
+          name: workflowName,
+          description: `워크플로우 - ${new Date().toLocaleString()}`,
+          nodes: getNodes(),
+          edges: getEdges(),
+          version: '1.0.0',
+          createdAt: new Date().toISOString()
+        });
+
+        // 결과에 따라 메시지 변경
+        const action = result.created_at === result.updated_at ? 'CREATED' : 'UPDATED';
 
         toast({
-          title: '새 워크플로우 저장 완료! 🎉',
-          description: `${workflowName} 새로운 워크플로우로 저장되었습니다.`,
+          title: action === 'CREATED' ? '새 워크플로우 저장 완료! 🎉' : '워크플로우 업데이트 완료! 🔄',
+          description: action === 'CREATED'
+            ? `${workflowName} 새로운 워크플로우로 저장되었습니다.`
+            : `${workflowName} 기존 워크플로우가 업데이트되었습니다.`,
           variant: 'success',
         });
 
-        console.log('💾 [FlowToolbar] 새 워크플로우 저장됨:', result);
+        // 현재 워크플로우 상태 업데이트
+        setCurrentWorkflowId(result.id);
+        setOriginalWorkflowName(workflowName);
+        setIsModified(false);
+
+        console.log(`📝 [FlowToolbar] 워크플로우 ${action}:`, result);
       }
 
     } catch (error) {
@@ -895,6 +1023,15 @@ export default function FlowToolbar({ className = '', onLoadWorkflow }: FlowTool
               className="h-9 px-3 gap-1 bg-orange-100 hover:bg-orange-200 text-orange-800 border-orange-300"
             >
               🧪 변환
+            </Button>
+
+            <Button
+              onClick={testDatabaseQuery}
+              size="sm"
+              variant="secondary"
+              className="h-9 px-3 gap-1 bg-red-100 hover:bg-red-200 text-red-800 border-red-300"
+            >
+              🔍 DB
             </Button>
 
             <Button

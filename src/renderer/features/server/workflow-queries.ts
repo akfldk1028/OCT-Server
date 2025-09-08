@@ -14,10 +14,25 @@ export const getUserWorkflows = async (
   const { profile_id, status, limit = 50, offset = 0 } = params;
 
   try {
+    console.log('🔥 [getUserWorkflows] 워크플로우 목록 조회 시작:', { profile_id, status, limit, offset });
+
     let query = client
       .from('workflows')
       .select(`
-        *,
+        id,
+        name,
+        description,
+        version,
+        status,
+        flow_structure,
+        mcp_workflow_json,
+        tags,
+        is_public,
+        is_template,
+        execution_count,
+        last_executed_at,
+        created_at,
+        updated_at,
         profiles (
           profile_id,
           name,
@@ -34,10 +49,26 @@ export const getUserWorkflows = async (
     }
 
     const { data, error } = await query;
-    if (error) throw error;
+    if (error) {
+      console.error('❌ [getUserWorkflows] DB 에러:', error);
+      throw error;
+    }
+
+    console.log('✅ [getUserWorkflows] 조회 완료:', {
+      count: data?.length || 0,
+      workflows: data?.map(w => ({
+        id: w.id,
+        name: w.name,
+        has_mcp_json: !!w.mcp_workflow_json,
+        has_flow_structure: !!w.flow_structure,
+        mcp_json_type: typeof w.mcp_workflow_json,
+        flow_structure_type: typeof w.flow_structure
+      }))
+    });
+
     return data || [];
   } catch (error) {
-    console.error('Failed to fetch user workflows:', error);
+    console.error('❌ [getUserWorkflows] 실패:', error);
     throw error;
   }
 };
@@ -78,6 +109,30 @@ export const getWorkflowWithMcpJson = async (
       has_mcp_json: !!workflow.mcp_workflow_json,
       has_legacy_flow_structure: !!workflow.flow_structure
     });
+
+    // 🔍 상세 데이터 구조 확인
+    if (workflow.mcp_workflow_json) {
+      console.log('📋 MCP JSON 내용:', workflow.mcp_workflow_json);
+      if (typeof workflow.mcp_workflow_json === 'object' && workflow.mcp_workflow_json.workflow) {
+        const mcpData = workflow.mcp_workflow_json.workflow;
+        console.log('📋 MCP 실행 그래프:', {
+          nodes: mcpData.execution_graph?.nodes?.length || 0,
+          edges: mcpData.execution_graph?.edges?.length || 0,
+          servers: mcpData.servers?.length || 0
+        });
+      }
+    }
+
+    if (workflow.flow_structure) {
+      console.log('📋 Flow Structure 내용:', workflow.flow_structure);
+      if (typeof workflow.flow_structure === 'object') {
+        console.log('📋 Flow Structure 구조:', {
+          nodes: workflow.flow_structure.nodes?.length || 0,
+          edges: workflow.flow_structure.edges?.length || 0,
+          metadata: !!workflow.flow_structure.metadata
+        });
+      }
+    }
 
     return workflow;
   } catch (error) {
@@ -313,23 +368,48 @@ export const convertMcpJsonToReactFlow = (mcpWorkflow: any) => {
 
 // 🔥 레거시 flow_structure와 MCP JSON 둘 다 지원하는 변환 함수
 export const convertWorkflowToReactFlow = (workflow: any) => {
+  console.log('🔍 [convertWorkflowToReactFlow] 입력 데이터:', {
+    hasWorkflow: !!workflow,
+    hasMcpJson: !!workflow?.mcp_workflow_json,
+    hasFlowStructure: !!workflow?.flow_structure,
+    keys: workflow ? Object.keys(workflow) : []
+  });
+
   // 1. MCP JSON이 있으면 우선 사용
   if (workflow.mcp_workflow_json) {
     console.log('✅ MCP JSON 형식으로 로딩');
-    return convertMcpJsonToReactFlow(workflow.mcp_workflow_json);
+    console.log('🔍 MCP JSON 구조:', workflow.mcp_workflow_json);
+    const result = convertMcpJsonToReactFlow(workflow.mcp_workflow_json);
+    console.log('🔍 MCP 변환 결과:', result);
+    return result;
   }
 
   // 2. 레거시 flow_structure 사용 (하위 호환성)
   if (workflow.flow_structure) {
     console.log('⚠️ 레거시 flow_structure 형식으로 로딩 (MCP JSON으로 마이그레이션 권장)');
-    return {
+    console.log('🔍 flow_structure 구조:', workflow.flow_structure);
+    const result = {
       nodes: workflow.flow_structure.nodes || [],
       edges: workflow.flow_structure.edges || [],
       metadata: workflow.flow_structure.metadata || {}
     };
+    console.log('🔍 레거시 변환 결과:', result);
+    return result;
   }
 
-  console.warn('❌ 워크플로우 데이터가 없습니다');
+  // 3. 직접 nodes/edges가 있는 경우 (워크플로우 목록에서 오는 경우)
+  if (workflow.nodes || workflow.edges) {
+    console.log('📋 직접 nodes/edges 형식으로 로딩');
+    const result = {
+      nodes: workflow.nodes || [],
+      edges: workflow.edges || [],
+      metadata: workflow.metadata || {}
+    };
+    console.log('🔍 직접 변환 결과:', result);
+    return result;
+  }
+
+  console.warn('❌ 워크플로우 데이터가 없습니다. 전체 구조:', workflow);
   return { nodes: [], edges: [], metadata: {} };
 };
 

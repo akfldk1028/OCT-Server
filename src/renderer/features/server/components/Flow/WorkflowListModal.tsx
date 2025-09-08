@@ -107,15 +107,29 @@ export default function WorkflowListModal({
   // 🎯 메인 분석 함수
   const analyzeWorkflowClientType = async (workflowId: number): Promise<{ client_type: string; target_clients: string[] }> => {
     try {
+      console.log(`🔍 [analyzeWorkflowClientType] 워크플로우 ${workflowId} 분석 시작`);
+
       // 1. 워크플로우 데이터 로드
       const workflowDetails = await loadWorkflowDetails(workflowId);
       if (!workflowDetails) {
+        console.log('❌ 워크플로우 데이터 없음');
         return { client_type: 'unknown', target_clients: [] };
       }
+
+      console.log(`📊 로드된 데이터:`, {
+        name: workflowDetails.name,
+        nodes: workflowDetails.nodes?.length || 0,
+        edges: workflowDetails.edges?.length || 0,
+        has_mcp_json: !!workflowDetails.mcp_workflow_json,
+        raw_data_keys: Object.keys(workflowDetails),
+        raw_nodes_sample: workflowDetails.nodes?.slice(0, 2),
+        raw_edges_sample: workflowDetails.edges?.slice(0, 2)
+      });
 
       // 2. DFS 기반 노드 분석
       const analysisResult = await analyzeNodesByDFS(workflowDetails);
       if (!analysisResult) {
+        console.log('❌ 분석 결과 없음');
         return { client_type: 'unknown', target_clients: [] };
       }
 
