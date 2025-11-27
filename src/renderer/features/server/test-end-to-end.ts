@@ -313,3 +313,6 @@ if (typeof window !== 'undefined') {
   (window as any).runE2ETest = (userId: string) => runEndToEndTest(userId);
   console.log('💡 브라우저 콘솔에서 runE2ETest("user-id") 실행하여 종합 테스트할 수 있습니다.');
 }
+
+
+

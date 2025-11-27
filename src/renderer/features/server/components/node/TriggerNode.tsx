@@ -131,34 +131,12 @@ export default function TriggerNode({ id, data, selected }: TriggerNodeProps) {
       };
     });
 
-    // 로그 추가 - 메타데이터 확인
-    console.log('강화된 노드 JSON:', json);
 
     // 3. 각 노드 방문 로그 (이모지 + 노드별 JSON)
     json.forEach((node, idx) => {
       const emoji = idx === 0 ? '🟢' : idx === json.length - 1 ? '🏁' : '➡️';
       const nodeLog = `${emoji} [${idx + 1}] ${node.type} (${node.id})`;
       setLogs((prevLogs) => [...prevLogs.slice(-4), nodeLog]);
-      console.log(`🔥 노드 ${idx+1} (${node.type}):`, node); // 🔥 DB 데이터 확인용
-
-      // 🔥 서버 노드의 경우 ID 정보와 DB 데이터 상세 확인
-      if (node.type === 'server') {
-        console.log(`🔍 [${node.type}] 서버 ID 정보:`, {
-          '🆔 노드 ID': node.id,
-          '📊 data.id': node.data?.id,
-          '🔧 original_server_id': node.data?.original_server_id,
-          '📛 서버 이름': node.data?.mcp_servers?.name || node.data?.name,
-          '🎯 DB 테이블 연결': {
-            'user_mcp_usage.id': node.data?.id,
-            'mcp_servers.id': node.data?.original_server_id
-          }
-        });
-        console.log(`📋 [${node.type}] mcp_configs:`, node.mcp_configs);
-        console.log(`📋 [${node.type}] mcp_install_methods:`, node.mcp_install_methods);
-        console.log(`📋 [${node.type}] install_methods:`, node.install_methods);
-        console.log(`📋 [${node.type}] config_options:`, node.config_options);
-        console.log(`📄 [${node.type}] 전체 데이터:`, node.data);
-      }
     });
 
     // 4. 워크플로우 실행 (FlowEngine 사용)

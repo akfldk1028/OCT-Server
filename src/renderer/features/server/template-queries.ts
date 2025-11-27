@@ -11,7 +11,7 @@ export const getPopularTemplates = async (
   } = {}
 ) => {
   const { category, limit = 20, offset = 0 } = params;
-  
+
   try {
     let query = client
       .from('workflows')
@@ -34,18 +34,19 @@ export const getPopularTemplates = async (
       `)
       .eq('is_template', true)
       .eq('is_public', true)
+      .eq('status', 'shared') // 🔥 공유됨 상태인 템플릿만 조회
       .eq('workflow_shares.share_type', 'template')
       .eq('workflow_shares.is_active', true)
       .order('execution_count', { ascending: false }) // 실행 횟수로 정렬
       .range(offset, offset + limit - 1);
-      
+
     if (category) {
       query = query.contains('tags', [category]);
     }
-    
+
     const { data, error } = await query;
     if (error) throw error;
-    
+
     console.log('🔥 [getPopularTemplates] 인기 템플릿 조회 완료:', data?.length);
     return data || [];
   } catch (error) {
@@ -54,7 +55,7 @@ export const getPopularTemplates = async (
   }
 };
 
-// 🔥 템플릿 상세 정보 (노드+엣지 포함)
+// 🔥 템플릿 상세 정보 (MCP JSON 기반)
 export const getTemplateDetails = async (
   client: SupabaseClient<Database>,
   params: {
@@ -62,9 +63,9 @@ export const getTemplateDetails = async (
   }
 ) => {
   const { workflow_id } = params;
-  
+
   try {
-    // 1. 템플릿 기본 정보
+    // 1. 템플릿 기본 정보 (MCP JSON 포함)
     const { data: template, error: templateError } = await client
       .from('workflows')
       .select(`
@@ -87,51 +88,24 @@ export const getTemplateDetails = async (
       .eq('id', workflow_id)
       .eq('is_template', true)
       .eq('is_public', true)
+      .eq('status', 'shared') // 🔥 공유됨 상태인 템플릿만 조회
       .eq('workflow_shares.share_type', 'template')
       .single();
-      
+
     if (templateError) throw templateError;
     if (!template) return null;
-    
-    // 2. 관련 노드들
-    const { data: nodes, error: nodesError } = await client
-      .from('workflow_nodes')
-      .select(`
-        *,
-        mcp_servers:original_server_id (
-          id,
-          name,
-          description,
-          primary_url,
-          github_info,
-          metadata
-        )
-      `)
-      .eq('workflow_id', workflow_id);
-      
-    if (nodesError) throw nodesError;
-    
-    // 3. 관련 엣지들
-    const { data: edges, error: edgesError } = await client
-      .from('workflow_edges')
-      .select('*')
-      .eq('workflow_id', workflow_id);
-      
-    if (edgesError) throw edgesError;
-    
+
     console.log('🔥 [getTemplateDetails] 템플릿 상세 조회 완료:', template.name);
-    return {
-      ...template,
-      nodes: nodes || [],
-      edges: edges || []
-    };
+    console.log('📋 MCP JSON 여부:', !!template.mcp_workflow_json);
+
+    return template;
   } catch (error) {
     console.error('❌ [getTemplateDetails] 실패:', error);
     throw error;
   }
 };
 
-// 🔥 템플릿을 내 워크플로우로 복사
+// 🔥 템플릿을 내 워크플로우로 복사 (MCP JSON 기반)
 export const copyTemplateToMyWorkflow = async (
   client: SupabaseClient<Database>,
   params: {
@@ -141,15 +115,15 @@ export const copyTemplateToMyWorkflow = async (
   }
 ) => {
   const { template_id, my_profile_id, new_name } = params;
-  
+
   try {
     // 1. 원본 템플릿 가져오기
     const templateWithDetails = await getTemplateDetails(client, { workflow_id: template_id });
     if (!templateWithDetails) {
       throw new Error('템플릿을 찾을 수 없습니다');
     }
-    
-    // 2. 내 워크플로우로 복사
+
+    // 2. 내 워크플로우로 복사 (MCP JSON 포함)
     const { data: newWorkflow, error: workflowError } = await client
       .from('workflows')
       .insert({
@@ -157,68 +131,29 @@ export const copyTemplateToMyWorkflow = async (
         name: new_name || `${templateWithDetails.name} (복사본)`,
         description: `${templateWithDetails.description || ''}\n\n📋 템플릿에서 복사됨`,
         flow_structure: templateWithDetails.flow_structure,
+        mcp_workflow_json: templateWithDetails.mcp_workflow_json, // 🔥 MCP JSON 복사
         tags: templateWithDetails.tags,
-        status: 'draft', // 초안으로 생성
+        status: 'draft', // 🔥 포크된 워크플로우는 초안으로 생성
         is_public: false, // 비공개로 생성
         is_template: false, // 일반 워크플로우로 생성
       })
       .select()
       .single();
-      
+
     if (workflowError) throw workflowError;
-    
-    // 3. 노드들 복사
-    if (templateWithDetails.nodes && templateWithDetails.nodes.length > 0) {
-      const newNodes = templateWithDetails.nodes.map(node => ({
-        workflow_id: newWorkflow.id,
-        node_id: node.node_id,
-        node_type: node.node_type,
-        position_x: node.position_x,
-        position_y: node.position_y,
-        node_config: node.node_config,
-        original_server_id: node.original_server_id,
-        user_mcp_usage_id: node.user_mcp_usage_id,
-        client_id: node.client_id,
-      }));
-      
-      const { error: nodesError } = await client
-        .from('workflow_nodes')
-        .insert(newNodes);
-        
-      if (nodesError) throw nodesError;
-    }
-    
-    // 4. 엣지들 복사
-    if (templateWithDetails.edges && templateWithDetails.edges.length > 0) {
-      const newEdges = templateWithDetails.edges.map(edge => ({
-        workflow_id: newWorkflow.id,
-        edge_id: edge.edge_id,
-        source_node_id: edge.source_node_id,
-        target_node_id: edge.target_node_id,
-        source_handle: edge.source_handle,
-        target_handle: edge.target_handle,
-        edge_config: edge.edge_config,
-      }));
-      
-      const { error: edgesError } = await client
-        .from('workflow_edges')
-        .insert(newEdges);
-        
-      if (edgesError) throw edgesError;
-    }
-    
-    // 5. 템플릿 다운로드 수 증가
+
+    // 3. 템플릿 다운로드 수 증가
     await client
       .from('workflow_shares')
-      .update({ 
-        download_count: (templateWithDetails.workflow_shares[0]?.download_count || 0) + 1 
+      .update({
+        download_count: (templateWithDetails.workflow_shares[0]?.download_count || 0) + 1
       })
       .eq('workflow_id', template_id)
       .eq('share_type', 'template');
-    
-    console.log('🎉 [copyTemplateToMyWorkflow] 템플릿 복사 완료:', newWorkflow.name);
+
+    console.log('🎉 [copyTemplateToMyWorkflow] MCP JSON 템플릿 복사 완료:', newWorkflow.name);
     return newWorkflow;
-    
+
   } catch (error) {
     console.error('❌ [copyTemplateToMyWorkflow] 실패:', error);
     throw error;
@@ -237,23 +172,59 @@ export const publishAsTemplate = async (
   }
 ) => {
   const { workflow_id, profile_id, share_title, share_description, is_featured = false } = params;
-  
+
   try {
+    console.log('🔥 [publishAsTemplate] 템플릿 발행 시작:', {
+      workflow_id,
+      profile_id,
+      share_title,
+      share_description
+    });
+
     // 1. 워크플로우를 템플릿으로 설정
+    console.log('📝 [publishAsTemplate] 워크플로우 업데이트 시작');
+
+    // 🔥 먼저 기존 워크플로우 확인
+    const { data: existingWorkflow, error: checkError } = await client
+      .from('workflows')
+      .select('id, profile_id, name, status')
+      .eq('id', workflow_id)
+      .single();
+
+    console.log('🔍 [publishAsTemplate] 기존 워크플로우 확인:', {
+      existingWorkflow,
+      checkError,
+      provided_profile_id: profile_id
+    });
+
+    if (checkError || !existingWorkflow) {
+      throw new Error(`워크플로우를 찾을 수 없습니다. ID: ${workflow_id}`);
+    }
+
+    // 🔥 profile_id 조건 없이 업데이트 (더 안전함)
     const { data: updatedWorkflow, error: workflowError } = await client
       .from('workflows')
       .update({
         is_template: true,
         is_public: true,
+        status: 'shared', // 🔥 템플릿으로 발행하면 상태를 '공유됨'으로 설정
         updated_at: new Date().toISOString(),
       })
       .eq('id', workflow_id)
-      .eq('profile_id', profile_id)
       .select()
       .single();
-      
-    if (workflowError) throw workflowError;
-    
+
+    console.log('📝 [publishAsTemplate] 워크플로우 업데이트 결과:', {
+      updatedWorkflow,
+      workflowError,
+      status_set_to: 'shared'
+    });
+
+    if (workflowError) {
+      console.error('❌ [publishAsTemplate] 워크플로우 업데이트 실패:', workflowError);
+      throw workflowError;
+    }
+
     // 2. 템플릿 공유 정보 생성
     const { data: templateShare, error: shareError } = await client
       .from('workflow_shares')
@@ -270,12 +241,12 @@ export const publishAsTemplate = async (
       })
       .select()
       .single();
-      
+
     if (shareError) throw shareError;
-    
+
     console.log('🎉 [publishAsTemplate] 템플릿 공개 완료:', share_title);
     return { workflow: updatedWorkflow, share: templateShare };
-    
+
   } catch (error) {
     console.error('❌ [publishAsTemplate] 실패:', error);
     throw error;
@@ -301,7 +272,7 @@ export const getFeaturedTemplates = async (
   } = {}
 ) => {
   const { limit = 10 } = params;
-  
+
   try {
     // 실행 횟수가 많고 다운로드가 많은 템플릿들
     const { data, error } = await client
@@ -325,19 +296,20 @@ export const getFeaturedTemplates = async (
       `)
       .eq('is_template', true)
       .eq('is_public', true)
+      .eq('status', 'shared') // 🔥 공유됨 상태인 템플릿만 조회
       .eq('workflow_shares.share_type', 'template')
       .eq('workflow_shares.is_active', true)
       .gte('execution_count', 5) // 최소 5회 이상 실행된 것들
       .gte('workflow_shares.download_count', 3) // 최소 3회 이상 다운로드된 것들
       .order('workflow_shares.download_count', { ascending: false })
       .limit(limit);
-      
+
     if (error) throw error;
-    
+
     console.log('🌟 [getFeaturedTemplates] 추천 템플릿 조회 완료:', data?.length);
     return data || [];
   } catch (error) {
     console.error('❌ [getFeaturedTemplates] 실패:', error);
     throw error;
   }
-}; 
+};

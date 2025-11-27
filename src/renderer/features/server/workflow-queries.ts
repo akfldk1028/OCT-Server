@@ -229,7 +229,7 @@ export const updateWorkflowMcpJson = async (
   const { workflow_id, mcp_workflow_json } = params;
 
   try {
-    const { data, error } = await client
+      const { data, error } = await client
       .from('workflows')
       .update({
         mcp_workflow_json,
@@ -239,7 +239,7 @@ export const updateWorkflowMcpJson = async (
       .select()
       .single();
 
-    if (error) throw error;
+      if (error) throw error;
 
     console.log('✅ [updateWorkflowMcpJson] MCP JSON 업데이트 성공:', {
       workflow_id,
@@ -247,7 +247,7 @@ export const updateWorkflowMcpJson = async (
       edges: mcp_workflow_json?.workflow?.execution_graph?.edges?.length || 0
     });
 
-    return data;
+      return data;
   } catch (error) {
     console.error('Failed to update workflow MCP JSON:', error);
     throw error;
@@ -297,16 +297,21 @@ export const convertToMcpWorkflow = (
             tools: node.data?.available_tools || []
           })
         })),
-        edges: edges.map(edge => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          sourceHandle: edge.sourceHandle,
-          targetHandle: edge.targetHandle,
-          type: edge.type,
-          animated: edge.animated,
-          style: edge.style
-        }))
+        edges: edges.map((edge, index) => {
+          // 🔥 완전히 새로운 고유 ID 생성 (기존 ID 무시)
+          const uniqueId = `mcp_edge_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 8)}`;
+
+          return {
+            id: uniqueId,
+            source: edge.source,
+            target: edge.target,
+            sourceHandle: edge.sourceHandle,
+            targetHandle: edge.targetHandle,
+            type: edge.type,
+            animated: edge.animated,
+            style: edge.style
+          };
+        })
       }
     }
   };
@@ -339,17 +344,22 @@ export const convertMcpJsonToReactFlow = (mcpWorkflow: any) => {
     selected: node.selected || false
   }));
 
-  // MCP 엣지들을 ReactFlow 엣지로 변환
-  const reactFlowEdges = mcpEdges.map((edge: any) => ({
-    id: edge.id,
-    source: edge.source,
-    target: edge.target,
-    sourceHandle: edge.sourceHandle,
-    targetHandle: edge.targetHandle,
-    type: edge.type || 'smoothstep',
-    animated: edge.animated || false,
-    style: edge.style || {}
-  }));
+  // MCP 엣지들을 ReactFlow 엣지로 변환 (완전히 새로운 고유 ID)
+  const reactFlowEdges = mcpEdges.map((edge: any, index: number) => {
+    // 🔥 완전히 새로운 고유 ID 생성 (기존 ID 무시)
+    const uniqueId = `edge_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 8)}`;
+
+    return {
+      id: uniqueId,
+      source: edge.source,
+      target: edge.target,
+      sourceHandle: edge.sourceHandle,
+      targetHandle: edge.targetHandle,
+      type: edge.type || 'smoothstep',
+      animated: edge.animated || false,
+      style: edge.style || {}
+    };
+  });
 
   console.log('✅ [convertMcpJsonToReactFlow] 변환 완료:', {
     mcp_version: mcpWorkflow.mcp_version,
@@ -388,24 +398,38 @@ export const convertWorkflowToReactFlow = (workflow: any) => {
   if (workflow.flow_structure) {
     console.log('⚠️ 레거시 flow_structure 형식으로 로딩 (MCP JSON으로 마이그레이션 권장)');
     console.log('🔍 flow_structure 구조:', workflow.flow_structure);
+
+    // 🔥 완전히 새로운 고유 ID 생성
+    const safeEdges = (workflow.flow_structure.edges || []).map((edge: any, index: number) => {
+      const uniqueId = `legacy_edge_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 8)}`;
+      return { ...edge, id: uniqueId };
+    });
+
     const result = {
       nodes: workflow.flow_structure.nodes || [],
-      edges: workflow.flow_structure.edges || [],
+      edges: safeEdges,
       metadata: workflow.flow_structure.metadata || {}
     };
-    console.log('🔍 레거시 변환 결과:', result);
+    console.log('🔍 레거시 변환 결과 (ID 중복 방지):', result);
     return result;
   }
 
   // 3. 직접 nodes/edges가 있는 경우 (워크플로우 목록에서 오는 경우)
   if (workflow.nodes || workflow.edges) {
     console.log('📋 직접 nodes/edges 형식으로 로딩');
+
+    // 🔥 완전히 새로운 고유 ID 생성
+    const safeEdges = (workflow.edges || []).map((edge: any, index: number) => {
+      const uniqueId = `direct_edge_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 8)}`;
+      return { ...edge, id: uniqueId };
+    });
+
     const result = {
       nodes: workflow.nodes || [],
-      edges: workflow.edges || [],
+      edges: safeEdges,
       metadata: workflow.metadata || {}
     };
-    console.log('🔍 직접 변환 결과:', result);
+    console.log('🔍 직접 변환 결과 (ID 중복 방지):', result);
     return result;
   }
 

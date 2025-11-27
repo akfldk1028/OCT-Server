@@ -43,10 +43,16 @@ export default function FlowToolbar({ className = '', onLoadWorkflow }: FlowTool
   const [workflowName, setWorkflowName] = useState('');
   const [showWorkflowModal, setShowWorkflowModal] = useState(false);
 
+  // 🎯 템플릿 발행 모달 상태 제거됨 (모달 없이 바로 실행)
+
   // 🔥 Colab 스타일 워크플로우 상태 관리
   const [currentWorkflowId, setCurrentWorkflowId] = useState<number | null>(null);
   const [isModified, setIsModified] = useState(false);
   const [originalWorkflowName, setOriginalWorkflowName] = useState('');
+
+  // 🎯 템플릿 상태 추적
+  const [isCurrentWorkflowTemplate, setIsCurrentWorkflowTemplate] = useState(false);
+  const [checkingTemplateStatus, setCheckingTemplateStatus] = useState(false);
 
   // 서버/클라이언트 데이터 컨텍스트 가져오기
   const { servers, clients, userId } = useOutletContext<ServerLayoutContext>();
@@ -64,6 +70,55 @@ export default function FlowToolbar({ className = '', onLoadWorkflow }: FlowTool
       setIsModified(true);
     }
   }, [workflowName, originalWorkflowName, currentWorkflowId]);
+
+  // 🎯 현재 워크플로우의 템플릿 상태 확인
+  const checkCurrentWorkflowTemplateStatus = useCallback(async () => {
+    if (!userId || !currentWorkflowId) {
+      setIsCurrentWorkflowTemplate(false);
+      return;
+    }
+
+    try {
+      setCheckingTemplateStatus(true);
+      const { client } = makeSSRClient();
+
+      const { data: workflow, error } = await client
+        .from('workflows')
+        .select('id, name, status, is_template, is_public')
+        .eq('id', currentWorkflowId)
+        .eq('profile_id', userId)
+        .single();
+
+      if (error) {
+        console.error('❌ [checkTemplateStatus] 확인 실패:', error);
+        setIsCurrentWorkflowTemplate(false);
+        return;
+      }
+
+      const isTemplate = workflow?.is_template && workflow?.status === 'shared';
+      setIsCurrentWorkflowTemplate(isTemplate);
+
+      console.log('🔍 [checkTemplateStatus] 현재 워크플로우 상태:', {
+        id: workflow?.id,
+        name: workflow?.name,
+        status: workflow?.status,
+        is_template: workflow?.is_template,
+        is_public: workflow?.is_public,
+        isTemplate
+      });
+
+    } catch (error) {
+      console.error('❌ [checkTemplateStatus] 에러:', error);
+      setIsCurrentWorkflowTemplate(false);
+    } finally {
+      setCheckingTemplateStatus(false);
+    }
+  }, [userId, currentWorkflowId]);
+
+  // 🔥 currentWorkflowId가 변경될 때마다 템플릿 상태 확인
+  useEffect(() => {
+    checkCurrentWorkflowTemplateStatus();
+  }, [checkCurrentWorkflowTemplateStatus]);
 
   // 노드 데이터에서 ID 참조 추출
   const getNodeDataRef = (node: any) => {
@@ -573,6 +628,122 @@ export default function FlowToolbar({ className = '', onLoadWorkflow }: FlowTool
     }
   };
 
+  // 🎯 템플릿으로 발행하기 (모달 없이 바로 실행)
+  const handlePublishAsTemplate = async () => {
+    if (!userId) {
+      toast({ title: "로그인 필요", description: "템플릿 발행을 위해 로그인해주세요.", variant: "destructive" });
+      return;
+    }
+
+    const nodes = getNodes();
+    const edges = getEdges();
+
+    if (nodes.length === 0) {
+      toast({ title: "워크플로우 없음", description: "발행할 워크플로우가 없습니다.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const { client } = makeSSRClient();
+
+      // 🔥 모달 없이 바로 최신 워크플로우를 템플릿으로 변경
+      const { data: latestWorkflow } = await client
+        .from('workflows')
+        .select('id, name')
+        .eq('profile_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!latestWorkflow) {
+        throw new Error('워크플로우가 없습니다');
+      }
+
+      // 바로 템플릿 상태로 변경
+      await client
+        .from('workflows')
+        .update({
+          status: 'shared',
+          is_template: true,
+          is_public: true
+        })
+        .eq('id', latestWorkflow.id);
+
+      console.log('🎯 [바로 템플릿 발행] 완료:', latestWorkflow.id);
+
+      toast({
+        title: "🎉 템플릿 발행 완료!",
+        description: `"${latestWorkflow.name}"가 템플릿으로 발행되었습니다`,
+        variant: 'default'
+      });
+
+      // 상태 즉시 업데이트
+      setIsCurrentWorkflowTemplate(true);
+
+      // 상태 재확인 (더블체크)
+      await checkCurrentWorkflowTemplateStatus();
+
+    } catch (e: any) {
+      console.error('템플릿 발행 에러:', e);
+      toast({
+        title: "❌ 발행 실패",
+        description: e.message,
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // 🎯 템플릿 발행 취소
+  const handleCancelTemplatePublish = async () => {
+    if (!userId || !currentWorkflowId) {
+      toast({ title: "❌ 오류", description: "로그인 후 사용해주세요.", variant: 'destructive' });
+      return;
+    }
+
+    try {
+      const { client } = makeSSRClient();
+
+      console.log('🔄 [템플릿 발행 취소] 시작:', currentWorkflowId);
+
+      // 템플릿 상태 해제
+      const { data, error } = await client
+        .from('workflows')
+        .update({
+          status: 'draft',
+          is_template: false,
+          is_public: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentWorkflowId)
+        .eq('profile_id', userId)
+        .select('id, name, status, is_template, is_public')
+        .single();
+
+      if (error) throw error;
+
+      console.log('✅ [템플릿 발행 취소] 완료:', data);
+
+      // 상태 즉시 업데이트
+      setIsCurrentWorkflowTemplate(false);
+
+      // 상태 재확인 (더블체크)
+      await checkCurrentWorkflowTemplateStatus();
+
+      toast({
+        title: "🔄 템플릿 발행 취소됨",
+        description: `"${data.name}"가 일반 워크플로우로 변경되었습니다`,
+        variant: 'default'
+      });
+    } catch (e: any) {
+      console.error('템플릿 발행 취소 에러:', e);
+      toast({
+        title: "❌ 취소 실패",
+        description: e.message,
+        variant: 'destructive'
+      });
+    }
+  };
+
   // 🔥 다른 이름으로 저장 (항상 새 워크플로우 생성)
   const handleSaveAsNewWorkflow = async () => {
     try {
@@ -1007,6 +1178,126 @@ export default function FlowToolbar({ className = '', onLoadWorkflow }: FlowTool
               불러오기
             </Button>
 
+            {/* 🎯 템플릿 발행/취소 버튼 (동적) */}
+            <Button
+              onClick={isCurrentWorkflowTemplate ? handleCancelTemplatePublish : handlePublishAsTemplate}
+              size="sm"
+              variant="outline"
+              disabled={!userId || getNodes().length === 0 || checkingTemplateStatus}
+              className={`h-9 px-4 gap-2 transition-all ${
+                isCurrentWorkflowTemplate
+                  ? 'bg-gradient-to-r from-red-50 to-orange-50 border-red-200 hover:from-red-100 hover:to-orange-100 text-red-700 hover:text-red-800'
+                  : 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200 hover:from-purple-100 hover:to-pink-100 text-purple-700 hover:text-purple-800'
+              } ${
+                !userId || getNodes().length === 0 || checkingTemplateStatus ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+              title={
+                !userId
+                  ? "로그인 후 사용 가능합니다"
+                  : getNodes().length === 0
+                    ? "워크플로우를 먼저 만들어주세요"
+                    : checkingTemplateStatus
+                      ? "템플릿 상태 확인 중..."
+                      : isCurrentWorkflowTemplate
+                        ? "템플릿 발행을 취소하고 일반 워크플로우로 변경"
+                        : "워크플로우를 템플릿으로 마켓플레이스에 공개"
+              }
+            >
+              {isCurrentWorkflowTemplate ? (
+                <>
+                  <Share2 className="h-4 w-4" />
+                  🔄 템플릿 취소
+                </>
+              ) : (
+                <>
+                  <Share2 className="h-4 w-4" />
+                  🎯 템플릿 발행
+                </>
+              )}
+            </Button>
+
+            {/* 🚀 직접 템플릿 변환 버튼 (간단한 방법) */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                if (!userId || !currentWorkflowId) {
+                  toast({
+                    title: "❌ 오류",
+                    description: "워크플로우를 먼저 저장해주세요",
+                    variant: 'destructive'
+                  });
+                  return;
+                }
+
+                try {
+                  console.log('🚀 [직접 템플릿 변환] 시작:', currentWorkflowId);
+                  const { client } = makeSSRClient();
+
+                  // 🔥 현재 워크플로우를 바로 템플릿으로 변환
+                  const { data, error } = await client
+                    .from('workflows')
+                    .update({
+                      status: 'shared',
+                      is_template: true,
+                      is_public: true,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', currentWorkflowId)
+                    .select('id, name, status, is_template, is_public')
+                    .single();
+
+                  console.log('🔧 [직접 템플릿 변환] DB 업데이트 결과:', { data, error });
+
+                  if (error) throw error;
+
+                  // workflow_shares에도 추가 (이미 있으면 무시)
+                  const { error: shareError } = await client
+                    .from('workflow_shares')
+                    .upsert({
+                      workflow_id: currentWorkflowId,
+                      shared_by_user_id: userId,
+                      share_type: 'template',
+                      share_title: data.name,
+                      share_description: '직접 변환된 템플릿',
+                      is_active: true,
+                      download_count: 0
+                    }, {
+                      onConflict: 'workflow_id,shared_by_user_id'
+                    });
+
+                  console.log('📤 [직접 템플릿 변환] 공유 정보:', { shareError });
+
+                  toast({
+                    title: "✅ 템플릿 변환 완료!",
+                    description: `워크플로우가 템플릿으로 변환되었습니다! Status: ${data.status}`,
+                    variant: 'default'
+                  });
+                } catch (e: any) {
+                  console.error('❌ [직접 템플릿 변환] 실패:', e);
+                  toast({
+                    title: "❌ 변환 실패",
+                    description: e.message || '알 수 없는 오류',
+                    variant: 'destructive'
+                  });
+                }
+              }}
+              disabled={!userId || !currentWorkflowId}
+              className={`h-9 px-4 gap-2 bg-green-50 border-green-200 hover:bg-green-100 ${
+                !userId || !currentWorkflowId ? 'opacity-50 cursor-not-allowed' : 'text-green-700 hover:text-green-800'
+              }`}
+              title={
+                !userId
+                  ? "로그인 후 사용 가능합니다"
+                  : !currentWorkflowId
+                    ? "워크플로우를 먼저 저장해주세요"
+                    : "현재 워크플로우를 바로 템플릿으로 변환"
+              }
+            >
+              <Zap className="h-4 w-4" />
+              🚀 직접변환
+            </Button>
+
             {/* 🧪 개발용 테스트 버튼들 (나중에 제거 예정) */}
             <Button
               onClick={() => {
@@ -1031,8 +1322,192 @@ export default function FlowToolbar({ className = '', onLoadWorkflow }: FlowTool
               variant="secondary"
               className="h-9 px-3 gap-1 bg-red-100 hover:bg-red-200 text-red-800 border-red-300"
             >
-              🔍 DB
-            </Button>
+            🔍 DB
+          </Button>
+
+          {/* 🔍 DB 상태 확인 버튼 */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              if (!userId) {
+                toast({ title: "오류", description: "로그인해주세요" });
+                return;
+              }
+
+              try {
+                const { client } = makeSSRClient();
+
+                // 모든 워크플로우 상태 확인
+                const { data: allWorkflows, error } = await client
+                  .from('workflows')
+                  .select('id, name, status, is_template, is_public, created_at')
+                  .eq('profile_id', userId)
+                  .order('updated_at', { ascending: false })
+                  .limit(10);
+
+                console.log('🔍 [DB 상태 확인] 사용자 워크플로우들:', allWorkflows);
+                console.log('🔍 [현재 UI 상태]:', {
+                  currentWorkflowId,
+                  isCurrentWorkflowTemplate,
+                  checkingTemplateStatus
+                });
+
+                if (error) throw error;
+
+                // 현재 워크플로우 특별 확인
+                if (currentWorkflowId) {
+                  const currentWorkflow = allWorkflows?.find(w => w.id === currentWorkflowId);
+                  console.log('🎯 [현재 워크플로우] 상태:', currentWorkflow);
+                  console.log('🎯 [상태 불일치 확인]:', {
+                    'DB에서 is_template': currentWorkflow?.is_template,
+                    'DB에서 status': currentWorkflow?.status,
+                    'UI에서 isCurrentWorkflowTemplate': isCurrentWorkflowTemplate,
+                    '실제 템플릿 여부': currentWorkflow?.is_template && currentWorkflow?.status === 'shared'
+                  });
+                }
+
+                const sharedCount = allWorkflows?.filter(w => w.status === 'shared').length || 0;
+                const templateCount = allWorkflows?.filter(w => w.is_template).length || 0;
+
+                // 강제로 상태 재확인
+                await checkCurrentWorkflowTemplateStatus();
+
+                toast({
+                  title: "🔍 DB 상태 확인 완료",
+                  description: `총 ${allWorkflows?.length || 0}개 워크플로우 (shared: ${sharedCount}, 템플릿: ${templateCount})`,
+                  variant: 'default'
+                });
+              } catch (e: any) {
+                console.error('DB 상태 확인 에러:', e);
+                toast({
+                  title: "❌ 확인 실패",
+                  description: e.message
+                });
+              }
+            }}
+          >
+            🔍 상태확인
+          </Button>
+
+          {/* 🔧 Status 강제 업데이트 테스트 버튼 */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              if (!userId) {
+                toast({ title: "오류", description: "로그인해주세요" });
+                return;
+              }
+
+              try {
+                const { client } = makeSSRClient();
+
+                // 현재 워크플로우가 있으면 그걸 업데이트, 없으면 최신 워크플로우 찾아서 업데이트
+                let targetWorkflowId = currentWorkflowId;
+
+                if (!targetWorkflowId) {
+                  const { data: latestWorkflow } = await client
+                    .from('workflows')
+                    .select('id, name')
+                    .eq('profile_id', userId)
+                    .order('updated_at', { ascending: false })
+                    .limit(1)
+                    .single();
+
+                  targetWorkflowId = latestWorkflow?.id;
+                }
+
+                if (!targetWorkflowId) {
+                  throw new Error('업데이트할 워크플로우가 없습니다');
+                }
+
+                console.log('🔧 [강제 업데이트] 대상 워크플로우:', targetWorkflowId);
+
+                const { data, error } = await client
+                  .from('workflows')
+                  .update({
+                    status: 'shared',
+                    is_template: true,
+                    is_public: true,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', targetWorkflowId)
+                  .select('id, name, status, is_template, is_public')
+                  .single();
+
+                console.log('🔧 [강제 status 업데이트] 결과:', { data, error });
+
+                if (error) throw error;
+
+                toast({
+                  title: "✅ 강제 업데이트 성공!",
+                  description: `워크플로우 "${data.name}" → Status: ${data.status}, 템플릿: ${data.is_template}`,
+                  variant: 'default'
+                });
+              } catch (e: any) {
+                console.error('강제 업데이트 에러:', e);
+                toast({
+                  title: "❌ 업데이트 실패",
+                  description: e.message
+                });
+              }
+            }}
+          >
+            🔧 강제업데이트
+          </Button>
+
+          {/* 🎯 SHARED 즉시 변경 버튼 (가장 간단) */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              if (!userId) {
+                toast({ title: "오류", description: "로그인해주세요" });
+                return;
+              }
+
+              try {
+                const { client } = makeSSRClient();
+
+                // 최신 워크플로우 찾기
+                const { data: latestWorkflow } = await client
+                  .from('workflows')
+                  .select('id, name')
+                  .eq('profile_id', userId)
+                  .order('updated_at', { ascending: false })
+                  .limit(1)
+                  .single();
+
+                if (!latestWorkflow) {
+                  throw new Error('워크플로우가 없습니다');
+                }
+
+                // 바로 SHARED로 변경
+                await client
+                  .from('workflows')
+                  .update({ status: 'shared' })
+                  .eq('id', latestWorkflow.id);
+
+                console.log('🎯 [SHARED 즉시변경] 완료:', latestWorkflow.id);
+
+                toast({
+                  title: "✅ SHARED 변경 완료!",
+                  description: `워크플로우 "${latestWorkflow.name}"가 SHARED 상태로 변경되었습니다`,
+                  variant: 'default'
+                });
+              } catch (e: any) {
+                console.error('SHARED 변경 에러:', e);
+                toast({
+                  title: "❌ 변경 실패",
+                  description: e.message
+                });
+              }
+            }}
+            className="h-9 px-3 gap-1 bg-yellow-50 border-yellow-200 hover:bg-yellow-100 text-yellow-800"
+          >
+            🎯 SHARED
+          </Button>
 
             <Button
               onClick={async () => {
@@ -1082,6 +1557,24 @@ export default function FlowToolbar({ className = '', onLoadWorkflow }: FlowTool
               <span className="text-sm text-muted-foreground">연결</span>
               <span className="text-sm font-semibold text-foreground">{currentEdgeCount}</span>
             </div>
+
+            {/* 🎯 템플릿 상태 표시 */}
+            {currentWorkflowId && (
+              <>
+                <div className="h-4 w-px bg-border/50" />
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    isCurrentWorkflowTemplate ? 'bg-purple-500' : 'bg-gray-400'
+                  }`} />
+                  <span className="text-sm text-muted-foreground">상태</span>
+                  <span className={`text-sm font-semibold ${
+                    isCurrentWorkflowTemplate ? 'text-purple-700' : 'text-foreground'
+                  }`}>
+                    {checkingTemplateStatus ? '확인중...' : isCurrentWorkflowTemplate ? '템플릿' : '일반'}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
 
           {/* 추가 액션 */}
@@ -1123,6 +1616,8 @@ export default function FlowToolbar({ className = '', onLoadWorkflow }: FlowTool
         onLoadWorkflow={handleLoadWorkflowFromDB}
         userId={userId}
       />
+
+      {/* 🎯 템플릿 발행 모달 제거됨 - 이제 바로 실행 */}
     </div>
   );
 }
